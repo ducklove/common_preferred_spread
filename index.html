@@ -334,15 +334,23 @@ tr:hover { background: var(--surface2); }
 
   // --- Table ---
   function renderTable() {
-    const stockPairs = pairs.filter(p => !p.isAverage);
-    const avgPair = pairs.find(p => p.isAverage);
-    const maxSpread = Math.max(...stockPairs.map(p => p.current.spread));
+    const maxSpread = Math.max(...pairs.filter(p => !p.isAverage).map(p => p.current.spread));
 
-    document.getElementById('tableBody').innerHTML = stockPairs.map(p => {
+    document.getElementById('tableBody').innerHTML = pairs.map(p => {
       const c = p.current;
       const dir = c.spreadChange >= 0 ? 'up' : 'down';
       const arrow = c.spreadChange >= 0 ? '▲' : '▼';
       const barW = (c.spread / maxSpread * 100).toFixed(1);
+      if (p.isAverage) {
+        return `<tr style="border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--surface2)">
+          <td><strong>${p.name}</strong></td>
+          <td></td>
+          <td></td>
+          <td><strong>${c.spread.toFixed(2)}%</strong></td>
+          <td class="${dir}-color">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</td>
+          <td><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
+        </tr>`;
+      }
       return `<tr>
         <td><strong>${p.name}</strong></td>
         <td>${formatPrice(c.commonPrice)}</td>
@@ -351,20 +359,7 @@ tr:hover { background: var(--surface2); }
         <td class="${dir}-color">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</td>
         <td><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
-    }).join('') + (avgPair ? (() => {
-      const a = avgPair.current;
-      const aDir = a.spreadChange >= 0 ? 'up' : 'down';
-      const aArrow = a.spreadChange >= 0 ? '▲' : '▼';
-      const aBarW = (a.spread / maxSpread * 100).toFixed(1);
-      return `<tr style="border-top:2px solid var(--accent);background:var(--surface2)">
-        <td><strong>전체 평균</strong></td>
-        <td></td>
-        <td></td>
-        <td><strong>${a.spread.toFixed(2)}%</strong></td>
-        <td class="${aDir}-color">${aArrow} ${Math.abs(a.spreadChange).toFixed(2)}%p</td>
-        <td><div class="bar-cell"><div class="bar" style="width:${aBarW}%;background:var(--green)"></div>${a.spread.toFixed(1)}%</div></td>
-      </tr>`;
-    })() : '');
+    }).join('');
   }
 
   // --- Stats ---

@@ -150,5 +150,61 @@
     "preferredTicker": "33626K.KS",
     "commonName": "두산퓨얼셀",
     "preferredName": "두산퓨얼셀1우"
+  },
+  {
+    "id": "byc",
+    "name": "BYC",
+    "commonTicker": "001460.KS",
+    "preferredTicker": "001465.KS",
+    "commonName": "BYC",
+    "preferredName": "BYC우"
+  },
+  {
+    "id": "solus",
+    "name": "솔루스첨단소재",
+    "commonTicker": "336370.KS",
+    "preferredTicker": "33637K.KS",
+    "commonName": "솔루스첨단소재",
+    "preferredName": "솔루스첨단소재1우"
+  },
+  {
+    "id": "nexen_tire",
+    "name": "넥센타이어",
+    "commonTicker": "002350.KS",
+    "preferredTicker": "002355.KS",
+    "commonName": "넥센타이어",
+    "preferredName": "넥센타이어1우B"
+  },
+  {
+    "id": "sebang",
+    "name": "세방",
+    "commonTicker": "004360.KS",
+    "preferredTicker": "004365.KS",
+    "commonName": "세방",
+    "preferredName": "세방우"
+  },
+  {
+    "id": "hanjinkal",
+    "name": "한진칼",
+    "commonTicker": "180640.KS",
+    "preferredTicker": "18064K.KS",
+    "commonName": "한진칼",
+    "preferredName": "한진칼우"
+  },
+  {
+    "id": "amore_holdings",
+    "name": "아모레G",
+    "commonTicker": "002790.KS",
+    "preferredTicker": "002795.KS",
+    "commonName": "아모레퍼시픽홀딩스",
+    "preferredName": "아모레퍼시픽홀딩스우"
+  },
+  {
+    "id": "sk_chemicals",
+    "name": "SK케미칼",
+    "commonTicker": "285130.KS",
+    "preferredTicker": "28513K.KS",
+    "commonName": "SK케미칼",
+    "preferredName": "SK케미칼우"
   }
 ]
