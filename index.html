@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우선주 괴리율 대시보드</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232733;
+  --border: #2e3345;
+  --text: #e4e7f1;
+  --text-dim: #8b90a5;
+  --accent: #6c8cff;
+  --up: #f0615e;
+  --down: #4a90d9;
+  --green: #38c96a;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+.header {
+  padding: 24px 32px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.header .updated {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 32px;
+}
+
+/* Summary cards */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.card:hover { border-color: var(--accent); }
+.card.avg-card { border-color: var(--green); background: rgba(56,201,106,0.06); }
+.card.avg-card.active { border-color: var(--green); background: rgba(56,201,106,0.12); }
+.card.active {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.card .name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card .spread-val {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.card .spread-change {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.card .spread-change.up { color: var(--up); }
+.card .spread-change.down { color: var(--down); }
+.card .prices {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Chart area */
+.chart-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.chart-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.period-btns {
+  display: flex;
+  gap: 4px;
+}
+.period-btns button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 5px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.period-btns button:hover { border-color: var(--accent); color: var(--text); }
+.period-btns button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 380px;
+}
+canvas { display: block; }
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.stat-box .label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat-box .value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* Comparison table */
+.table-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.table-section h2 {
+  font-size: 17px;
+  font-weight: 600;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+th {
+  text-align: left;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover { background: var(--surface2); }
+.up-color { color: var(--up); }
+.down-color { color: var(--down); }
+
+/* Bar in table */
+.bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 10;
+  min-width: 160px;
+}
+.tooltip.visible { opacity: 1; }
+.tooltip .tt-date { color: var(--text-dim); margin-bottom: 6px; }
+.tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+
+@media (max-width: 768px) {
+  .header, .container { padding-left: 16px; padding-right: 16px; }
+  .cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .chart-container { height: 280px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>우선주 괴리율 대시보드</h1>
+  <div class="updated" id="lastUpdated"></div>
+</div>
+
+<div class="container">
+  <div class="cards" id="cards"></div>
+
+  <div class="chart-section">
+    <div class="chart-header">
+      <div class="chart-title" id="chartTitle">삼성전자 괴리율 추이</div>
+      <div class="period-btns" id="periodBtns">
+        <button data-days="30">1M</button>
+        <button data-days="90">3M</button>
+        <button data-days="180">6M</button>
+        <button data-days="365">1Y</button>
+        <button data-days="0" class="active">전체</button>
+      </div>
+    </div>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="table-section">
+    <h2>종목 비교</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>종목</th>
+          <th>보통주</th>
+          <th>우선주</th>
+          <th>현재 괴리율</th>
+          <th>변동</th>
+          <th style="min-width:120px">괴리율</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function() {
+  const pairs = STOCK_DATA.pairs;
+  let selectedIdx = 0;
+  let periodDays = 0; // 0 = all
+
+  // --- Init ---
+  document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
+  renderCards();
+  renderTable();
+  renderChart();
+  renderStats();
+  bindPeriodBtns();
+
+  // --- Cards ---
+  function renderCards() {
+    const el = document.getElementById('cards');
+    el.innerHTML = pairs.map((p, i) => {
+      const c = p.current;
+      const dir = c.spreadChange >= 0 ? 'up' : 'down';
+      const arrow = c.spreadChange >= 0 ? '▲' : '▼';
+      const prices = p.isAverage ? '' : `<div class="prices">
+          <span>${p.commonName} ${formatPrice(c.commonPrice)}</span>
+          <span>${p.preferredName} ${formatPrice(c.preferredPrice)}</span>
+        </div>`;
+      return `<div class="card${i === selectedIdx ? ' active' : ''}${p.isAverage ? ' avg-card' : ''}" data-idx="${i}">
+        <div class="name">${p.name}</div>
+        <div class="spread-val">${c.spread.toFixed(1)}%</div>
+        <div class="spread-change ${dir}">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</div>
+        ${prices}
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('click', () => {
+        selectedIdx = parseInt(card.dataset.idx);
+        renderCards();
+        renderChart();
+        renderStats();
+      });
+    });
+  }
+
+  // --- Table ---
+  function renderTable() {
+    const stockPairs = pairs.filter(p => !p.isAverage);
+    const avgPair = pairs.find(p => p.isAverage);
+    const maxSpread = Math.max(...stockPairs.map(p => p.current.spread));
+
+    document.getElementById('tableBody').innerHTML = stockPairs.map(p => {
+      const c = p.current;
+      const dir = c.spreadChange >= 0 ? 'up' : 'down';
+      const arrow = c.spreadChange >= 0 ? '▲' : '▼';
+      const barW = (c.spread / maxSpread * 100).toFixed(1);
+      return `<tr>
+        <td><strong>${p.name}</strong></td>
+        <td>${formatPrice(c.commonPrice)}</td>
+        <td>${formatPrice(c.preferredPrice)}</td>
+        <td><strong>${c.spread.toFixed(2)}%</strong></td>
+        <td class="${dir}-color">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</td>
+        <td><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
+      </tr>`;
+    }).join('') + (avgPair ? (() => {
+      const a = avgPair.current;
+      const aDir = a.spreadChange >= 0 ? 'up' : 'down';
+      const aArrow = a.spreadChange >= 0 ? '▲' : '▼';
+      const aBarW = (a.spread / maxSpread * 100).toFixed(1);
+      return `<tr style="border-top:2px solid var(--accent);background:var(--surface2)">
+        <td><strong>전체 평균</strong></td>
+        <td></td>
+        <td></td>
+        <td><strong>${a.spread.toFixed(2)}%</strong></td>
+        <td class="${aDir}-color">${aArrow} ${Math.abs(a.spreadChange).toFixed(2)}%p</td>
+        <td><div class="bar-cell"><div class="bar" style="width:${aBarW}%;background:var(--green)"></div>${a.spread.toFixed(1)}%</div></td>
+      </tr>`;
+    })() : '');
+  }
+
+  // --- Stats ---
+  function renderStats() {
+    const p = pairs[selectedIdx];
+    const hist = getFilteredHistory(p);
+    const spreads = hist.map(h => h.spread);
+    const min = Math.min(...spreads);
+    const max = Math.max(...spreads);
+    const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+    const current = p.current.spread;
+
+    // Percentile
+    const sorted = [...spreads].sort((a, b) => a - b);
+    const rank = sorted.filter(s => s <= current).length;
+    const percentile = (rank / sorted.length * 100).toFixed(0);
+
+    const statsEl = document.getElementById('statsRow');
+    statsEl.innerHTML = `
+      <div class="stat-box"><div class="label">현재 괴리율</div><div class="value">${current.toFixed(2)}%</div></div>
+      <div class="stat-box"><div class="label">평균</div><div class="value">${avg.toFixed(2)}%</div></div>
+      <div class="stat-box"><div class="label">최저</div><div class="value">${min.toFixed(2)}%</div></div>
+      <div class="stat-box"><div class="label">최고</div><div class="value">${max.toFixed(2)}%</div></div>
+      <div class="stat-box"><div class="label">백분위</div><div class="value">${percentile}%</div></div>
+      <div class="stat-box"><div class="label">데이터 수</div><div class="value">${hist.length}일</div></div>
+    `;
+  }
+
+  // --- Chart ---
+  function renderChart() {
+    const p = pairs[selectedIdx];
+    document.getElementById('chartTitle').textContent = p.name + ' 괴리율 추이';
+
+    const canvas = document.getElementById('chart');
+    const container = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const W = rect.width;
+    const H = rect.height;
+
+    const hist = getFilteredHistory(p);
+    if (hist.length < 2) return;
+
+    const spreads = hist.map(h => h.spread);
+    const minS = Math.min(...spreads);
+    const maxS = Math.max(...spreads);
+    const rangeS = maxS - minS || 1;
+    const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+
+    const pad = { top: 20, right: 16, bottom: 36, left: 56 };
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top - pad.bottom;
+
+    // Clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Y axis grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    const yTicks = 5;
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillStyle = '#8b90a5';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= yTicks; i++) {
+      const v = minS + (rangeS * i / yTicks);
+      const y = pad.top + cH - (cH * i / yTicks);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(W - pad.right, y);
+      ctx.stroke();
+      ctx.fillText(v.toFixed(1) + '%', pad.left - 8, y + 4);
+    }
+
+    // Average line
+    const avgY = pad.top + cH - ((avg - minS) / rangeS * cH);
+    ctx.strokeStyle = 'rgba(108,140,255,0.3)';
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, avgY);
+    ctx.lineTo(W - pad.right, avgY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(108,140,255,0.6)';
+    ctx.textAlign = 'left';
+    ctx.fillText('평균 ' + avg.toFixed(1) + '%', pad.left + 4, avgY - 6);
+
+    // X axis labels
+    ctx.fillStyle = '#8b90a5';
+    ctx.textAlign = 'center';
+    const xLabelCount = Math.min(6, hist.length);
+    for (let i = 0; i < xLabelCount; i++) {
+      const idx = Math.floor(i * (hist.length - 1) / (xLabelCount - 1));
+      const x = pad.left + (idx / (hist.length - 1)) * cW;
+      ctx.fillText(hist[idx].date.slice(2), x, H - pad.bottom + 20);
+    }
+
+    // Gradient fill
+    const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+    gradient.addColorStop(0, 'rgba(108,140,255,0.25)');
+    gradient.addColorStop(1, 'rgba(108,140,255,0.0)');
+
+    ctx.beginPath();
+    for (let i = 0; i < hist.length; i++) {
+      const x = pad.left + (i / (hist.length - 1)) * cW;
+      const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    const lastX = pad.left + cW;
+    ctx.lineTo(lastX, pad.top + cH);
+    ctx.lineTo(pad.left, pad.top + cH);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    for (let i = 0; i < hist.length; i++) {
+      const x = pad.left + (i / (hist.length - 1)) * cW;
+      const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#6c8cff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Tooltip interaction
+    const tooltip = document.getElementById('tooltip');
+    canvas.onmousemove = function(e) {
+      const r = canvas.getBoundingClientRect();
+      const mx = e.clientX - r.left;
+      const my = e.clientY - r.top;
+      if (mx < pad.left || mx > W - pad.right || my < pad.top || my > pad.top + cH) {
+        tooltip.classList.remove('visible');
+        return;
+      }
+      const ratio = (mx - pad.left) / cW;
+      const idx = Math.round(ratio * (hist.length - 1));
+      const d = hist[idx];
+      if (!d) return;
+
+      const dotX = pad.left + (idx / (hist.length - 1)) * cW;
+      const dotY = pad.top + cH - ((d.spread - minS) / rangeS * cH);
+
+      // Draw dot
+      renderChart._raf && cancelAnimationFrame(renderChart._raf);
+      renderChart._raf = requestAnimationFrame(() => {
+        renderChart._lastCtx = ctx;
+      });
+
+      tooltip.innerHTML = `
+        <div class="tt-date">${d.date}</div>
+        <div class="tt-row"><span>보통주</span><span>${formatPrice(d.commonPrice)}</span></div>
+        <div class="tt-row"><span>우선주</span><span>${formatPrice(d.preferredPrice)}</span></div>
+        <div class="tt-row"><span><strong>괴리율</strong></span><span><strong>${d.spread.toFixed(2)}%</strong></span></div>
+      `;
+
+      let tx = dotX + 12;
+      let ty = dotY - 60;
+      if (tx + 180 > W) tx = dotX - 180;
+      if (ty < 0) ty = dotY + 12;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
+      tooltip.classList.add('visible');
+    };
+    canvas.onmouseleave = function() {
+      tooltip.classList.remove('visible');
+    };
+  }
+
+  // --- Period buttons ---
+  function bindPeriodBtns() {
+    document.getElementById('periodBtns').addEventListener('click', function(e) {
+      if (e.target.tagName !== 'BUTTON') return;
+      this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      periodDays = parseInt(e.target.dataset.days);
+      renderChart();
+      renderStats();
+    });
+  }
+
+  // --- Helpers ---
+  function getFilteredHistory(pair) {
+    const hist = pair.history;
+    if (periodDays === 0) return hist;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - periodDays);
+    const cutStr = cutoff.toISOString().slice(0, 10);
+    return hist.filter(h => h.date >= cutStr);
+  }
+
+  function formatPrice(n) {
+    return n.toLocaleString('ko-KR') + '원';
+  }
+
+  // Resize
+  window.addEventListener('resize', () => renderChart());
+})();
+</script>
+</body>
+</html>

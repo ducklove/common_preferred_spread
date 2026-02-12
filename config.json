@@ -1,0 +1,154 @@
+[
+  {
+    "id": "samsung_elec",
+    "name": "삼성전자",
+    "commonTicker": "005930.KS",
+    "preferredTicker": "005935.KS",
+    "commonName": "삼성전자",
+    "preferredName": "삼성전자우"
+  },
+  {
+    "id": "hyundai_motor",
+    "name": "현대차",
+    "commonTicker": "005380.KS",
+    "preferredTicker": "005387.KS",
+    "commonName": "현대차",
+    "preferredName": "현대차2우B"
+  },
+  {
+    "id": "lg_elec",
+    "name": "LG전자",
+    "commonTicker": "066570.KS",
+    "preferredTicker": "066575.KS",
+    "commonName": "LG전자",
+    "preferredName": "LG전자우"
+  },
+  {
+    "id": "lg_chem",
+    "name": "LG화학",
+    "commonTicker": "051910.KS",
+    "preferredTicker": "051915.KS",
+    "commonName": "LG화학",
+    "preferredName": "LG화학우"
+  },
+  {
+    "id": "samsung_sdi",
+    "name": "삼성SDI",
+    "commonTicker": "006400.KS",
+    "preferredTicker": "006405.KS",
+    "commonName": "삼성SDI",
+    "preferredName": "삼성SDI우"
+  },
+  {
+    "id": "amorepacific",
+    "name": "아모레퍼시픽",
+    "commonTicker": "090430.KS",
+    "preferredTicker": "090435.KS",
+    "commonName": "아모레퍼시픽",
+    "preferredName": "아모레퍼시픽우"
+  },
+  {
+    "id": "samsung_fire",
+    "name": "삼성화재",
+    "commonTicker": "000810.KS",
+    "preferredTicker": "000815.KS",
+    "commonName": "삼성화재",
+    "preferredName": "삼성화재우"
+  },
+  {
+    "id": "daishin_sec",
+    "name": "대신증권",
+    "commonTicker": "003540.KS",
+    "preferredTicker": "003545.KS",
+    "commonName": "대신증권",
+    "preferredName": "대신증권우"
+  },
+  {
+    "id": "lg_household",
+    "name": "LG생활건강",
+    "commonTicker": "051900.KS",
+    "preferredTicker": "051905.KS",
+    "commonName": "LG생활건강",
+    "preferredName": "LG생활건강우"
+  },
+  {
+    "id": "doosan",
+    "name": "두산",
+    "commonTicker": "000150.KS",
+    "preferredTicker": "000155.KS",
+    "commonName": "두산",
+    "preferredName": "두산우"
+  },
+  {
+    "id": "korea_investment",
+    "name": "한국금융지주",
+    "commonTicker": "071050.KS",
+    "preferredTicker": "071055.KS",
+    "commonName": "한국금융지주",
+    "preferredName": "한국금융지주우"
+  },
+  {
+    "id": "samsung_electro",
+    "name": "삼성전기",
+    "commonTicker": "009150.KS",
+    "preferredTicker": "009155.KS",
+    "commonName": "삼성전기",
+    "preferredName": "삼성전기우"
+  },
+  {
+    "id": "nh_investment",
+    "name": "NH투자증권",
+    "commonTicker": "005940.KS",
+    "preferredTicker": "005945.KS",
+    "commonName": "NH투자증권",
+    "preferredName": "NH투자증권우"
+  },
+  {
+    "id": "kumho_petro",
+    "name": "금호석유",
+    "commonTicker": "011780.KS",
+    "preferredTicker": "011785.KS",
+    "commonName": "금호석유",
+    "preferredName": "금호석유우"
+  },
+  {
+    "id": "cj_cheiljedang",
+    "name": "CJ제일제당",
+    "commonTicker": "097950.KS",
+    "preferredTicker": "097955.KS",
+    "commonName": "CJ제일제당",
+    "preferredName": "CJ제일제당우"
+  },
+  {
+    "id": "s_oil",
+    "name": "S-Oil",
+    "commonTicker": "010950.KS",
+    "preferredTicker": "010955.KS",
+    "commonName": "S-Oil",
+    "preferredName": "S-Oil우"
+  },
+  {
+    "id": "lg",
+    "name": "LG",
+    "commonTicker": "003550.KS",
+    "preferredTicker": "003555.KS",
+    "commonName": "LG",
+    "preferredName": "LG우"
+  },
+  {
+    "id": "cj",
+    "name": "CJ",
+    "commonTicker": "001040.KS",
+    "preferredTicker": "001045.KS",
+    "commonName": "CJ",
+    "preferredName": "CJ우"
+  },
+  {
+    "id": "doosan_fuelcell",
+    "name": "두산퓨얼셀",
+    "commonTicker": "336260.KS",
+    "preferredTicker": "33626K.KS",
+    "commonName": "두산퓨얼셀",
+    "preferredName": "두산퓨얼셀1우"
+  }
+]
