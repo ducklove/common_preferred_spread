@@ -107,6 +107,16 @@ def main():
         prev = history[-2] if len(history) >= 2 else latest
         spread_change = round(latest["spread"] - prev["spread"], 2)
 
+        # 배당수익률 조회
+        try:
+            c_dy = yf.Ticker(ct).info.get("dividendYield") or 0
+        except Exception:
+            c_dy = 0
+        try:
+            p_dy = yf.Ticker(pt).info.get("dividendYield") or 0
+        except Exception:
+            p_dy = 0
+
         pair_data = {
             "id": pair["id"],
             "name": pair["name"],
@@ -117,6 +127,8 @@ def main():
                 "preferredPrice": latest["preferredPrice"],
                 "spread": latest["spread"],
                 "spreadChange": spread_change,
+                "commonDivYield": round(c_dy, 2),
+                "preferredDivYield": round(p_dy, 2),
             },
             "history": history,
         }
@@ -125,7 +137,8 @@ def main():
         print(
             f"  {pair['name']}: {len(history)} days, "
             f"current spread {latest['spread']:.2f}% "
-            f"({'↑' if spread_change > 0 else '↓'}{abs(spread_change):.2f}%p)"
+            f"({'↑' if spread_change > 0 else '↓'}{abs(spread_change):.2f}%p) "
+            f"div: {pair_data['current']['commonDivYield']:.1f}%/{pair_data['current']['preferredDivYield']:.1f}%"
         )
 
     # KOSPI 지수 데이터 준비

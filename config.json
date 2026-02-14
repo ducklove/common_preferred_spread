@@ -206,5 +206,29 @@
     "preferredTicker": "28513K.KS",
     "commonName": "SK케미칼",
     "preferredName": "SK케미칼우"
+  },
+  {
+    "id": "sk",
+    "name": "SK",
+    "commonTicker": "034730.KS",
+    "preferredTicker": "03473K.KS",
+    "commonName": "SK",
+    "preferredName": "SK우"
+  },
+  {
+    "id": "hanwha",
+    "name": "한화",
+    "commonTicker": "000880.KS",
+    "preferredTicker": "00088K.KS",
+    "commonName": "한화",
+    "preferredName": "한화3우B"
+  },
+  {
+    "id": "mirae_asset",
+    "name": "미래에셋증권",
+    "commonTicker": "006800.KS",
+    "preferredTicker": "00680K.KS",
+    "commonName": "미래에셋증권",
+    "preferredName": "미래에셋증권2우B"
   }
 ]

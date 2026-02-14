@@ -94,6 +94,10 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+.card .div-yield {
+  color: var(--green);
+  font-weight: 600;
+}
 
 /* Chart area */
 .chart-section {
@@ -355,8 +359,8 @@ tr:hover { background: var(--surface2); }
       const dir = c.spreadChange >= 0 ? 'up' : 'down';
       const arrow = c.spreadChange >= 0 ? '▲' : '▼';
       const prices = p.isAverage ? '' : `<div class="prices">
-          <span>${p.commonName} ${formatPrice(c.commonPrice)}</span>
-          <span>${p.preferredName} ${formatPrice(c.preferredPrice)}</span>
+          <span>${p.commonName} ${formatPrice(c.commonPrice)} <span class="div-yield">${c.commonDivYield.toFixed(1)}%</span></span>
+          <span>${p.preferredName} ${formatPrice(c.preferredPrice)} <span class="div-yield">${c.preferredDivYield.toFixed(1)}%</span></span>
         </div>`;
       return `<div class="card${i === selectedIdx ? ' active' : ''}${p.isAverage ? ' avg-card' : ''}" data-idx="${i}">
         <div class="name">${p.name}</div>
