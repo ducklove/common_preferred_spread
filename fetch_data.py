@@ -19,7 +19,8 @@ with open(CONFIG_PATH, encoding="utf-8") as f:
 
 
 def main():
-    # 모든 티커 수집 (중복 제거)
+    # 모든 티커 수집 (중복 제거) + KOSPI 지수
+    KOSPI_TICKER = "^KS11"
     all_tickers = list(
         dict.fromkeys(
             ticker
@@ -27,23 +28,25 @@ def main():
             for ticker in [pair["commonTicker"], pair["preferredTicker"]]
         )
     )
+    all_tickers.append(KOSPI_TICKER)
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=3 * 365 + 30)  # 3년 + 여유분
+    start_date = datetime(2000, 1, 1)  # Yahoo Finance 최대 범위
 
     print(f"Downloading data for {len(all_tickers)} tickers...")
     print(f"Period: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
 
-    # 일괄 다운로드
+    # 일괄 다운로드 (비조정 종가 사용)
     data = yf.download(
         all_tickers,
         start=start_date.strftime("%Y-%m-%d"),
         end=end_date.strftime("%Y-%m-%d"),
-        auto_adjust=True,
+        auto_adjust=False,
         progress=True,
     )
 
     close = data["Close"]
+    volume = data["Volume"]
 
     # 각 페어별로 괴리율 계산
     pairs_result = []
@@ -52,8 +55,11 @@ def main():
         ct = pair["commonTicker"]
         pt = pair["preferredTicker"]
 
+        # 거래정지일(volume=0) 제외
         common_close = close[ct].dropna()
         preferred_close = close[pt].dropna()
+        common_vol = volume[ct].fillna(0)
+        preferred_vol = volume[pt].fillna(0)
 
         # 두 시리즈의 공통 날짜만 사용
         common_dates = common_close.index.intersection(preferred_close.index)
@@ -61,11 +67,28 @@ def main():
             print(f"  WARNING: No overlapping dates for {pair['name']}, skipping.")
             continue
 
+        # 양쪽 모두 거래가 있는 날짜만 사용
+        traded = (common_vol.loc[common_dates] > 0) & (preferred_vol.loc[common_dates] > 0)
+        common_dates = common_dates[traded]
+        if len(common_dates) == 0:
+            print(f"  WARNING: No traded dates for {pair['name']}, skipping.")
+            continue
+
         c = common_close.loc[common_dates]
         p = preferred_close.loc[common_dates]
 
         # 괴리율: (보통주 - 우선주) / 보통주 * 100
         spread = (c - p) / c * 100
+
+        # Yahoo Finance 소급 조정 오류 필터 (괴리율 -100% 미만은 불가능한 값)
+        valid = spread > -100
+        if not valid.all():
+            n_removed = (~valid).sum()
+            print(f"  WARNING: {pair['name']}: Yahoo 조정 오류 {n_removed}일 제외")
+            common_dates = common_dates[valid]
+            c = c.loc[common_dates]
+            p = p.loc[common_dates]
+            spread = spread.loc[common_dates]
 
         # 히스토리 구성
         history = []
@@ -105,6 +128,9 @@ def main():
             f"({'↑' if spread_change > 0 else '↓'}{abs(spread_change):.2f}%p)"
         )
 
+    # KOSPI 지수 데이터 준비
+    kospi_close = close[KOSPI_TICKER].dropna()
+
     # 일별 전체 평균 괴리율 계산
     daily_spreads = defaultdict(list)
     for pair_data in pairs_result:
@@ -112,14 +138,24 @@ def main():
             daily_spreads[h["date"]].append(h["spread"])
 
     avg_history = []
+    n_pairs = len(pairs_result)
     for date in sorted(daily_spreads.keys()):
         spreads = daily_spreads[date]
-        avg_history.append({
+        # 종목 수가 절반 미만인 날은 휴장일 오류 데이터이므로 제외
+        if len(spreads) < n_pairs / 2:
+            continue
+        # KOSPI 종가
+        ts = pd.Timestamp(date)
+        kospi_price = round(float(kospi_close.loc[ts]), 2) if ts in kospi_close.index else None
+        entry = {
             "date": date,
             "commonPrice": 0,
             "preferredPrice": 0,
             "spread": round(sum(spreads) / len(spreads), 2),
-        })
+        }
+        if kospi_price is not None:
+            entry["kospiPrice"] = kospi_price
+        avg_history.append(entry)
 
     if avg_history:
         latest_avg = avg_history[-1]
