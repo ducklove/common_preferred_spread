@@ -342,6 +342,24 @@ tr:hover { background: var(--surface2); }
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
 
+  // Build card groups by commonName
+  const cardGroups = (() => {
+    const map = new Map();
+    pairs.forEach((p, i) => {
+      if (p.isAverage) {
+        map.set('__avg__', [{ pair: p, idx: i }]);
+        return;
+      }
+      const key = p.commonName;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push({ pair: p, idx: i });
+    });
+    for (const items of map.values()) {
+      items.sort((a, b) => b.pair.current.spread - a.pair.current.spread);
+    }
+    return [...map.values()];
+  })();
+
   // --- Init ---
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
   renderCards();
@@ -354,16 +372,45 @@ tr:hover { background: var(--surface2); }
   // --- Cards ---
   function renderCards() {
     const el = document.getElementById('cards');
-    el.innerHTML = pairs.map((p, i) => {
+    el.innerHTML = cardGroups.map(items => {
+      const top = items[0];
+      const p = top.pair;
       const c = p.current;
+      const primaryIdx = top.idx;
+      const isActive = items.some(item => item.idx === selectedIdx);
       const dir = c.spreadChange >= 0 ? 'up' : 'down';
       const arrow = c.spreadChange >= 0 ? '▲' : '▼';
-      const prices = p.isAverage ? '' : `<div class="prices">
+
+      if (p.isAverage) {
+        return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
+          <div class="name">${p.name}</div>
+          <div class="spread-val">${c.spread.toFixed(1)}%</div>
+          <div class="spread-change ${dir}">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</div>
+        </div>`;
+      }
+
+      const displayName = items.length > 1 ? p.commonName : p.name;
+      let prices;
+      if (items.length === 1) {
+        prices = `<div class="prices">
           <span>${p.commonName} ${formatPrice(c.commonPrice)} <span class="div-yield">${c.commonDivYield.toFixed(1)}%</span></span>
           <span>${p.preferredName} ${formatPrice(c.preferredPrice)} <span class="div-yield">${c.preferredDivYield.toFixed(1)}%</span></span>
         </div>`;
-      return `<div class="card${i === selectedIdx ? ' active' : ''}${p.isAverage ? ' avg-card' : ''}" data-idx="${i}">
-        <div class="name">${p.name}</div>
+      } else {
+        const prefLines = items.map(item => {
+          const ip = item.pair;
+          const ic = ip.current;
+          const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
+          return `<span>${suffix} ${formatPrice(ic.preferredPrice)} <span class="div-yield">${ic.preferredDivYield.toFixed(1)}%</span> ${ic.spread.toFixed(1)}%</span>`;
+        }).join('');
+        prices = `<div class="prices">
+          <span>${p.commonName} ${formatPrice(c.commonPrice)} <span class="div-yield">${c.commonDivYield.toFixed(1)}%</span></span>
+          ${prefLines}
+        </div>`;
+      }
+
+      return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
+        <div class="name">${displayName}</div>
         <div class="spread-val">${c.spread.toFixed(1)}%</div>
         <div class="spread-change ${dir}">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</div>
         ${prices}
@@ -382,9 +429,11 @@ tr:hover { background: var(--surface2); }
 
   // --- Table ---
   function renderTable() {
-    const maxSpread = Math.max(...pairs.filter(p => !p.isAverage).map(p => p.current.spread));
+    // Show only the highest-spread pair per group
+    const tablePairs = cardGroups.map(items => items[0].pair);
+    const maxSpread = Math.max(...tablePairs.filter(p => !p.isAverage).map(p => p.current.spread));
 
-    document.getElementById('tableBody').innerHTML = pairs.map(p => {
+    document.getElementById('tableBody').innerHTML = tablePairs.map(p => {
       const c = p.current;
       const dir = c.spreadChange >= 0 ? 'up' : 'down';
       const arrow = c.spreadChange >= 0 ? '▲' : '▼';
@@ -399,8 +448,9 @@ tr:hover { background: var(--surface2); }
           <td><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
       }
+      const displayName = p.name.includes('/') ? p.commonName : p.name;
       return `<tr>
-        <td><strong>${p.name}</strong></td>
+        <td><strong>${displayName}</strong></td>
         <td>${formatPrice(c.commonPrice)}</td>
         <td>${formatPrice(c.preferredPrice)}</td>
         <td><strong>${c.spread.toFixed(2)}%</strong></td>

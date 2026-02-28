@@ -9,11 +9,27 @@
   },
   {
     "id": "hyundai_motor",
-    "name": "현대차",
+    "name": "현대차/2우B",
     "commonTicker": "005380.KS",
     "preferredTicker": "005387.KS",
     "commonName": "현대차",
     "preferredName": "현대차2우B"
+  },
+  {
+    "id": "hyundai_motor_pref",
+    "name": "현대차/우",
+    "commonTicker": "005380.KS",
+    "preferredTicker": "005385.KS",
+    "commonName": "현대차",
+    "preferredName": "현대차우"
+  },
+  {
+    "id": "hyundai_motor_3pref",
+    "name": "현대차/3우",
+    "commonTicker": "005380.KS",
+    "preferredTicker": "005389.KS",
+    "commonName": "현대차",
+    "preferredName": "현대차3우B"
   },
   {
     "id": "lg_elec",
@@ -57,11 +73,19 @@
   },
   {
     "id": "daishin_sec",
-    "name": "대신증권",
+    "name": "대신증권/우",
     "commonTicker": "003540.KS",
     "preferredTicker": "003545.KS",
     "commonName": "대신증권",
     "preferredName": "대신증권우"
+  },
+  {
+    "id": "daishin_sec_2pref",
+    "name": "대신증권/2우B",
+    "commonTicker": "003540.KS",
+    "preferredTicker": "003547.KS",
+    "commonName": "대신증권",
+    "preferredName": "대신증권2우B"
   },
   {
     "id": "lg_household",
@@ -73,11 +97,19 @@
   },
   {
     "id": "doosan",
-    "name": "두산",
+    "name": "두산/우",
     "commonTicker": "000150.KS",
     "preferredTicker": "000155.KS",
     "commonName": "두산",
     "preferredName": "두산우"
+  },
+  {
+    "id": "doosan_2pref",
+    "name": "두산/2우B",
+    "commonTicker": "000150.KS",
+    "preferredTicker": "000157.KS",
+    "commonName": "두산",
+    "preferredName": "두산2우B"
   },
   {
     "id": "korea_investment",
@@ -137,19 +169,35 @@
   },
   {
     "id": "cj",
-    "name": "CJ",
+    "name": "CJ/우",
     "commonTicker": "001040.KS",
     "preferredTicker": "001045.KS",
     "commonName": "CJ",
     "preferredName": "CJ우"
   },
   {
+    "id": "cj_4pref",
+    "name": "CJ/4우",
+    "commonTicker": "001040.KS",
+    "preferredTicker": "00104K.KS",
+    "commonName": "CJ",
+    "preferredName": "CJ4우"
+  },
+  {
     "id": "doosan_fuelcell",
-    "name": "두산퓨얼셀",
+    "name": "두산퓨얼셀/1우",
     "commonTicker": "336260.KS",
     "preferredTicker": "33626K.KS",
     "commonName": "두산퓨얼셀",
     "preferredName": "두산퓨얼셀1우"
+  },
+  {
+    "id": "doosan_fuelcell_2pref",
+    "name": "두산퓨얼셀/2우B",
+    "commonTicker": "336260.KS",
+    "preferredTicker": "33626L.KS",
+    "commonName": "두산퓨얼셀",
+    "preferredName": "두산퓨얼셀2우B"
   },
   {
     "id": "byc",
@@ -161,11 +209,19 @@
   },
   {
     "id": "solus",
-    "name": "솔루스첨단소재",
+    "name": "솔루스첨단소재/1우",
     "commonTicker": "336370.KS",
     "preferredTicker": "33637K.KS",
     "commonName": "솔루스첨단소재",
     "preferredName": "솔루스첨단소재1우"
+  },
+  {
+    "id": "solus_2pref",
+    "name": "솔루스첨단소재/2우B",
+    "commonTicker": "336370.KS",
+    "preferredTicker": "33637L.KS",
+    "commonName": "솔루스첨단소재",
+    "preferredName": "솔루스첨단소재2우B"
   },
   {
     "id": "nexen_tire",
@@ -225,10 +281,18 @@
   },
   {
     "id": "mirae_asset",
-    "name": "미래에셋증권",
+    "name": "미래에셋증권/2우B",
     "commonTicker": "006800.KS",
     "preferredTicker": "00680K.KS",
     "commonName": "미래에셋증권",
     "preferredName": "미래에셋증권2우B"
+  },
+  {
+    "id": "mirae_asset_pref",
+    "name": "미래에셋증권/우",
+    "commonTicker": "006800.KS",
+    "preferredTicker": "006805.KS",
+    "commonName": "미래에셋증권",
+    "preferredName": "미래에셋증권우"
   }
 ]

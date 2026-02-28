@@ -144,14 +144,22 @@ def main():
     # KOSPI 지수 데이터 준비
     kospi_close = close[KOSPI_TICKER].dropna()
 
+    # 그룹(commonName)당 최고 괴리율 pair만 선택하여 평균 계산
+    rep_pairs = {}
+    for pair_data in pairs_result:
+        cn = pair_data["commonName"]
+        if cn not in rep_pairs or pair_data["current"]["spread"] > rep_pairs[cn]["current"]["spread"]:
+            rep_pairs[cn] = pair_data
+    rep_pairs_list = list(rep_pairs.values())
+
     # 일별 전체 평균 괴리율 계산
     daily_spreads = defaultdict(list)
-    for pair_data in pairs_result:
+    for pair_data in rep_pairs_list:
         for h in pair_data["history"]:
             daily_spreads[h["date"]].append(h["spread"])
 
     avg_history = []
-    n_pairs = len(pairs_result)
+    n_pairs = len(rep_pairs_list)
     for date in sorted(daily_spreads.keys()):
         spreads = daily_spreads[date]
         # 종목 수가 절반 미만인 날은 휴장일 오류 데이터이므로 제외
