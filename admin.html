@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>종목 관리</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232733;
+  --border: #2e3345;
+  --text: #e4e7f1;
+  --text-dim: #8b90a5;
+  --accent: #6c8cff;
+  --accent-hover: #5a7af0;
+  --up: #f0615e;
+  --down: #4a90d9;
+  --green: #38c96a;
+  --warn: #f5a623;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.container { max-width: 1000px; margin: 0 auto; padding: 20px 32px; }
+
+.btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-green { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-green:hover { background: #2fb85d; }
+.btn-danger { color: var(--up); }
+.btn-danger:hover { border-color: var(--up); background: rgba(240,97,94,0.1); }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+
+.pair-list { display: flex; flex-direction: column; gap: 12px; }
+.pair-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pair-card:hover { border-color: var(--accent); }
+.pair-info { flex: 1; min-width: 0; }
+.pair-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.pair-detail { font-size: 13px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 8px; }
+.pair-detail span { white-space: nowrap; }
+.pair-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.status-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 32px;
+  font-size: 13px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.connected { background: var(--green); }
+.status-dot.disconnected { background: var(--up); }
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.visible { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 90%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.form-hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-group input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.form-group input:focus { border-color: var(--accent); }
+.form-group input::placeholder { color: #555; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface2);
+  border: 1px solid var(--green);
+  color: var(--text);
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: transform 0.3s;
+  z-index: 200;
+}
+.toast.error { border-color: var(--up); }
+.toast.visible { transform: translateX(-50%) translateY(0); }
+
+.back-link { color: var(--accent); text-decoration: none; font-size: 14px; }
+.back-link:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+  .header, .container, .status-bar { padding-left: 16px; padding-right: 16px; }
+  .pair-card { flex-direction: column; align-items: flex-start; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <h1>종목 관리</h1>
+    <a href="index.html" class="back-link">대시보드</a>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="openAddModal()">+ 종목 추가</button>
+    <button class="btn btn-green" id="saveBtn" onclick="saveToGithub()">GitHub 저장</button>
+    <button class="btn" onclick="downloadConfig()">다운로드</button>
+    <button class="btn" onclick="openSettingsModal()">설정</button>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span class="status-dot disconnected" id="statusDot"></span>
+  <span id="statusText">GitHub 미연결</span>
+</div>
+
+<div class="container">
+  <div class="pair-list" id="pairList">
+    <div class="empty-state">불러오는 중...</div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal">
+    <h2>GitHub 설정</h2>
+    <div class="form-group">
+      <label>Personal Access Token</label>
+      <input type="password" id="sToken" placeholder="ghp_xxxxxxxxxxxx">
+      <div class="form-hint">GitHub &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens &rarr; Fine-grained tokens<br>권한: Contents (Read and write)</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Owner</label>
+        <input type="text" id="sOwner" placeholder="예: ducklove">
+      </div>
+      <div class="form-group">
+        <label>Repository</label>
+        <input type="text" id="sRepo" placeholder="예: common_preferred_spread">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-danger btn-sm" onclick="clearSettings()">토큰 삭제</button>
+      <div style="flex:1"></div>
+      <button type="button" class="btn" onclick="closeSettings()">취소</button>
+      <button type="button" class="btn btn-primary" onclick="saveSettings()">연결</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pair Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">종목 추가</h2>
+    <form id="pairForm" onsubmit="return savePair(event)">
+      <input type="hidden" id="editIdx" value="-1">
+
+      <div class="form-group">
+        <label>ID (영문, 고유값)</label>
+        <input type="text" id="fId" placeholder="예: samsung_elec" required>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>보통주 이름</label>
+          <input type="text" id="fCommonName" placeholder="예: 삼성전자" required>
+        </div>
+        <div class="form-group">
+          <label>보통주 티커</label>
+          <input type="text" id="fCommonTicker" placeholder="예: 005930.KS" required>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>우선주 이름</label>
+          <input type="text" id="fPreferredName" placeholder="예: 삼성전자우" required>
+        </div>
+        <div class="form-group">
+          <label>우선주 티커</label>
+          <input type="text" id="fPreferredTicker" placeholder="예: 005935.KS" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>표시 이름</label>
+        <input type="text" id="fName" placeholder="예: 삼성전자 (비워두면 자동 생성)">
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">취소</button>
+        <button type="submit" class="btn btn-primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  var config = [];
+  var fileSha = null;
+  var ghToken = localStorage.getItem('gh_token') || '';
+  var ghOwner = localStorage.getItem('gh_owner') || '';
+  var ghRepo = localStorage.getItem('gh_repo') || '';
+
+  if (!ghOwner || !ghRepo) {
+    var host = location.hostname;
+    if (host.endsWith('.github.io')) {
+      ghOwner = ghOwner || host.replace('.github.io', '');
+      ghRepo = ghRepo || location.pathname.split('/')[1] || '';
+    }
+  }
+
+  // --- Init ---
+  init();
+
+  function init() {
+    updateStatus();
+    loadFromFetch(function() {
+      if (ghToken && ghOwner && ghRepo) fetchGithubSha();
+    });
+    if (!ghToken) openSettingsModal();
+  }
+
+  function updateStatus() {
+    var dot = document.getElementById('statusDot');
+    var text = document.getElementById('statusText');
+    if (ghToken && ghOwner && ghRepo) {
+      dot.className = 'status-dot connected';
+      text.textContent = ghOwner + '/' + ghRepo + ' 연결됨';
+    } else {
+      dot.className = 'status-dot disconnected';
+      text.textContent = 'GitHub 미연결 (설정에서 토큰을 입력하세요)';
+    }
+  }
+
+  // --- GitHub API ---
+  function ghApi(path, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['Authorization'] = 'Bearer ' + ghToken;
+    opts.headers['Accept'] = 'application/vnd.github+json';
+    if (opts.body) opts.headers['Content-Type'] = 'application/json';
+    return fetch('https://api.github.com/repos/' + ghOwner + '/' + ghRepo + path, opts);
+  }
+
+  function fetchGithubSha() {
+    ghApi('/contents/config.json')
+      .then(function(r) {
+        if (!r.ok) throw new Error('API ' + r.status);
+        return r.json();
+      })
+      .then(function(data) { fileSha = data.sha; })
+      .catch(function(err) { console.warn('GitHub SHA 가져오기 실패:', err.message); });
+  }
+
+  function loadFromFetch(onSuccess) {
+    fetch('config.json')
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        config = data;
+        renderList();
+        if (onSuccess) onSuccess();
+      })
+      .catch(function(err) {
+        document.getElementById('pairList').innerHTML = '<div class="empty-state">config.json을 불러올 수 없습니다. (' + err.message + ')</div>';
+      });
+  }
+
+  function saveToGithub() {
+    if (!ghToken || !ghOwner || !ghRepo) { openSettingsModal(); return; }
+
+    var btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = '저장 중...';
+
+    var content = btoa(unescape(encodeURIComponent(JSON.stringify(config, null, 2) + '\n')));
+
+    var getSha = fileSha
+      ? Promise.resolve(fileSha)
+      : ghApi('/contents/config.json').then(function(r) { return r.json(); }).then(function(d) { return d.sha; });
+
+    getSha.then(function(sha) {
+      return ghApi('/contents/config.json', {
+        method: 'PUT',
+        body: JSON.stringify({ message: '종목 설정 변경 (admin)', content: content, sha: sha })
+      });
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(d) { throw new Error(d.message || r.status); });
+      return r.json();
+    })
+    .then(function(data) {
+      fileSha = data.content.sha;
+      showToast('GitHub에 저장되었습니다.');
+      triggerWorkflow();
+    })
+    .catch(function(err) { showToast('저장 실패: ' + err.message, true); })
+    .finally(function() { btn.disabled = false; btn.textContent = 'GitHub 저장'; });
+  }
+
+  function triggerWorkflow() {
+    ghApi('/actions/workflows/update-data.yml/dispatches', {
+      method: 'POST',
+      body: JSON.stringify({ ref: 'master' })
+    }).then(function(r) {
+      if (r.status === 204) showToast('데이터 갱신 워크플로우가 시작되었습니다.');
+    }).catch(function() {});
+  }
+
+  // --- Settings ---
+  function openSettingsModal() {
+    document.getElementById('sToken').value = ghToken;
+    document.getElementById('sOwner').value = ghOwner;
+    document.getElementById('sRepo').value = ghRepo;
+    document.getElementById('settingsOverlay').classList.add('visible');
+  }
+
+  function closeSettings() {
+    document.getElementById('settingsOverlay').classList.remove('visible');
+  }
+
+  function saveSettings() {
+    var token = document.getElementById('sToken').value.trim();
+    var owner = document.getElementById('sOwner').value.trim();
+    var repo = document.getElementById('sRepo').value.trim();
+
+    if (!token || !owner || !repo) { showToast('모든 항목을 입력해주세요.', true); return; }
+
+    fetch('https://api.github.com/repos/' + owner + '/' + repo, {
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+    })
+    .then(function(r) {
+      if (!r.ok) throw new Error(r.status === 401 ? '토큰이 유효하지 않습니다.' : '저장소를 찾을 수 없습니다.');
+      return r.json();
+    })
+    .then(function() {
+      ghToken = token; ghOwner = owner; ghRepo = repo;
+      localStorage.setItem('gh_token', token);
+      localStorage.setItem('gh_owner', owner);
+      localStorage.setItem('gh_repo', repo);
+      updateStatus();
+      closeSettings();
+      showToast('GitHub 연결 완료');
+      fileSha = null;
+      fetchGithubSha();
+    })
+    .catch(function(err) { showToast(err.message, true); });
+  }
+
+  function clearSettings() {
+    if (!confirm('저장된 토큰을 삭제하시겠습니까?')) return;
+    localStorage.removeItem('gh_token');
+    localStorage.removeItem('gh_owner');
+    localStorage.removeItem('gh_repo');
+    ghToken = ''; ghOwner = ''; ghRepo = '';
+    fileSha = null;
+    updateStatus();
+    closeSettings();
+    showToast('토큰이 삭제되었습니다.');
+  }
+
+  document.getElementById('settingsOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
+
+  // --- Render ---
+  function renderList() {
+    var el = document.getElementById('pairList');
+    if (config.length === 0) {
+      el.innerHTML = '<div class="empty-state">등록된 종목이 없습니다.</div>';
+      return;
+    }
+    el.innerHTML = config.map(function(p, i) {
+      return '<div class="pair-card">' +
+        '<div class="pair-info">' +
+          '<div class="pair-name">' + esc(p.name) + '</div>' +
+          '<div class="pair-detail">' +
+            '<span>ID: ' + esc(p.id) + '</span>' +
+            '<span>보통주: ' + esc(p.commonName) + ' (' + esc(p.commonTicker) + ')</span>' +
+            '<span>우선주: ' + esc(p.preferredName) + ' (' + esc(p.preferredTicker) + ')</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="pair-actions">' +
+          '<button class="btn btn-sm" onclick="openEditModal(' + i + ')">편집</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deletePair(' + i + ')">삭제</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // --- Pair Modal ---
+  function openAddModal() {
+    document.getElementById('modalTitle').textContent = '종목 추가';
+    document.getElementById('editIdx').value = -1;
+    document.getElementById('pairForm').reset();
+    document.getElementById('modalOverlay').classList.add('visible');
+  }
+
+  function openEditModal(i) {
+    var p = config[i];
+    document.getElementById('modalTitle').textContent = '종목 편집';
+    document.getElementById('editIdx').value = i;
+    document.getElementById('fId').value = p.id;
+    document.getElementById('fCommonName').value = p.commonName;
+    document.getElementById('fCommonTicker').value = p.commonTicker;
+    document.getElementById('fPreferredName').value = p.preferredName;
+    document.getElementById('fPreferredTicker').value = p.preferredTicker;
+    document.getElementById('fName').value = p.name;
+    document.getElementById('modalOverlay').classList.add('visible');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('visible');
+  }
+
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeModal(); closeSettings(); }
+  });
+
+  // --- Save pair ---
+  function savePair(e) {
+    e.preventDefault();
+
+    var commonName = document.getElementById('fCommonName').value.trim();
+    var preferredName = document.getElementById('fPreferredName').value.trim();
+    var displayName = document.getElementById('fName').value.trim();
+    if (!displayName) displayName = commonName;
+
+    var pair = {
+      id: document.getElementById('fId').value.trim(),
+      name: displayName,
+      commonTicker: document.getElementById('fCommonTicker').value.trim(),
+      preferredTicker: document.getElementById('fPreferredTicker').value.trim(),
+      commonName: commonName,
+      preferredName: preferredName
+    };
+
+    var idx = parseInt(document.getElementById('editIdx').value);
+
+    for (var j = 0; j < config.length; j++) {
+      if (j !== idx && config[j].id === pair.id) {
+        showToast('이미 사용 중인 ID입니다: ' + pair.id, true);
+        return false;
+      }
+    }
+
+    if (idx >= 0) {
+      config[idx] = pair;
+      showToast('종목이 수정되었습니다. GitHub 저장 버튼을 눌러 반영하세요.');
+    } else {
+      config.push(pair);
+      showToast('종목이 추가되었습니다. GitHub 저장 버튼을 눌러 반영하세요.');
+    }
+
+    renderList();
+    closeModal();
+    return false;
+  }
+
+  // --- Delete ---
+  function deletePair(i) {
+    var name = config[i].name;
+    if (!confirm(name + ' 종목을 삭제하시겠습니까?')) return;
+    config.splice(i, 1);
+    renderList();
+    showToast('종목이 삭제되었습니다. GitHub 저장 버튼을 눌러 반영하세요.');
+  }
+
+  // --- Download ---
+  function downloadConfig() {
+    var json = JSON.stringify(config, null, 2) + '\n';
+    var blob = new Blob([json], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'config.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('config.json 파일이 다운로드되었습니다.');
+  }
+
+  // --- Expose to HTML onclick ---
+  window.openAddModal = openAddModal;
+  window.openEditModal = openEditModal;
+  window.closeModal = closeModal;
+  window.savePair = savePair;
+  window.deletePair = deletePair;
+  window.saveToGithub = saveToGithub;
+  window.downloadConfig = downloadConfig;
+  window.openSettingsModal = openSettingsModal;
+  window.closeSettings = closeSettings;
+  window.saveSettings = saveSettings;
+  window.clearSettings = clearSettings;
+
+  // --- Toast ---
+  function showToast(msg, isError) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast' + (isError ? ' error' : '');
+    el.classList.add('visible');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function() { el.classList.remove('visible'); }, 3000);
+  }
+})();
+</script>
+</body>
+</html>
