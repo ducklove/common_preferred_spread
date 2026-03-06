@@ -294,5 +294,13 @@
     "preferredTicker": "006805.KS",
     "commonName": "미래에셋증권",
     "preferredName": "미래에셋증권우"
+  },
+  {
+    "id": "amore_holdings_3pref",
+    "name": "아모레G/3우B",
+    "commonTicker": "002790.KS",
+    "preferredTicker": "00279K.KS",
+    "commonName": "아모레퍼시픽홀딩스",
+    "preferredName": "아모레퍼시픽홀딩스3우B"
   }
 ]
