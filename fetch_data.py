@@ -202,6 +202,16 @@ def main():
         prev = history[-2] if len(history) >= 2 else latest
         spread_change = round(latest["spread"] - prev["spread"], 2)
 
+        # 일간 등락률
+        if len(history) >= 2:
+            prev_cp = prev["commonPrice"]
+            prev_pp = prev["preferredPrice"]
+            common_change = round((latest["commonPrice"] - prev_cp) / prev_cp * 100, 2) if prev_cp else 0
+            preferred_change = round((latest["preferredPrice"] - prev_pp) / prev_pp * 100, 2) if prev_pp else 0
+        else:
+            common_change = 0
+            preferred_change = 0
+
         # 배당수익률 조회
         c_dy = get_div_yield(ct)
         p_dy = get_div_yield(pt)
@@ -216,6 +226,8 @@ def main():
                 "preferredPrice": latest["preferredPrice"],
                 "spread": latest["spread"],
                 "spreadChange": spread_change,
+                "commonChange": common_change,
+                "preferredChange": preferred_change,
                 "commonDivYield": round(c_dy, 2),
                 "preferredDivYield": round(p_dy, 2),
             },

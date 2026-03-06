@@ -30,7 +30,7 @@ def main():
 
     print(f"{len(all_tickers)}개 티커 현재가 조회 중...")
 
-    data = yf.download(all_tickers, period="1d", auto_adjust=False, progress=False)
+    data = yf.download(all_tickers, period="5d", auto_adjust=False, progress=False)
     close = data["Close"]
 
     prices = {}
@@ -38,13 +38,30 @@ def main():
         ct = pair["commonTicker"]
         pt = pair["preferredTicker"]
         try:
-            common_price = round(float(close[ct].dropna().iloc[-1]), 0)
-            preferred_price = round(float(close[pt].dropna().iloc[-1]), 0)
+            c_series = close[ct].dropna()
+            p_series = close[pt].dropna()
+            common_price = round(float(c_series.iloc[-1]), 0)
+            preferred_price = round(float(p_series.iloc[-1]), 0)
             spread = round((common_price - preferred_price) / common_price * 100, 2)
+
+            # 일간 등락률
+            if len(c_series) >= 2:
+                prev_c = float(c_series.iloc[-2])
+                common_change = round((common_price - prev_c) / prev_c * 100, 2)
+            else:
+                common_change = 0
+            if len(p_series) >= 2:
+                prev_p = float(p_series.iloc[-2])
+                preferred_change = round((preferred_price - prev_p) / prev_p * 100, 2)
+            else:
+                preferred_change = 0
+
             prices[pair["id"]] = {
                 "commonPrice": common_price,
                 "preferredPrice": preferred_price,
                 "spread": spread,
+                "commonChange": common_change,
+                "preferredChange": preferred_change,
             }
         except (KeyError, IndexError) as e:
             print(f"  WARNING: {pair['name']} 현재가 조회 실패: {e}")

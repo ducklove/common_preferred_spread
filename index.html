@@ -98,6 +98,11 @@ body {
   color: var(--green);
   font-weight: 600;
 }
+.card .div-info {
+  color: var(--green);
+  font-size: 11px;
+  margin-top: 2px;
+}
 
 /* Chart area */
 .chart-section {
@@ -393,19 +398,21 @@ tr:hover { background: var(--surface2); }
       let prices;
       if (items.length === 1) {
         prices = `<div class="prices">
-          <span>${p.commonName} ${formatPrice(c.commonPrice)} <span class="div-yield">${c.commonDivYield.toFixed(1)}%</span></span>
-          <span>${p.preferredName} ${formatPrice(c.preferredPrice)} <span class="div-yield">${c.preferredDivYield.toFixed(1)}%</span></span>
+          <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
+          <span>${p.preferredName} ${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}</span>
+          <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
         </div>`;
       } else {
         const prefLines = items.map(item => {
           const ip = item.pair;
           const ic = ip.current;
           const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
-          return `<span>${suffix} ${formatPrice(ic.preferredPrice)} <span class="div-yield">${ic.preferredDivYield.toFixed(1)}%</span> ${ic.spread.toFixed(1)}%</span>`;
+          return `<span>${suffix} ${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%</span>`;
         }).join('');
         prices = `<div class="prices">
-          <span>${p.commonName} ${formatPrice(c.commonPrice)} <span class="div-yield">${c.commonDivYield.toFixed(1)}%</span></span>
+          <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
           ${prefLines}
+          <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
         </div>`;
       }
 
@@ -855,6 +862,13 @@ tr:hover { background: var(--surface2); }
     return n.toLocaleString('ko-KR') + '원';
   }
 
+  function fmtChange(v) {
+    if (v == null) return '';
+    const cls = v >= 0 ? 'up-color' : 'down-color';
+    const arrow = v >= 0 ? '▲' : '▼';
+    return `<span class="${cls}">${arrow}${Math.abs(v).toFixed(1)}%</span>`;
+  }
+
   // Resize
   window.addEventListener('resize', () => { renderChart(); renderPriceChart(); });
 
@@ -881,6 +895,8 @@ tr:hover { background: var(--surface2); }
         p.current.commonPrice = cp.commonPrice;
         p.current.preferredPrice = cp.preferredPrice;
         p.current.spread = cp.spread;
+        if (cp.commonChange != null) p.current.commonChange = cp.commonChange;
+        if (cp.preferredChange != null) p.current.preferredChange = cp.preferredChange;
 
         const prev = getPrevDaySpread(p, today);
         if (prev !== null) {
