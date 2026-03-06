@@ -1,0 +1,191 @@
+{
+  "lastUpdated": "2026-03-06 10:17:55",
+  "prices": {
+    "samsung_elec": {
+      "commonPrice": 185000.0,
+      "preferredPrice": 123400.0,
+      "spread": 33.3
+    },
+    "hyundai_motor": {
+      "commonPrice": 541000.0,
+      "preferredPrice": 269000.0,
+      "spread": 50.28
+    },
+    "hyundai_motor_pref": {
+      "commonPrice": 541000.0,
+      "preferredPrice": 267000.0,
+      "spread": 50.65
+    },
+    "hyundai_motor_3pref": {
+      "commonPrice": 541000.0,
+      "preferredPrice": 256000.0,
+      "spread": 52.68
+    },
+    "lg_elec": {
+      "commonPrice": 115200.0,
+      "preferredPrice": 53800.0,
+      "spread": 53.3
+    },
+    "lg_chem": {
+      "commonPrice": 319500.0,
+      "preferredPrice": 157200.0,
+      "spread": 50.8
+    },
+    "samsung_sdi": {
+      "commonPrice": 395500.0,
+      "preferredPrice": 235000.0,
+      "spread": 40.58
+    },
+    "amorepacific": {
+      "commonPrice": 129000.0,
+      "preferredPrice": 46200.0,
+      "spread": 64.19
+    },
+    "samsung_fire": {
+      "commonPrice": 491000.0,
+      "preferredPrice": 389000.0,
+      "spread": 20.77
+    },
+    "daishin_sec": {
+      "commonPrice": 39350.0,
+      "preferredPrice": 25850.0,
+      "spread": 34.31
+    },
+    "daishin_sec_2pref": {
+      "commonPrice": 39350.0,
+      "preferredPrice": 24700.0,
+      "spread": 37.23
+    },
+    "lg_household": {
+      "commonPrice": 240500.0,
+      "preferredPrice": 107300.0,
+      "spread": 55.38
+    },
+    "doosan": {
+      "commonPrice": 1036000.0,
+      "preferredPrice": 508000.0,
+      "spread": 50.97
+    },
+    "doosan_2pref": {
+      "commonPrice": 1036000.0,
+      "preferredPrice": 462000.0,
+      "spread": 55.41
+    },
+    "korea_investment": {
+      "commonPrice": 226500.0,
+      "preferredPrice": 161600.0,
+      "spread": 28.65
+    },
+    "samsung_electro": {
+      "commonPrice": 395500.0,
+      "preferredPrice": 160000.0,
+      "spread": 59.54
+    },
+    "nh_investment": {
+      "commonPrice": 31550.0,
+      "preferredPrice": 24450.0,
+      "spread": 22.5
+    },
+    "kumho_petro": {
+      "commonPrice": 120600.0,
+      "preferredPrice": 61500.0,
+      "spread": 49.0
+    },
+    "cj_cheiljedang": {
+      "commonPrice": 195200.0,
+      "preferredPrice": 130900.0,
+      "spread": 32.94
+    },
+    "s_oil": {
+      "commonPrice": 130900.0,
+      "preferredPrice": 58000.0,
+      "spread": 55.69
+    },
+    "lg": {
+      "commonPrice": 93800.0,
+      "preferredPrice": 71200.0,
+      "spread": 24.09
+    },
+    "cj": {
+      "commonPrice": 178700.0,
+      "preferredPrice": 87000.0,
+      "spread": 51.32
+    },
+    "cj_4pref": {
+      "commonPrice": 178700.0,
+      "preferredPrice": 154900.0,
+      "spread": 13.32
+    },
+    "doosan_fuelcell": {
+      "commonPrice": 39350.0,
+      "preferredPrice": 7470.0,
+      "spread": 81.02
+    },
+    "doosan_fuelcell_2pref": {
+      "commonPrice": 39350.0,
+      "preferredPrice": 9830.0,
+      "spread": 75.02
+    },
+    "byc": {
+      "commonPrice": 46900.0,
+      "preferredPrice": 26650.0,
+      "spread": 43.18
+    },
+    "solus": {
+      "commonPrice": 8350.0,
+      "preferredPrice": 2000.0,
+      "spread": 76.05
+    },
+    "solus_2pref": {
+      "commonPrice": 8350.0,
+      "preferredPrice": 3390.0,
+      "spread": 59.4
+    },
+    "nexen_tire": {
+      "commonPrice": 7510.0,
+      "preferredPrice": 4205.0,
+      "spread": 44.01
+    },
+    "sebang": {
+      "commonPrice": 14520.0,
+      "preferredPrice": 9270.0,
+      "spread": 36.16
+    },
+    "hanjinkal": {
+      "commonPrice": 120900.0,
+      "preferredPrice": 36550.0,
+      "spread": 69.77
+    },
+    "amore_holdings": {
+      "commonPrice": 26700.0,
+      "preferredPrice": 12440.0,
+      "spread": 53.41
+    },
+    "sk_chemicals": {
+      "commonPrice": 58800.0,
+      "preferredPrice": 27150.0,
+      "spread": 53.83
+    },
+    "sk": {
+      "commonPrice": 357000.0,
+      "preferredPrice": 258000.0,
+      "spread": 27.73
+    },
+    "hanwha": {
+      "commonPrice": 127900.0,
+      "preferredPrice": 50500.0,
+      "spread": 60.52
+    },
+    "mirae_asset": {
+      "commonPrice": 64600.0,
+      "preferredPrice": 20600.0,
+      "spread": 68.11
+    },
+    "mirae_asset_pref": {
+      "commonPrice": 64600.0,
+      "preferredPrice": 22600.0,
+      "spread": 65.02
+    }
+  },
+  "averageSpread": 48.32
+}

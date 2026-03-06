@@ -857,6 +857,81 @@ tr:hover { background: var(--surface2); }
 
   // Resize
   window.addEventListener('resize', () => { renderChart(); renderPriceChart(); });
+
+  // --- Live price updates from current.json ---
+  function getPrevDaySpread(pair, today) {
+    for (let i = pair.history.length - 1; i >= 0; i--) {
+      if (pair.history[i].date < today) return pair.history[i].spread;
+    }
+    return null;
+  }
+
+  async function fetchCurrentPrices() {
+    try {
+      const resp = await fetch('current.json?t=' + Date.now());
+      if (!resp.ok) return;
+      const cur = await resp.json();
+      const today = cur.lastUpdated.slice(0, 10);
+
+      pairs.forEach(p => {
+        if (p.isAverage) return;
+        const cp = cur.prices[p.id];
+        if (!cp) return;
+
+        p.current.commonPrice = cp.commonPrice;
+        p.current.preferredPrice = cp.preferredPrice;
+        p.current.spread = cp.spread;
+
+        const prev = getPrevDaySpread(p, today);
+        if (prev !== null) {
+          p.current.spreadChange = +(cp.spread - prev).toFixed(2);
+        }
+
+        // Update or add today in history
+        const last = p.history[p.history.length - 1];
+        if (last && last.date === today) {
+          last.commonPrice = cp.commonPrice;
+          last.preferredPrice = cp.preferredPrice;
+          last.spread = cp.spread;
+        } else {
+          p.history.push({
+            date: today,
+            commonPrice: cp.commonPrice,
+            preferredPrice: cp.preferredPrice,
+            spread: cp.spread,
+          });
+        }
+      });
+
+      // Update average pair
+      const avgPair = pairs.find(p => p.isAverage);
+      if (avgPair && cur.averageSpread != null) {
+        const prev = getPrevDaySpread(avgPair, today);
+        avgPair.current.spread = cur.averageSpread;
+        if (prev !== null) {
+          avgPair.current.spreadChange = +(cur.averageSpread - prev).toFixed(2);
+        }
+        const last = avgPair.history[avgPair.history.length - 1];
+        if (last && last.date === today) {
+          last.spread = cur.averageSpread;
+        } else {
+          avgPair.history.push({ date: today, commonPrice: 0, preferredPrice: 0, spread: cur.averageSpread });
+        }
+      }
+
+      document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + cur.lastUpdated;
+      renderCards();
+      renderTable();
+      renderChart();
+      renderPriceChart();
+      renderStats();
+    } catch (e) {
+      // current.json not available yet, use data.js values
+    }
+  }
+
+  fetchCurrentPrices();
+  setInterval(fetchCurrentPrices, 10 * 60 * 1000);
 })();
 </script>
 </body>
