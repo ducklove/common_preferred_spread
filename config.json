@@ -177,7 +177,7 @@
   },
   {
     "id": "cj_4pref",
-    "name": "CJ/4우",
+    "name": "CJ/4우(전환)",
     "commonTicker": "001040.KS",
     "preferredTicker": "00104K.KS",
     "commonName": "CJ",
@@ -297,7 +297,7 @@
   },
   {
     "id": "amore_holdings_3pref",
-    "name": "아모레G/3우B",
+    "name": "아모레G/3우B(전환)",
     "commonTicker": "002790.KS",
     "preferredTicker": "00279K.KS",
     "commonName": "아모레퍼시픽홀딩스",
@@ -305,7 +305,7 @@
   },
   {
     "id": "korea_circuit",
-    "name": "코리아써키트",
+    "name": "코리아써키트/우",
     "commonTicker": "007810.KS",
     "preferredTicker": "007815.KS",
     "commonName": "코리아써키트",
@@ -313,7 +313,7 @@
   },
   {
     "id": "korea_circuit_2pref",
-    "name": "코리아써키트",
+    "name": "코리아써키트/2우B",
     "commonTicker": "007810.KS",
     "preferredTicker": "00781K.KS",
     "commonName": "코리아써키트",
