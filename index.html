@@ -478,6 +478,8 @@ tr:hover { background: var(--surface2); }
 (function() {
   const pairs = STOCK_DATA.pairs;
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
+  const LIVE_REFRESH_RETRY_DELAY_MS = 1500;
+  const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
   const LIVE_FETCH_CONCURRENCY = 4;
   let selectedIdx = 0;
@@ -1332,15 +1334,13 @@ tr:hover { background: var(--surface2); }
     return `${partMap.year}-${partMap.month}-${partMap.day} ${partMap.hour}:${partMap.minute}:${partMap.second}`;
   }
 
-  function isSnapshotStale(timestamp, maxAgeMs = LIVE_REFRESH_MAX_AGE_MS) {
-    const parsed = parseSnapshotTimestamp(timestamp);
-    if (!parsed) return true;
-    return Date.now() - parsed.getTime() > maxAgeMs;
-  }
-
   function isSnapshotMsStale(timestampMs, maxAgeMs = LIVE_REFRESH_MAX_AGE_MS) {
     if (!timestampMs) return true;
     return Date.now() - timestampMs > maxAgeMs;
+  }
+
+  function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   function getTickerCode(ticker) {
@@ -1579,43 +1579,60 @@ tr:hover { background: var(--surface2); }
   async function refreshLivePricesIfNeeded(baseSnapshot) {
     const baseSnapshotMs = parseSnapshotTimestamp(baseSnapshot?.lastUpdated)?.getTime() || 0;
     const referenceSnapshotMs = Math.max(baseSnapshotMs, latestAppliedSnapshotMs || 0);
-    if (!isSnapshotMsStale(referenceSnapshotMs)) return;
+    if (!isSnapshotMsStale(referenceSnapshotMs)) return false;
     if (liveRefreshPromise) {
-      await liveRefreshPromise;
-      return;
+      return liveRefreshPromise;
     }
 
     liveRefreshPromise = (async () => {
       try {
         const liveSnapshot = await buildLiveSnapshot();
-        applyCurrentSnapshot(liveSnapshot, '네이버 증권 실시간');
+        return applyCurrentSnapshot(liveSnapshot, '네이버 증권 실시간');
       } catch (e) {
         // 실시간 프록시 갱신 실패 시 기존 스냅샷을 유지한다.
+        return false;
       } finally {
         liveRefreshPromise = null;
       }
     })();
 
-    await liveRefreshPromise;
+    return liveRefreshPromise;
+  }
+
+  async function refreshLivePricesWithRetry(baseSnapshot, attempts = LIVE_REFRESH_RETRY_ATTEMPTS) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const refreshed = await refreshLivePricesIfNeeded(baseSnapshot);
+      if (refreshed || !isSnapshotMsStale(latestAppliedSnapshotMs || 0)) {
+        return refreshed;
+      }
+      if (attempt < attempts - 1) {
+        await delay(LIVE_REFRESH_RETRY_DELAY_MS);
+      }
+    }
+    return false;
   }
 
   async function fetchCurrentPrices() {
+    let baseSnapshot = {
+      source: 'data.js',
+      lastUpdated: STOCK_DATA.lastUpdated,
+    };
+
     try {
       const resp = await fetch('current.json?t=' + Date.now());
-      if (!resp.ok) return;
-      const cur = await resp.json();
-      applyCurrentSnapshot(cur, cur.source || '네이버 증권');
-      await refreshLivePricesIfNeeded(cur);
+      if (resp.ok) {
+        const cur = await resp.json();
+        applyCurrentSnapshot(cur, cur.source || '네이버 증권');
+        baseSnapshot = cur;
+      }
     } catch (e) {
-      await refreshLivePricesIfNeeded({
-        source: 'data.js',
-        lastUpdated: STOCK_DATA.lastUpdated,
-      });
+      // current.json 로드 실패 시 data.js 기준으로 실시간 조회만 시도한다.
     }
+
+    await refreshLivePricesWithRetry(baseSnapshot);
   }
 
   fetchCurrentPrices();
-  setInterval(fetchCurrentPrices, LIVE_REFRESH_MAX_AGE_MS);
 })();
 </script>
 </body>
