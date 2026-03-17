@@ -21,9 +21,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: pip install yfinance pandas
-
       - name: Fetch current prices
         run: python fetch_current.py
 

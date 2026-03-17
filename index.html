@@ -45,6 +45,91 @@ body {
   padding: 20px 32px;
 }
 
+/* Today overview */
+.today-overview {
+  background:
+    radial-gradient(circle at top right, rgba(108,140,255,0.18), transparent 36%),
+    linear-gradient(135deg, rgba(108,140,255,0.12), rgba(56,201,106,0.08)),
+    var(--surface);
+  border: 1px solid rgba(108,140,255,0.35);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.today-overview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.today-overview-kicker {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.today-overview-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.today-overview-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.today-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.overview-card {
+  background: rgba(15,17,23,0.38);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 126px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+.overview-card.primary {
+  background: rgba(15,17,23,0.26);
+  border-color: rgba(56,201,106,0.28);
+}
+.overview-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.overview-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+.overview-card.leader-card .overview-value {
+  font-size: 21px;
+  line-height: 1.25;
+  letter-spacing: -0.4px;
+}
+.overview-change {
+  font-size: 14px;
+  font-weight: 600;
+}
+.overview-change.up { color: var(--up); }
+.overview-change.down { color: var(--down); }
+.overview-change.flat { color: var(--text-dim); }
+.overview-detail {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 /* Summary cards */
 .cards {
   display: grid;
@@ -86,6 +171,7 @@ body {
 }
 .card .spread-change.up { color: var(--up); }
 .card .spread-change.down { color: var(--down); }
+.card .spread-change.flat { color: var(--text-dim); }
 .card .prices {
   margin-top: 10px;
   font-size: 12px;
@@ -212,6 +298,7 @@ tr:last-child td { border-bottom: none; }
 tr:hover { background: var(--surface2); }
 .up-color { color: var(--up); }
 .down-color { color: var(--down); }
+.flat-color { color: var(--text-dim); }
 
 /* Bar in table */
 .bar-cell {
@@ -281,6 +368,7 @@ tr:hover { background: var(--surface2); }
 
 @media (max-width: 768px) {
   .header, .container { padding-left: 16px; padding-right: 16px; }
+  .today-overview-title { font-size: 20px; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .chart-container { height: 280px; }
   .price-chart-container { height: 200px; }
@@ -295,6 +383,7 @@ tr:hover { background: var(--surface2); }
 </div>
 
 <div class="container">
+  <div class="today-overview" id="todayOverview"></div>
   <div class="cards" id="cards"></div>
 
   <div class="chart-section">
@@ -346,9 +435,9 @@ tr:hover { background: var(--surface2); }
   const pairs = STOCK_DATA.pairs;
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
+  let todayOverviewData = buildTodaySummaryFromPairs();
 
-  // Build card groups by commonName
-  const cardGroups = (() => {
+  function getCardGroups() {
     const map = new Map();
     pairs.forEach((p, i) => {
       if (p.isAverage) {
@@ -363,10 +452,17 @@ tr:hover { background: var(--surface2); }
       items.sort((a, b) => b.pair.current.spread - a.pair.current.spread);
     }
     return [...map.values()];
-  })();
+  }
+
+  function getRepresentativePairs() {
+    return getCardGroups()
+      .map(items => items[0].pair)
+      .filter(pair => !pair.isAverage);
+  }
 
   // --- Init ---
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
+  renderTodayOverview();
   renderCards();
   renderTable();
   renderChart();
@@ -374,8 +470,123 @@ tr:hover { background: var(--surface2); }
   renderStats();
   bindPeriodBtns();
 
+  function renderTodayOverview() {
+    const summary = todayOverviewData || buildTodaySummaryFromPairs();
+    const overviewEl = document.getElementById('todayOverview');
+    if (!summary || summary.averageSpread == null) {
+      overviewEl.innerHTML = '';
+      return;
+    }
+    const representativeCount = summary.representativeCount || getRepresentativePairs().length;
+
+    overviewEl.innerHTML = `
+      <div class="today-overview-header">
+        <div>
+          <div class="today-overview-kicker">오늘의 우선주 현황</div>
+          <div class="today-overview-title">실시간 괴리율 스냅샷</div>
+        </div>
+        <div class="today-overview-meta">${summary.source || '기본 데이터 기준'}</div>
+      </div>
+      <div class="today-overview-grid">
+        <div class="overview-card primary">
+          <div class="overview-label">전체 평균 괴리율</div>
+          <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
+          <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
+        </div>
+        <div class="overview-card">
+          <div class="overview-label">전일비</div>
+          <div class="overview-value ${getTextColorClass(summary.averageSpreadChange)}">${formatPointChange(summary.averageSpreadChange)}</div>
+          <div class="overview-detail">평균 괴리율의 하루 변화</div>
+        </div>
+        <div class="overview-card leader-card">
+          <div class="overview-label">최고 괴리율 확대</div>
+          ${renderLeaderCard(summary.topWidening, '전 종목이 괴리율 축소 또는 보합입니다.')}
+        </div>
+        <div class="overview-card leader-card">
+          <div class="overview-label">최고 괴리율 축소</div>
+          ${renderLeaderCard(summary.topNarrowing, '전 종목이 괴리율 확대 또는 보합입니다.')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderLeaderCard(leader, emptyMessage) {
+    if (!leader) {
+      return `
+        <div class="overview-value">없음</div>
+        <div class="overview-detail">${emptyMessage}</div>
+      `;
+    }
+
+    return `
+      <div class="overview-value">${formatPairName(leader.name)}</div>
+      <div class="overview-change ${getDirectionClass(leader.spreadChange)}">${formatPointChange(leader.spreadChange)}</div>
+      <div class="overview-detail">현재 괴리율 ${leader.spread.toFixed(2)}%</div>
+    `;
+  }
+
+  function buildTodaySummaryFromPairs() {
+    const representatives = getRepresentativePairs().filter(pair => pair.current.spread != null);
+    if (!representatives.length) return null;
+
+    const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
+    const changeValues = representatives
+      .map(pair => pair.current.spreadChange)
+      .filter(value => value != null && !Number.isNaN(value));
+    const averageSpreadChange = changeValues.length
+      ? changeValues.reduce((sum, value) => sum + value, 0) / changeValues.length
+      : null;
+
+    const topWidening = representatives
+      .filter(pair => pair.current.spreadChange > 0)
+      .sort((a, b) => b.current.spreadChange - a.current.spreadChange)[0];
+    const topNarrowing = representatives
+      .filter(pair => pair.current.spreadChange < 0)
+      .sort((a, b) => a.current.spreadChange - b.current.spreadChange)[0];
+
+    return {
+      source: '기본 데이터 기준',
+      representativeCount: representatives.length,
+      averageSpread: +averageSpread.toFixed(2),
+      averageSpreadChange: averageSpreadChange == null ? null : +averageSpreadChange.toFixed(2),
+      topWidening: topWidening ? serializePairSummary(topWidening) : null,
+      topNarrowing: topNarrowing ? serializePairSummary(topNarrowing) : null,
+    };
+  }
+
+  function serializePairSummary(pair) {
+    return {
+      id: pair.id,
+      name: pair.name,
+      spread: pair.current.spread,
+      spreadChange: pair.current.spreadChange,
+    };
+  }
+
+  function formatPairName(name) {
+    return String(name).replace('/', ' ');
+  }
+
+  function getDirectionClass(value) {
+    if (value == null || Number.isNaN(value) || Math.abs(value) < 0.005) return 'flat';
+    return value > 0 ? 'up' : 'down';
+  }
+
+  function getTextColorClass(value) {
+    return getDirectionClass(value) + '-color';
+  }
+
+  function formatPointChange(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    const direction = getDirectionClass(value);
+    if (direction === 'flat') return `${Math.abs(value).toFixed(2)}%p`;
+    const arrow = direction === 'up' ? '▲' : '▼';
+    return `${arrow} ${Math.abs(value).toFixed(2)}%p`;
+  }
+
   // --- Cards ---
   function renderCards() {
+    const cardGroups = getCardGroups();
     const el = document.getElementById('cards');
     el.innerHTML = cardGroups.map(items => {
       const top = items[0];
@@ -383,14 +594,13 @@ tr:hover { background: var(--surface2); }
       const c = p.current;
       const primaryIdx = top.idx;
       const isActive = items.some(item => item.idx === selectedIdx);
-      const dir = c.spreadChange >= 0 ? 'up' : 'down';
-      const arrow = c.spreadChange >= 0 ? '▲' : '▼';
+      const dir = getDirectionClass(c.spreadChange);
 
       if (p.isAverage) {
         return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
           <div class="name">${p.name}</div>
           <div class="spread-val">${c.spread.toFixed(1)}%</div>
-          <div class="spread-change ${dir}">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</div>
+          <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
         </div>`;
       }
 
@@ -419,7 +629,7 @@ tr:hover { background: var(--surface2); }
       return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
         <div class="name">${displayName}</div>
         <div class="spread-val">${c.spread.toFixed(1)}%</div>
-        <div class="spread-change ${dir}">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</div>
+        <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
         ${prices}
       </div>`;
     }).join('');
@@ -437,13 +647,13 @@ tr:hover { background: var(--surface2); }
   // --- Table ---
   function renderTable() {
     // Show only the highest-spread pair per group
+    const cardGroups = getCardGroups();
     const tablePairs = cardGroups.map(items => items[0].pair);
     const maxSpread = Math.max(...tablePairs.filter(p => !p.isAverage).map(p => p.current.spread));
 
     document.getElementById('tableBody').innerHTML = tablePairs.map(p => {
       const c = p.current;
-      const dir = c.spreadChange >= 0 ? 'up' : 'down';
-      const arrow = c.spreadChange >= 0 ? '▲' : '▼';
+      const textColorClass = getTextColorClass(c.spreadChange);
       const barW = (c.spread / maxSpread * 100).toFixed(1);
       if (p.isAverage) {
         return `<tr style="border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--surface2)">
@@ -451,7 +661,7 @@ tr:hover { background: var(--surface2); }
           <td></td>
           <td></td>
           <td><strong>${c.spread.toFixed(2)}%</strong></td>
-          <td class="${dir}-color">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</td>
+          <td class="${textColorClass}">${formatPointChange(c.spreadChange)}</td>
           <td><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
       }
@@ -461,7 +671,7 @@ tr:hover { background: var(--surface2); }
         <td>${formatPrice(c.commonPrice)}</td>
         <td>${formatPrice(c.preferredPrice)}</td>
         <td><strong>${c.spread.toFixed(2)}%</strong></td>
-        <td class="${dir}-color">${arrow} ${Math.abs(c.spreadChange).toFixed(2)}%p</td>
+        <td class="${textColorClass}">${formatPointChange(c.spreadChange)}</td>
         <td><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
     }).join('');
@@ -864,8 +1074,12 @@ tr:hover { background: var(--surface2); }
 
   function fmtChange(v) {
     if (v == null) return '';
-    const cls = v >= 0 ? 'up-color' : 'down-color';
-    const arrow = v >= 0 ? '▲' : '▼';
+    const direction = getDirectionClass(v);
+    const cls = getTextColorClass(v);
+    if (direction === 'flat') {
+      return `<span class="${cls}">${Math.abs(v).toFixed(1)}%</span>`;
+    }
+    const arrow = direction === 'up' ? '▲' : '▼';
     return `<span class="${cls}">${arrow}${Math.abs(v).toFixed(1)}%</span>`;
   }
 
@@ -897,9 +1111,12 @@ tr:hover { background: var(--surface2); }
         p.current.spread = cp.spread;
         if (cp.commonChange != null) p.current.commonChange = cp.commonChange;
         if (cp.preferredChange != null) p.current.preferredChange = cp.preferredChange;
+        if (cp.spreadChange != null) {
+          p.current.spreadChange = cp.spreadChange;
+        }
 
         const prev = getPrevDaySpread(p, today);
-        if (prev !== null) {
+        if (cp.spreadChange == null && prev !== null) {
           p.current.spreadChange = +(cp.spread - prev).toFixed(2);
         }
 
@@ -924,7 +1141,9 @@ tr:hover { background: var(--surface2); }
       if (avgPair && cur.averageSpread != null) {
         const prev = getPrevDaySpread(avgPair, today);
         avgPair.current.spread = cur.averageSpread;
-        if (prev !== null) {
+        if (cur.averageSpreadChange != null) {
+          avgPair.current.spreadChange = cur.averageSpreadChange;
+        } else if (prev !== null) {
           avgPair.current.spreadChange = +(cur.averageSpread - prev).toFixed(2);
         }
         const last = avgPair.history[avgPair.history.length - 1];
@@ -935,7 +1154,12 @@ tr:hover { background: var(--surface2); }
         }
       }
 
+      todayOverviewData = cur.summary
+        ? { ...cur.summary, source: cur.source || '네이버 증권' }
+        : { ...buildTodaySummaryFromPairs(), source: cur.source || '네이버 증권' };
+
       document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + cur.lastUpdated;
+      renderTodayOverview();
       renderCards();
       renderTable();
       renderChart();
