@@ -483,6 +483,7 @@ tr:hover { background: var(--surface2); }
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let todayOverviewData = buildTodaySummaryFromPairs();
+  let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
   let pairConfigMap = new Map();
   const configLoadPromise = loadPairConfig();
@@ -1337,6 +1338,11 @@ tr:hover { background: var(--surface2); }
     return Date.now() - parsed.getTime() > maxAgeMs;
   }
 
+  function isSnapshotMsStale(timestampMs, maxAgeMs = LIVE_REFRESH_MAX_AGE_MS) {
+    if (!timestampMs) return true;
+    return Date.now() - timestampMs > maxAgeMs;
+  }
+
   function getTickerCode(ticker) {
     return String(ticker || '').split('.')[0];
   }
@@ -1474,9 +1480,15 @@ tr:hover { background: var(--surface2); }
   }
 
   function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
+    const incomingSnapshotMs = parseSnapshotTimestamp(cur.lastUpdated)?.getTime() || 0;
+    if (incomingSnapshotMs && latestAppliedSnapshotMs && incomingSnapshotMs < latestAppliedSnapshotMs) {
+      return false;
+    }
+
     const previousMarketSummary = todayOverviewData?.market || null;
     const marketSummary = cur.market || cur.summary?.market || previousMarketSummary || null;
-    const today = (cur.lastUpdated || formatKstTimestamp(new Date())).slice(0, 10);
+    const effectiveLastUpdated = cur.lastUpdated || formatKstTimestamp(new Date());
+    const today = effectiveLastUpdated.slice(0, 10);
 
     pairs.forEach(p => {
       if (p.isAverage) return;
@@ -1553,17 +1565,21 @@ tr:hover { background: var(--surface2); }
           source: cur.source || fallbackSource,
         };
 
-    document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + (cur.lastUpdated || formatKstTimestamp(new Date()));
+    latestAppliedSnapshotMs = incomingSnapshotMs || Date.now();
+    document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + effectiveLastUpdated;
     renderTodayOverview();
     renderCards();
     renderTable();
     renderChart();
     renderPriceChart();
     renderStats();
+    return true;
   }
 
   async function refreshLivePricesIfNeeded(baseSnapshot) {
-    if (!isSnapshotStale(baseSnapshot?.lastUpdated)) return;
+    const baseSnapshotMs = parseSnapshotTimestamp(baseSnapshot?.lastUpdated)?.getTime() || 0;
+    const referenceSnapshotMs = Math.max(baseSnapshotMs, latestAppliedSnapshotMs || 0);
+    if (!isSnapshotMsStale(referenceSnapshotMs)) return;
     if (liveRefreshPromise) {
       await liveRefreshPromise;
       return;
