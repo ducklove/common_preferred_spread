@@ -14,7 +14,8 @@ from urllib.request import Request, urlopen
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
 OUTPUT_PATH = Path(__file__).parent / "current.json"
-NAVER_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
+STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
+INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
 USER_AGENT = "Mozilla/5.0"
 REQUEST_TIMEOUT = 10
 MAX_WORKERS = 8
@@ -51,9 +52,9 @@ def compute_spread(common_price, preferred_price):
     return round((common_price - preferred_price) / common_price * 100, 2)
 
 
-def fetch_quote(code):
+def fetch_json(url):
     request = Request(
-        NAVER_API_URL.format(code=code),
+        url,
         headers={"User-Agent": USER_AGENT},
     )
     with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
@@ -65,6 +66,14 @@ def fetch_quote(code):
     return datas[0]
 
 
+def fetch_stock_quote(code):
+    return fetch_json(STOCK_API_URL.format(code=code))
+
+
+def fetch_index_quote(code):
+    return fetch_json(INDEX_API_URL.format(code=code))
+
+
 def fetch_all_quotes(codes):
     if not codes:
         return {}, {}
@@ -73,7 +82,7 @@ def fetch_all_quotes(codes):
     errors = {}
 
     with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(codes))) as executor:
-        future_map = {executor.submit(fetch_quote, code): code for code in codes}
+        future_map = {executor.submit(fetch_stock_quote, code): code for code in codes}
         for future in as_completed(future_map):
             code = future_map[future]
             try:
@@ -84,7 +93,32 @@ def fetch_all_quotes(codes):
     return quotes, errors
 
 
-def build_summary(prices):
+def build_market_summary(market_quote):
+    if not market_quote:
+        return None
+    return {
+        "id": market_quote.get("itemCode") or "KOSPI",
+        "name": market_quote.get("stockName") or "KOSPI",
+        "price": round_or_none(
+            parse_float(market_quote.get("closePriceRaw") or market_quote.get("closePrice"))
+        ),
+        "change": round_or_none(
+            parse_float(
+                market_quote.get("compareToPreviousClosePriceRaw")
+                or market_quote.get("compareToPreviousClosePrice")
+            )
+        ),
+        "changePct": round_or_none(
+            parse_float(
+                market_quote.get("fluctuationsRatioRaw")
+                or market_quote.get("fluctuationsRatio")
+            )
+        ),
+        "marketStatus": market_quote.get("marketStatus"),
+    }
+
+
+def build_summary(prices, market_summary=None):
     groups = defaultdict(list)
     for pair in PAIRS:
         price = prices.get(pair["id"])
@@ -109,6 +143,26 @@ def build_summary(prices):
     ]
     avg_spread_change = (
         round(sum(change_values) / len(change_values), 2) if change_values else None
+    )
+    common_change_values = [
+        item["price"]["commonChange"]
+        for item in representatives
+        if item["price"]["commonChange"] is not None
+    ]
+    avg_common_change = (
+        round(sum(common_change_values) / len(common_change_values), 2)
+        if common_change_values
+        else None
+    )
+    preferred_change_values = [
+        item["price"]["preferredChange"]
+        for item in representatives
+        if item["price"]["preferredChange"] is not None
+    ]
+    avg_preferred_change = (
+        round(sum(preferred_change_values) / len(preferred_change_values), 2)
+        if preferred_change_values
+        else None
     )
 
     widening_candidates = [
@@ -137,8 +191,11 @@ def build_summary(prices):
         }
 
     return {
+        "market": market_summary,
         "averageSpread": avg_spread,
         "averageSpreadChange": avg_spread_change,
+        "averageCommonChange": avg_common_change,
+        "averagePreferredChange": avg_preferred_change,
         "representativeCount": len(representatives),
         "topWidening": serialize_leader(
             max(widening_candidates, key=lambda item: item["price"]["spreadChange"])
@@ -166,6 +223,11 @@ def main():
     print(f"{len(all_codes)}개 종목 현재가 조회 중...")
 
     quotes, quote_errors = fetch_all_quotes(all_codes)
+    market_quote = None
+    try:
+        market_quote = fetch_index_quote("KOSPI")
+    except Exception as exc:  # noqa: BLE001 - KOSPI 실패 시 나머지 데이터는 유지
+        print(f"  WARNING: KOSPI 현재가 조회 실패: {exc}")
 
     for code, error in quote_errors.items():
         print(f"  WARNING: {code} 현재가 조회 실패: {error}")
@@ -249,13 +311,17 @@ def main():
             print(f"  WARNING: {pair['name']} 현재가 파싱 실패: {exc}")
             continue
 
+    if market_quote and market_quote.get("localTradedAt"):
+        traded_at_values.append(market_quote.get("localTradedAt"))
+
     valid_times = [datetime.fromisoformat(value) for value in traded_at_values if value]
     last_updated = (
         max(valid_times).astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
         if valid_times
         else datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     )
-    summary = build_summary(prices)
+    market_summary = build_market_summary(market_quote)
+    summary = build_summary(prices, market_summary)
     avg_spread = summary["averageSpread"] if summary else None
     avg_spread_change = summary["averageSpreadChange"] if summary else None
 
@@ -263,6 +329,7 @@ def main():
         "source": "네이버 증권",
         "lastUpdated": last_updated,
         "prices": prices,
+        "market": market_summary,
         "averageSpread": avg_spread,
         "averageSpreadChange": avg_spread_change,
         "summary": summary,

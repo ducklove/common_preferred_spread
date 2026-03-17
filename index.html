@@ -98,6 +98,19 @@ body {
   justify-content: space-between;
   gap: 8px;
 }
+.overview-card.clickable {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.overview-card.clickable:hover {
+  border-color: var(--accent);
+  background: rgba(15,17,23,0.54);
+  transform: translateY(-1px);
+}
+.overview-card.active {
+  border-color: var(--accent);
+  background: rgba(108,140,255,0.1);
+}
 .overview-card.primary {
   background: rgba(15,17,23,0.26);
   border-color: rgba(56,201,106,0.28);
@@ -129,6 +142,29 @@ body {
   font-size: 12px;
   color: var(--text-dim);
 }
+.overview-points {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.overview-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: auto;
+}
+.overview-stat {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 10px;
+}
+.overview-stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.overview-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+}
 
 /* Summary cards */
 .cards {
@@ -152,7 +188,8 @@ body {
   border-color: var(--accent);
   background: var(--surface2);
 }
-.card .name {
+.card .name,
+.overview-card .name {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
@@ -160,19 +197,25 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.card .spread-val {
+.card .spread-val,
+.overview-card .spread-val {
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -1px;
 }
-.card .spread-change {
+.card .spread-change,
+.overview-card .spread-change {
   font-size: 13px;
   margin-top: 2px;
 }
 .card .spread-change.up { color: var(--up); }
 .card .spread-change.down { color: var(--down); }
 .card .spread-change.flat { color: var(--text-dim); }
-.card .prices {
+.overview-card .spread-change.up { color: var(--up); }
+.overview-card .spread-change.down { color: var(--down); }
+.overview-card .spread-change.flat { color: var(--text-dim); }
+.card .prices,
+.overview-card .prices {
   margin-top: 10px;
   font-size: 12px;
   color: var(--text-dim);
@@ -184,7 +227,8 @@ body {
   color: var(--green);
   font-weight: 600;
 }
-.card .div-info {
+.card .div-info,
+.overview-card .div-info {
   color: var(--green);
   font-size: 11px;
   margin-top: 2px;
@@ -460,6 +504,24 @@ tr:hover { background: var(--surface2); }
       .filter(pair => !pair.isAverage);
   }
 
+  function getAveragePair() {
+    return pairs.find(pair => pair.isAverage);
+  }
+
+  function getGroupItemsByPairId(pairId) {
+    return getCardGroups().find(items => items.some(item => item.pair.id === pairId)) || null;
+  }
+
+  function selectPair(idx) {
+    if (Number.isNaN(idx) || idx < 0) return;
+    selectedIdx = idx;
+    renderTodayOverview();
+    renderCards();
+    renderChart();
+    renderPriceChart();
+    renderStats();
+  }
+
   // --- Init ---
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
   renderTodayOverview();
@@ -488,40 +550,96 @@ tr:hover { background: var(--surface2); }
         <div class="today-overview-meta">${summary.source || '기본 데이터 기준'}</div>
       </div>
       <div class="today-overview-grid">
-        <div class="overview-card primary">
-          <div class="overview-label">전체 평균 괴리율</div>
-          <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
-          <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
-        </div>
-        <div class="overview-card">
-          <div class="overview-label">전일비</div>
-          <div class="overview-value ${getTextColorClass(summary.averageSpreadChange)}">${formatPointChange(summary.averageSpreadChange)}</div>
-          <div class="overview-detail">평균 괴리율의 하루 변화</div>
-        </div>
-        <div class="overview-card leader-card">
-          <div class="overview-label">최고 괴리율 확대</div>
-          ${renderLeaderCard(summary.topWidening, '전 종목이 괴리율 축소 또는 보합입니다.')}
-        </div>
-        <div class="overview-card leader-card">
-          <div class="overview-label">최고 괴리율 축소</div>
-          ${renderLeaderCard(summary.topNarrowing, '전 종목이 괴리율 확대 또는 보합입니다.')}
-        </div>
+        ${renderMarketOverviewCard(summary.market)}
+        ${renderAverageOverviewCard(summary, representativeCount)}
+        ${renderLeaderOverviewCard('최고 괴리율 확대', summary.topWidening, '전 종목이 괴리율 축소 또는 보합입니다.')}
+        ${renderLeaderOverviewCard('최고 괴리율 축소', summary.topNarrowing, '전 종목이 괴리율 확대 또는 보합입니다.')}
       </div>
     `;
+
+    overviewEl.querySelectorAll('.overview-card.clickable').forEach(card => {
+      card.addEventListener('click', () => {
+        selectPair(parseInt(card.dataset.idx, 10));
+      });
+    });
   }
 
-  function renderLeaderCard(leader, emptyMessage) {
-    if (!leader) {
+  function renderMarketOverviewCard(market) {
+    if (!market || market.price == null) {
       return `
-        <div class="overview-value">없음</div>
-        <div class="overview-detail">${emptyMessage}</div>
+        <div class="overview-card primary">
+          <div class="overview-label">KOSPI 지수</div>
+          <div class="overview-value">-</div>
+          <div class="overview-detail">금일 상승률 데이터를 불러오지 못했습니다.</div>
+        </div>
       `;
     }
 
     return `
-      <div class="overview-value">${formatPairName(leader.name)}</div>
-      <div class="overview-change ${getDirectionClass(leader.spreadChange)}">${formatPointChange(leader.spreadChange)}</div>
-      <div class="overview-detail">현재 괴리율 ${leader.spread.toFixed(2)}%</div>
+      <div class="overview-card primary">
+        <div class="overview-label">KOSPI 지수</div>
+        <div class="overview-value">${formatMarketPrice(market.price)}</div>
+        <div class="overview-change ${getDirectionClass(market.changePct)}">금일상승률 ${formatPercentChange(market.changePct)}</div>
+        <div class="overview-points">${formatSignedPoints(market.change, 'pt')}</div>
+      </div>
+    `;
+  }
+
+  function renderAverageOverviewCard(summary, representativeCount) {
+    return `
+      <div class="overview-card">
+        <div class="overview-label">평균 괴리율</div>
+        <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
+        <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
+        <div class="overview-summary-grid">
+          ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
+          ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
+        </div>
+        <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
+      </div>
+    `;
+  }
+
+  function renderOverviewStat(label, value) {
+    return `
+      <div class="overview-stat">
+        <div class="overview-stat-label">${label}</div>
+        <div class="overview-stat-value ${getTextColorClass(parseDirectionalNumber(value))}">${value}</div>
+      </div>
+    `;
+  }
+
+  function renderLeaderOverviewCard(title, leader, emptyMessage) {
+    if (!leader) {
+      return `
+        <div class="overview-card leader-card">
+          <div class="overview-label">${title}</div>
+          <div class="overview-value">없음</div>
+          <div class="overview-detail">${emptyMessage}</div>
+        </div>
+      `;
+    }
+
+    const items = getGroupItemsByPairId(leader.id);
+    if (!items || !items.length) {
+      return `
+        <div class="overview-card leader-card">
+          <div class="overview-label">${title}</div>
+          <div class="overview-value">${leader.name}</div>
+          <div class="overview-change ${getDirectionClass(leader.spreadChange)}">${formatPointChange(leader.spreadChange)}</div>
+          <div class="overview-detail">현재 괴리율 ${leader.spread.toFixed(2)}%</div>
+        </div>
+      `;
+    }
+
+    const primaryIdx = items[0].idx;
+    const isActive = items.some(item => item.idx === selectedIdx);
+
+    return `
+      <div class="overview-card leader-card clickable${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
+        <div class="overview-label">${title}</div>
+        ${renderGroupSnapshot(items)}
+      </div>
     `;
   }
 
@@ -529,6 +647,19 @@ tr:hover { background: var(--surface2); }
     const representatives = getRepresentativePairs().filter(pair => pair.current.spread != null);
     if (!representatives.length) return null;
 
+    const averagePair = getAveragePair();
+    const kospiHistory = averagePair
+      ? averagePair.history.filter(entry => entry.kospiPrice != null)
+      : [];
+    const latestKospi = kospiHistory[kospiHistory.length - 1];
+    const previousKospi = kospiHistory[kospiHistory.length - 2];
+    const market = latestKospi ? {
+      id: 'KOSPI',
+      name: '코스피',
+      price: +latestKospi.kospiPrice.toFixed(2),
+      change: previousKospi ? +(latestKospi.kospiPrice - previousKospi.kospiPrice).toFixed(2) : null,
+      changePct: previousKospi ? +(((latestKospi.kospiPrice - previousKospi.kospiPrice) / previousKospi.kospiPrice) * 100).toFixed(2) : null,
+    } : null;
     const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
     const changeValues = representatives
       .map(pair => pair.current.spreadChange)
@@ -536,6 +667,12 @@ tr:hover { background: var(--surface2); }
     const averageSpreadChange = changeValues.length
       ? changeValues.reduce((sum, value) => sum + value, 0) / changeValues.length
       : null;
+    const commonChangeValues = representatives
+      .map(pair => pair.current.commonChange)
+      .filter(value => value != null && !Number.isNaN(value));
+    const preferredChangeValues = representatives
+      .map(pair => pair.current.preferredChange)
+      .filter(value => value != null && !Number.isNaN(value));
 
     const topWidening = representatives
       .filter(pair => pair.current.spreadChange > 0)
@@ -546,12 +683,60 @@ tr:hover { background: var(--surface2); }
 
     return {
       source: '기본 데이터 기준',
+      market,
       representativeCount: representatives.length,
       averageSpread: +averageSpread.toFixed(2),
       averageSpreadChange: averageSpreadChange == null ? null : +averageSpreadChange.toFixed(2),
+      averageCommonChange: commonChangeValues.length
+        ? +(commonChangeValues.reduce((sum, value) => sum + value, 0) / commonChangeValues.length).toFixed(2)
+        : null,
+      averagePreferredChange: preferredChangeValues.length
+        ? +(preferredChangeValues.reduce((sum, value) => sum + value, 0) / preferredChangeValues.length).toFixed(2)
+        : null,
       topWidening: topWidening ? serializePairSummary(topWidening) : null,
       topNarrowing: topNarrowing ? serializePairSummary(topNarrowing) : null,
     };
+  }
+
+  function renderGroupSnapshot(items) {
+    const top = items[0];
+    const p = top.pair;
+    const c = p.current;
+    const dir = getDirectionClass(c.spreadChange);
+    const displayName = items.length > 1 ? p.commonName : p.name;
+
+    return `
+      <div class="name">${displayName}</div>
+      <div class="spread-val">${c.spread.toFixed(1)}%</div>
+      <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
+      ${renderGroupPriceDetails(items)}
+    `;
+  }
+
+  function renderGroupPriceDetails(items) {
+    const p = items[0].pair;
+    const c = p.current;
+
+    if (items.length === 1) {
+      return `<div class="prices">
+        <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
+        <span>${p.preferredName} ${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}</span>
+        <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
+      </div>`;
+    }
+
+    const prefLines = items.map(item => {
+      const ip = item.pair;
+      const ic = ip.current;
+      const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
+      return `<span>${suffix} ${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%</span>`;
+    }).join('');
+
+    return `<div class="prices">
+      <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
+      ${prefLines}
+      <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
+    </div>`;
   }
 
   function serializePairSummary(pair) {
@@ -567,6 +752,11 @@ tr:hover { background: var(--surface2); }
     return String(name).replace('/', ' ');
   }
 
+  function formatMarketPrice(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    return value.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   function getDirectionClass(value) {
     if (value == null || Number.isNaN(value) || Math.abs(value) < 0.005) return 'flat';
     return value > 0 ? 'up' : 'down';
@@ -574,6 +764,34 @@ tr:hover { background: var(--surface2); }
 
   function getTextColorClass(value) {
     return getDirectionClass(value) + '-color';
+  }
+
+  function formatPercentChange(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    const direction = getDirectionClass(value);
+    if (direction === 'flat') return `${Math.abs(value).toFixed(2)}%`;
+    const arrow = direction === 'up' ? '▲' : '▼';
+    return `${arrow} ${Math.abs(value).toFixed(2)}%`;
+  }
+
+  function formatSignedPoints(value, suffix = '') {
+    if (value == null || Number.isNaN(value)) return '-';
+    const direction = getDirectionClass(value);
+    const formatted = Math.abs(value).toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (direction === 'flat') return `${formatted}${suffix}`;
+    const arrow = direction === 'up' ? '▲' : '▼';
+    return `${arrow} ${formatted}${suffix}`;
+  }
+
+  function parseDirectionalNumber(value) {
+    if (typeof value === 'number') return value;
+    const text = String(value);
+    const match = text.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const parsed = parseFloat(match[0]);
+    if (text.includes('▼')) return -Math.abs(parsed);
+    if (text.includes('▲')) return Math.abs(parsed);
+    return parsed;
   }
 
   function formatPointChange(value) {
@@ -594,9 +812,9 @@ tr:hover { background: var(--surface2); }
       const c = p.current;
       const primaryIdx = top.idx;
       const isActive = items.some(item => item.idx === selectedIdx);
-      const dir = getDirectionClass(c.spreadChange);
 
       if (p.isAverage) {
+        const dir = getDirectionClass(c.spreadChange);
         return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
           <div class="name">${p.name}</div>
           <div class="spread-val">${c.spread.toFixed(1)}%</div>
@@ -604,42 +822,13 @@ tr:hover { background: var(--surface2); }
         </div>`;
       }
 
-      const displayName = items.length > 1 ? p.commonName : p.name;
-      let prices;
-      if (items.length === 1) {
-        prices = `<div class="prices">
-          <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
-          <span>${p.preferredName} ${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}</span>
-          <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
-        </div>`;
-      } else {
-        const prefLines = items.map(item => {
-          const ip = item.pair;
-          const ic = ip.current;
-          const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
-          return `<span>${suffix} ${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%</span>`;
-        }).join('');
-        prices = `<div class="prices">
-          <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
-          ${prefLines}
-          <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
-        </div>`;
-      }
-
       return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
-        <div class="name">${displayName}</div>
-        <div class="spread-val">${c.spread.toFixed(1)}%</div>
-        <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
-        ${prices}
+        ${renderGroupSnapshot(items)}
       </div>`;
     }).join('');
     el.querySelectorAll('.card').forEach(card => {
       card.addEventListener('click', () => {
-        selectedIdx = parseInt(card.dataset.idx);
-        renderCards();
-        renderChart();
-        renderPriceChart();
-        renderStats();
+        selectPair(parseInt(card.dataset.idx, 10));
       });
     });
   }
