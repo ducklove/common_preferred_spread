@@ -479,7 +479,7 @@ tr:hover { background: var(--surface2); }
   const pairs = STOCK_DATA.pairs;
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
-  const LIVE_FETCH_CONCURRENCY = 8;
+  const LIVE_FETCH_CONCURRENCY = 4;
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let todayOverviewData = buildTodaySummaryFromPairs();
@@ -1399,13 +1399,22 @@ tr:hover { background: var(--surface2); }
     )];
 
     const quoteEntries = await mapWithConcurrency(uniqueCodes, LIVE_FETCH_CONCURRENCY, async code => {
-      const payload = await fetchLiveJson(`https://polling.finance.naver.com/api/realtime/domestic/stock/${code}`);
-      return [code, payload.datas?.[0] || null];
+      try {
+        const payload = await fetchLiveJson(`https://polling.finance.naver.com/api/realtime/domestic/stock/${code}`);
+        return [code, payload.datas?.[0] || null];
+      } catch (e) {
+        return [code, null];
+      }
     });
     const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
 
-    const marketPayload = await fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI');
-    const marketQuote = marketPayload.datas?.[0] || null;
+    let marketQuote = null;
+    try {
+      const marketPayload = await fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI');
+      marketQuote = marketPayload.datas?.[0] || null;
+    } catch (e) {
+      marketQuote = null;
+    }
 
     const prices = {};
     const tradedAtValues = [];
@@ -1451,6 +1460,10 @@ tr:hover { background: var(--surface2); }
     const latestTime = parsedTimes.length
       ? new Date(Math.max(...parsedTimes.map(value => value.getTime())))
       : new Date();
+
+    if (!Object.keys(prices).length && !market) {
+      throw new Error('실시간 시세를 가져오지 못했습니다.');
+    }
 
     return {
       source: '네이버 증권 실시간',
