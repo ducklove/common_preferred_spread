@@ -2,8 +2,8 @@ name: Update Current Prices
 
 on:
   schedule:
-    # 장중 10분 간격 (한국시간 9:00~15:50 = UTC 0:00~6:50, 월~금)
-    - cron: "*/10 0-6 * * 1-5"
+    # 장중 30분 간격 (한국시간 9:00~15:30 = UTC 0:00~6:30, 월~금)
+    - cron: "0,30 0-6 * * 1-5"
   workflow_dispatch:
 
 permissions:
