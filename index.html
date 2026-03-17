@@ -477,9 +477,15 @@ tr:hover { background: var(--surface2); }
 <script>
 (function() {
   const pairs = STOCK_DATA.pairs;
+  const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
+  const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
+  const LIVE_FETCH_CONCURRENCY = 8;
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let todayOverviewData = buildTodaySummaryFromPairs();
+  let liveRefreshPromise = null;
+  let pairConfigMap = new Map();
+  const configLoadPromise = loadPairConfig();
 
   function getCardGroups() {
     const map = new Map();
@@ -506,6 +512,18 @@ tr:hover { background: var(--surface2); }
 
   function getAveragePair() {
     return pairs.find(pair => pair.isAverage);
+  }
+
+  async function loadPairConfig() {
+    try {
+      const resp = await fetch('config.json?t=' + Date.now());
+      if (!resp.ok) return pairConfigMap;
+      const config = await resp.json();
+      pairConfigMap = new Map(config.map(item => [item.id, item]));
+    } catch (e) {
+      // config.json 로드 실패 시 실시간 강제 갱신은 건너뛴다.
+    }
+    return pairConfigMap;
   }
 
   function getGroupItemsByPairId(pairId) {
@@ -643,7 +661,7 @@ tr:hover { background: var(--surface2); }
     `;
   }
 
-  function buildTodaySummaryFromPairs() {
+  function buildTodaySummaryFromPairs(marketOverride = null) {
     const representatives = getRepresentativePairs().filter(pair => pair.current.spread != null);
     if (!representatives.length) return null;
 
@@ -653,13 +671,13 @@ tr:hover { background: var(--surface2); }
       : [];
     const latestKospi = kospiHistory[kospiHistory.length - 1];
     const previousKospi = kospiHistory[kospiHistory.length - 2];
-    const market = latestKospi ? {
+    const market = marketOverride || (latestKospi ? {
       id: 'KOSPI',
       name: '코스피',
       price: +latestKospi.kospiPrice.toFixed(2),
       change: previousKospi ? +(latestKospi.kospiPrice - previousKospi.kospiPrice).toFixed(2) : null,
       changePct: previousKospi ? +(((latestKospi.kospiPrice - previousKospi.kospiPrice) / previousKospi.kospiPrice) * 100).toFixed(2) : null,
-    } : null;
+    } : null);
     const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
     const changeValues = representatives
       .map(pair => pair.current.spreadChange)
@@ -1283,84 +1301,291 @@ tr:hover { background: var(--surface2); }
     return null;
   }
 
+  function parseSnapshotTimestamp(timestamp) {
+    if (!timestamp) return null;
+    const normalized = String(timestamp).includes('T')
+      ? String(timestamp)
+      : String(timestamp).replace(' ', 'T');
+    const withTimezone = /([+-]\d{2}:\d{2}|Z)$/.test(normalized)
+      ? normalized
+      : normalized + '+09:00';
+    const parsed = new Date(withTimezone);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatKstTimestamp(value) {
+    const parsed = value instanceof Date ? value : parseSnapshotTimestamp(value);
+    if (!parsed) return '';
+
+    const parts = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(parsed);
+    const partMap = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${partMap.year}-${partMap.month}-${partMap.day} ${partMap.hour}:${partMap.minute}:${partMap.second}`;
+  }
+
+  function isSnapshotStale(timestamp, maxAgeMs = LIVE_REFRESH_MAX_AGE_MS) {
+    const parsed = parseSnapshotTimestamp(timestamp);
+    if (!parsed) return true;
+    return Date.now() - parsed.getTime() > maxAgeMs;
+  }
+
+  function getTickerCode(ticker) {
+    return String(ticker || '').split('.')[0];
+  }
+
+  function parseRawNumber(value) {
+    if (value == null || value === '') return null;
+    const parsed = parseFloat(String(value).replace(/,/g, ''));
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  async function fetchLiveJson(url) {
+    const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url));
+    if (!resp.ok) {
+      throw new Error(`실시간 조회 실패 (${resp.status})`);
+    }
+    return resp.json();
+  }
+
+  async function mapWithConcurrency(items, limit, mapper) {
+    const results = new Array(items.length);
+    let nextIndex = 0;
+
+    async function worker() {
+      while (true) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        if (currentIndex >= items.length) return;
+        results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+      }
+    }
+
+    const workerCount = Math.min(limit, items.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+
+  function buildLiveMarketSummary(marketQuote) {
+    if (!marketQuote) return null;
+    return {
+      id: marketQuote.itemCode || 'KOSPI',
+      name: marketQuote.stockName || '코스피',
+      price: parseRawNumber(marketQuote.closePriceRaw || marketQuote.closePrice),
+      change: parseRawNumber(marketQuote.compareToPreviousClosePriceRaw || marketQuote.compareToPreviousClosePrice),
+      changePct: parseRawNumber(marketQuote.fluctuationsRatioRaw || marketQuote.fluctuationsRatio),
+      marketStatus: marketQuote.marketStatus || null,
+    };
+  }
+
+  async function buildLiveSnapshot() {
+    await configLoadPromise;
+    if (!pairConfigMap.size) {
+      throw new Error('config.json을 불러오지 못했습니다.');
+    }
+
+    const uniqueCodes = [...new Set(
+      [...pairConfigMap.values()].flatMap(item => [
+        getTickerCode(item.commonTicker),
+        getTickerCode(item.preferredTicker),
+      ]).filter(Boolean)
+    )];
+
+    const quoteEntries = await mapWithConcurrency(uniqueCodes, LIVE_FETCH_CONCURRENCY, async code => {
+      const payload = await fetchLiveJson(`https://polling.finance.naver.com/api/realtime/domestic/stock/${code}`);
+      return [code, payload.datas?.[0] || null];
+    });
+    const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
+
+    const marketPayload = await fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI');
+    const marketQuote = marketPayload.datas?.[0] || null;
+
+    const prices = {};
+    const tradedAtValues = [];
+    for (const pair of pairs.filter(item => !item.isAverage)) {
+      const config = pairConfigMap.get(pair.id);
+      if (!config) continue;
+
+      const commonQuote = quoteMap.get(getTickerCode(config.commonTicker));
+      const preferredQuote = quoteMap.get(getTickerCode(config.preferredTicker));
+      if (!commonQuote || !preferredQuote) continue;
+
+      const commonPrice = parseRawNumber(commonQuote.closePriceRaw || commonQuote.closePrice);
+      const preferredPrice = parseRawNumber(preferredQuote.closePriceRaw || preferredQuote.closePrice);
+      const commonDelta = parseRawNumber(commonQuote.compareToPreviousClosePriceRaw || commonQuote.compareToPreviousClosePrice);
+      const preferredDelta = parseRawNumber(preferredQuote.compareToPreviousClosePriceRaw || preferredQuote.compareToPreviousClosePrice);
+      const previousCommonPrice = commonPrice != null && commonDelta != null ? commonPrice - commonDelta : null;
+      const previousPreferredPrice = preferredPrice != null && preferredDelta != null ? preferredPrice - preferredDelta : null;
+      const spread = commonPrice != null && commonPrice !== 0 && preferredPrice != null
+        ? +(((commonPrice - preferredPrice) / commonPrice) * 100).toFixed(2)
+        : null;
+      const previousSpread = previousCommonPrice != null && previousCommonPrice !== 0 && previousPreferredPrice != null
+        ? +(((previousCommonPrice - previousPreferredPrice) / previousCommonPrice) * 100).toFixed(2)
+        : null;
+
+      prices[pair.id] = {
+        commonPrice,
+        preferredPrice,
+        spread,
+        spreadChange: spread != null && previousSpread != null ? +(spread - previousSpread).toFixed(2) : null,
+        commonChange: parseRawNumber(commonQuote.fluctuationsRatioRaw || commonQuote.fluctuationsRatio),
+        preferredChange: parseRawNumber(preferredQuote.fluctuationsRatioRaw || preferredQuote.fluctuationsRatio),
+      };
+
+      if (commonQuote.localTradedAt) tradedAtValues.push(commonQuote.localTradedAt);
+      if (preferredQuote.localTradedAt) tradedAtValues.push(preferredQuote.localTradedAt);
+    }
+
+    if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
+    const market = buildLiveMarketSummary(marketQuote);
+    const parsedTimes = tradedAtValues
+      .map(value => parseSnapshotTimestamp(value))
+      .filter(Boolean);
+    const latestTime = parsedTimes.length
+      ? new Date(Math.max(...parsedTimes.map(value => value.getTime())))
+      : new Date();
+
+    return {
+      source: '네이버 증권 실시간',
+      lastUpdated: formatKstTimestamp(latestTime),
+      prices,
+      market,
+    };
+  }
+
+  function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
+    const marketSummary = cur.market || cur.summary?.market || null;
+    const today = (cur.lastUpdated || formatKstTimestamp(new Date())).slice(0, 10);
+
+    pairs.forEach(p => {
+      if (p.isAverage) return;
+      const cp = cur.prices?.[p.id];
+      if (!cp) return;
+
+      p.current.commonPrice = cp.commonPrice;
+      p.current.preferredPrice = cp.preferredPrice;
+      p.current.spread = cp.spread;
+      if (cp.commonChange != null) p.current.commonChange = cp.commonChange;
+      if (cp.preferredChange != null) p.current.preferredChange = cp.preferredChange;
+      if (cp.spreadChange != null) {
+        p.current.spreadChange = cp.spreadChange;
+      }
+
+      const prev = getPrevDaySpread(p, today);
+      if (cp.spreadChange == null && prev !== null) {
+        p.current.spreadChange = +(cp.spread - prev).toFixed(2);
+      }
+
+      const last = p.history[p.history.length - 1];
+      if (last && last.date === today) {
+        last.commonPrice = cp.commonPrice;
+        last.preferredPrice = cp.preferredPrice;
+        last.spread = cp.spread;
+      } else {
+        p.history.push({
+          date: today,
+          commonPrice: cp.commonPrice,
+          preferredPrice: cp.preferredPrice,
+          spread: cp.spread,
+        });
+      }
+    });
+
+    const nextSummary = buildTodaySummaryFromPairs(marketSummary);
+
+    const avgPair = getAveragePair();
+    if (avgPair && (cur.averageSpread != null || nextSummary?.averageSpread != null)) {
+      const prev = getPrevDaySpread(avgPair, today);
+      const averageSpread = cur.averageSpread != null ? cur.averageSpread : nextSummary?.averageSpread;
+      const averageSpreadChange = cur.averageSpreadChange != null
+        ? cur.averageSpreadChange
+        : nextSummary?.averageSpreadChange;
+
+      avgPair.current.spread = averageSpread;
+      if (averageSpreadChange != null) {
+        avgPair.current.spreadChange = averageSpreadChange;
+      } else if (prev !== null) {
+        avgPair.current.spreadChange = +(averageSpread - prev).toFixed(2);
+      }
+
+      const last = avgPair.history[avgPair.history.length - 1];
+      if (last && last.date === today) {
+        last.spread = averageSpread;
+        if (marketSummary?.price != null) last.kospiPrice = marketSummary.price;
+      } else {
+        const nextEntry = { date: today, commonPrice: 0, preferredPrice: 0, spread: averageSpread };
+        if (marketSummary?.price != null) nextEntry.kospiPrice = marketSummary.price;
+        avgPair.history.push(nextEntry);
+      }
+    }
+
+    todayOverviewData = cur.summary
+      ? {
+          ...(nextSummary || {}),
+          ...cur.summary,
+          market: cur.summary.market || marketSummary,
+          source: cur.source || fallbackSource,
+        }
+      : {
+          ...(nextSummary || {}),
+          market: marketSummary,
+          source: cur.source || fallbackSource,
+        };
+
+    document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + (cur.lastUpdated || formatKstTimestamp(new Date()));
+    renderTodayOverview();
+    renderCards();
+    renderTable();
+    renderChart();
+    renderPriceChart();
+    renderStats();
+  }
+
+  async function refreshLivePricesIfNeeded(baseSnapshot) {
+    if (!isSnapshotStale(baseSnapshot?.lastUpdated)) return;
+    if (liveRefreshPromise) {
+      await liveRefreshPromise;
+      return;
+    }
+
+    liveRefreshPromise = (async () => {
+      try {
+        const liveSnapshot = await buildLiveSnapshot();
+        applyCurrentSnapshot(liveSnapshot, '네이버 증권 실시간');
+      } catch (e) {
+        // 실시간 프록시 갱신 실패 시 기존 스냅샷을 유지한다.
+      } finally {
+        liveRefreshPromise = null;
+      }
+    })();
+
+    await liveRefreshPromise;
+  }
+
   async function fetchCurrentPrices() {
     try {
       const resp = await fetch('current.json?t=' + Date.now());
       if (!resp.ok) return;
       const cur = await resp.json();
-      const today = cur.lastUpdated.slice(0, 10);
-
-      pairs.forEach(p => {
-        if (p.isAverage) return;
-        const cp = cur.prices[p.id];
-        if (!cp) return;
-
-        p.current.commonPrice = cp.commonPrice;
-        p.current.preferredPrice = cp.preferredPrice;
-        p.current.spread = cp.spread;
-        if (cp.commonChange != null) p.current.commonChange = cp.commonChange;
-        if (cp.preferredChange != null) p.current.preferredChange = cp.preferredChange;
-        if (cp.spreadChange != null) {
-          p.current.spreadChange = cp.spreadChange;
-        }
-
-        const prev = getPrevDaySpread(p, today);
-        if (cp.spreadChange == null && prev !== null) {
-          p.current.spreadChange = +(cp.spread - prev).toFixed(2);
-        }
-
-        // Update or add today in history
-        const last = p.history[p.history.length - 1];
-        if (last && last.date === today) {
-          last.commonPrice = cp.commonPrice;
-          last.preferredPrice = cp.preferredPrice;
-          last.spread = cp.spread;
-        } else {
-          p.history.push({
-            date: today,
-            commonPrice: cp.commonPrice,
-            preferredPrice: cp.preferredPrice,
-            spread: cp.spread,
-          });
-        }
-      });
-
-      // Update average pair
-      const avgPair = pairs.find(p => p.isAverage);
-      if (avgPair && cur.averageSpread != null) {
-        const prev = getPrevDaySpread(avgPair, today);
-        avgPair.current.spread = cur.averageSpread;
-        if (cur.averageSpreadChange != null) {
-          avgPair.current.spreadChange = cur.averageSpreadChange;
-        } else if (prev !== null) {
-          avgPair.current.spreadChange = +(cur.averageSpread - prev).toFixed(2);
-        }
-        const last = avgPair.history[avgPair.history.length - 1];
-        if (last && last.date === today) {
-          last.spread = cur.averageSpread;
-        } else {
-          avgPair.history.push({ date: today, commonPrice: 0, preferredPrice: 0, spread: cur.averageSpread });
-        }
-      }
-
-      todayOverviewData = cur.summary
-        ? { ...cur.summary, source: cur.source || '네이버 증권' }
-        : { ...buildTodaySummaryFromPairs(), source: cur.source || '네이버 증권' };
-
-      document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + cur.lastUpdated;
-      renderTodayOverview();
-      renderCards();
-      renderTable();
-      renderChart();
-      renderPriceChart();
-      renderStats();
+      applyCurrentSnapshot(cur, cur.source || '네이버 증권');
+      await refreshLivePricesIfNeeded(cur);
     } catch (e) {
-      // current.json not available yet, use data.js values
+      await refreshLivePricesIfNeeded({
+        source: 'data.js',
+        lastUpdated: STOCK_DATA.lastUpdated,
+      });
     }
   }
 
   fetchCurrentPrices();
-  setInterval(fetchCurrentPrices, 10 * 60 * 1000);
+  setInterval(fetchCurrentPrices, LIVE_REFRESH_MAX_AGE_MS);
 })();
 </script>
 </body>
