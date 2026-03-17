@@ -1474,7 +1474,8 @@ tr:hover { background: var(--surface2); }
   }
 
   function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
-    const marketSummary = cur.market || cur.summary?.market || null;
+    const previousMarketSummary = todayOverviewData?.market || null;
+    const marketSummary = cur.market || cur.summary?.market || previousMarketSummary || null;
     const today = (cur.lastUpdated || formatKstTimestamp(new Date())).slice(0, 10);
 
     pairs.forEach(p => {
@@ -1543,12 +1544,12 @@ tr:hover { background: var(--surface2); }
       ? {
           ...(nextSummary || {}),
           ...cur.summary,
-          market: cur.summary.market || marketSummary,
+          market: cur.summary.market || nextSummary?.market || marketSummary,
           source: cur.source || fallbackSource,
         }
       : {
           ...(nextSummary || {}),
-          market: marketSummary,
+          market: nextSummary?.market || marketSummary,
           source: cur.source || fallbackSource,
         };
 
