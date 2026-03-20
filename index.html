@@ -775,7 +775,7 @@ td.numeric .bar-cell {
   const MARKET_EXTRA_SPECS = [
     { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
     { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 },
-    { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 1 },
+    { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 2 },
     { id: 'SP500', name: 'S&P500', unit: '', priceDecimals: 2 },
   ];
   let currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
@@ -2082,7 +2082,7 @@ td.numeric .bar-cell {
     const marketExtras = [
       buildLiveMarketMetric(kosdaqPayload?.datas?.[0] || null, { id: 'KOSDAQ', name: 'KOSDAQ', priceDecimals: 2 }),
       extractMarketIndexMetricFromHtml(marketIndexHtml, 'usd', { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 }),
-      extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_inter', { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 1 }),
+      extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_inter', { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 2 }),
       buildLiveMarketMetric(sp500Payload?.datas?.[0] || null, { id: 'SP500', name: 'S&P500', priceDecimals: 2 }),
     ].filter(Boolean);
 

@@ -369,7 +369,7 @@ def main():
             "gold_inter",
             "GOLD",
             "금가격 (COMEX)",
-            price_digits=1,
+            price_digits=2,
         )
         if marketindex_html
         else None
