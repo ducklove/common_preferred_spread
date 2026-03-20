@@ -424,6 +424,11 @@ body {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.change-value {
+  display: inline-block;
+  min-width: 6.8ch;
+  text-align: right;
+}
 .card .div-yield {
   color: var(--green);
   font-weight: 600;
@@ -1857,10 +1862,10 @@ td.numeric .bar-cell {
     const direction = getDirectionClass(v);
     const cls = getTextColorClass(v);
     if (direction === 'flat') {
-      return `<span class="${cls}">${Math.abs(v).toFixed(1)}%</span>`;
+      return `<span class="${cls} change-value">&nbsp;${Math.abs(v).toFixed(1)}%</span>`;
     }
     const arrow = direction === 'up' ? '▲' : '▼';
-    return `<span class="${cls}">${arrow}${Math.abs(v).toFixed(1)}%</span>`;
+    return `<span class="${cls} change-value">${arrow}${Math.abs(v).toFixed(1)}%</span>`;
   }
 
   // Resize
