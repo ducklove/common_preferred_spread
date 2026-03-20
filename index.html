@@ -4,8 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>우선주 괴리율 대시보드</title>
+<script>
+(function() {
+  try {
+    var theme = localStorage.getItem('preferred-theme');
+    document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+  } catch (e) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+</script>
 <style>
 :root {
+  color-scheme: dark;
   --bg: #0f1117;
   --surface: #1a1d27;
   --surface2: #232733;
@@ -16,6 +27,53 @@
   --up: #f0615e;
   --down: #4a90d9;
   --green: #38c96a;
+  --today-glow: rgba(108,140,255,0.18);
+  --today-gradient-start: rgba(108,140,255,0.12);
+  --today-gradient-end: rgba(56,201,106,0.08);
+  --today-border: rgba(108,140,255,0.35);
+  --button-hover-bg: rgba(108,140,255,0.08);
+  --overview-card-bg: rgba(15,17,23,0.38);
+  --overview-card-hover-bg: rgba(15,17,23,0.54);
+  --overview-card-active-bg: rgba(108,140,255,0.1);
+  --overview-card-border: rgba(255,255,255,0.08);
+  --overview-primary-bg: rgba(15,17,23,0.26);
+  --overview-primary-border: rgba(56,201,106,0.28);
+  --soft-border: rgba(255,255,255,0.08);
+  --avg-card-bg: rgba(56,201,106,0.06);
+  --avg-card-bg-active: rgba(56,201,106,0.12);
+  --grid: rgba(255,255,255,0.06);
+  --avg-line: rgba(108,140,255,0.3);
+  --avg-label: rgba(108,140,255,0.6);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface2: #edf2fb;
+  --border: #d5ddeb;
+  --text: #172033;
+  --text-dim: #5f6981;
+  --accent: #315bdb;
+  --up: #d24d46;
+  --down: #1f78c8;
+  --green: #1f9a54;
+  --today-glow: rgba(49,91,219,0.16);
+  --today-gradient-start: rgba(49,91,219,0.1);
+  --today-gradient-end: rgba(31,154,84,0.08);
+  --today-border: rgba(49,91,219,0.28);
+  --button-hover-bg: rgba(49,91,219,0.1);
+  --overview-card-bg: rgba(255,255,255,0.82);
+  --overview-card-hover-bg: rgba(241,245,255,0.98);
+  --overview-card-active-bg: rgba(49,91,219,0.12);
+  --overview-card-border: rgba(23,32,51,0.1);
+  --overview-primary-bg: rgba(255,255,255,0.9);
+  --overview-primary-border: rgba(31,154,84,0.28);
+  --soft-border: rgba(23,32,51,0.1);
+  --avg-card-bg: rgba(31,154,84,0.07);
+  --avg-card-bg-active: rgba(31,154,84,0.14);
+  --grid: rgba(23,32,51,0.08);
+  --avg-line: rgba(49,91,219,0.28);
+  --avg-label: rgba(49,91,219,0.55);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -45,6 +103,7 @@ body {
   font-size: 13px;
   color: var(--text-dim);
 }
+.header .theme-btn,
 .header .refresh-btn {
   background: transparent;
   border: 1px solid var(--border);
@@ -56,11 +115,13 @@ body {
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
+.header .theme-btn:hover,
 .header .refresh-btn:hover {
   border-color: var(--accent);
   color: var(--text);
-  background: rgba(108,140,255,0.08);
+  background: var(--button-hover-bg);
 }
+.header .theme-btn:disabled,
 .header .refresh-btn:disabled {
   cursor: wait;
   opacity: 0.7;
@@ -74,10 +135,10 @@ body {
 /* Today overview */
 .today-overview {
   background:
-    radial-gradient(circle at top right, rgba(108,140,255,0.18), transparent 36%),
-    linear-gradient(135deg, rgba(108,140,255,0.12), rgba(56,201,106,0.08)),
+    radial-gradient(circle at top right, var(--today-glow), transparent 36%),
+    linear-gradient(135deg, var(--today-gradient-start), var(--today-gradient-end)),
     var(--surface);
-  border: 1px solid rgba(108,140,255,0.35);
+  border: 1px solid var(--today-border);
   border-radius: 14px;
   padding: 20px;
   margin-bottom: 24px;
@@ -114,11 +175,12 @@ body {
   gap: 12px;
 }
 .overview-card {
-  background: rgba(15,17,23,0.38);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--overview-card-bg);
+  border: 1px solid var(--overview-card-border);
   border-radius: 12px;
   padding: 16px;
   min-height: 126px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -130,16 +192,16 @@ body {
 }
 .overview-card.clickable:hover {
   border-color: var(--accent);
-  background: rgba(15,17,23,0.54);
+  background: var(--overview-card-hover-bg);
   transform: translateY(-1px);
 }
 .overview-card.active {
   border-color: var(--accent);
-  background: rgba(108,140,255,0.1);
+  background: var(--overview-card-active-bg);
 }
 .overview-card.primary {
-  background: rgba(15,17,23,0.26);
-  border-color: rgba(56,201,106,0.28);
+  background: var(--overview-primary-bg);
+  border-color: var(--overview-primary-border);
 }
 .overview-label {
   font-size: 12px;
@@ -177,17 +239,23 @@ body {
   grid-template-columns: minmax(0, 1fr) 170px;
   gap: 14px;
   min-height: 100%;
+  align-items: start;
+}
+.overview-split.runners {
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 12px;
 }
 .overview-main-copy {
   min-width: 0;
 }
 .overview-side-list,
 .overview-rank-list {
-  border-left: 1px solid rgba(255,255,255,0.08);
+  border-left: 1px solid var(--soft-border);
   padding-left: 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 0;
 }
 .overview-mini-item {
   min-width: 0;
@@ -217,7 +285,7 @@ body {
   margin-top: auto;
 }
 .overview-stat {
-  border-top: 1px solid rgba(255,255,255,0.08);
+  border-top: 1px solid var(--soft-border);
   padding-top: 10px;
 }
 .overview-stat-label {
@@ -246,8 +314,8 @@ body {
   transition: border-color 0.15s, background 0.15s;
 }
 .card:hover { border-color: var(--accent); }
-.card.avg-card { border-color: var(--green); background: rgba(56,201,106,0.06); }
-.card.avg-card.active { border-color: var(--green); background: rgba(56,201,106,0.12); }
+.card.avg-card { border-color: var(--green); background: var(--avg-card-bg); }
+.card.avg-card.active { border-color: var(--green); background: var(--avg-card-bg-active); }
 .card.active {
   border-color: var(--accent);
   background: var(--surface2);
@@ -271,6 +339,9 @@ body {
 .overview-card .spread-change {
   font-size: 13px;
   margin-top: 2px;
+}
+.overview-card .spread-change.emphasis {
+  font-weight: 800;
 }
 .card .spread-change.up { color: var(--up); }
 .card .spread-change.down { color: var(--down); }
@@ -305,10 +376,10 @@ body {
   color: inherit;
   cursor: pointer;
   font: inherit;
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 1px 8px;
-  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 1px 0;
   text-align: left;
   transition: color 0.15s, transform 0.15s;
 }
@@ -319,15 +390,8 @@ body {
 .overview-rank-item.active {
   color: var(--accent);
 }
-.overview-rank-order {
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 700;
-  grid-row: 1 / span 2;
-  align-self: center;
-}
 .overview-rank-name {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -335,7 +399,7 @@ body {
 }
 .overview-rank-meta {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .overview-rank-empty {
   color: var(--text-dim);
@@ -515,9 +579,9 @@ tr:hover { background: var(--surface2); }
   vertical-align: middle;
   border-radius: 2px;
 }
-.price-legend .leg-common::before { background: #6c8cff; }
-.price-legend .leg-preferred::before { background: #f0615e; }
-.price-legend .leg-kospi::before { background: #38c96a; }
+.price-legend .leg-common::before { background: var(--accent); }
+.price-legend .leg-preferred::before { background: var(--up); }
+.price-legend .leg-kospi::before { background: var(--green); }
 
 @media (max-width: 768px) {
   .header, .container { padding-left: 16px; padding-right: 16px; }
@@ -530,10 +594,13 @@ tr:hover { background: var(--surface2); }
   .overview-split {
     grid-template-columns: 1fr;
   }
+  .overview-split.runners {
+    grid-template-columns: 1fr;
+  }
   .overview-side-list,
   .overview-rank-list {
     border-left: none;
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-top: 1px solid var(--soft-border);
     padding-left: 0;
     padding-top: 12px;
   }
@@ -546,6 +613,7 @@ tr:hover { background: var(--surface2); }
   <h1>우선주 괴리율 대시보드</h1>
   <div class="updated-row">
     <div class="updated" id="lastUpdated"></div>
+    <button type="button" class="theme-btn" id="themeBtn">일반 모드</button>
     <button type="button" class="refresh-btn" id="refreshBtn">새로 고침</button>
   </div>
 </div>
@@ -601,6 +669,7 @@ tr:hover { background: var(--surface2); }
 <script>
 (function() {
   const pairs = STOCK_DATA.pairs;
+  const THEME_STORAGE_KEY = 'preferred-theme';
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
   const LIVE_REFRESH_RETRY_DELAY_MS = 1500;
   const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
@@ -612,6 +681,7 @@ tr:hover { background: var(--surface2); }
     { id: 'GOLD', name: '금가격', unit: '원' },
     { id: 'SP500', name: 'S&P500', unit: '' },
   ];
+  let currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let latestMarketExtras = [];
@@ -648,6 +718,57 @@ tr:hover { background: var(--surface2); }
 
   function getAveragePair() {
     return pairs.find(pair => pair.isAverage);
+  }
+
+  function getThemeColor(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function getChartTheme() {
+    return {
+      accent: getThemeColor('--accent'),
+      up: getThemeColor('--up'),
+      green: getThemeColor('--green'),
+      textDim: getThemeColor('--text-dim'),
+      grid: getThemeColor('--grid'),
+      avgLine: getThemeColor('--avg-line'),
+      avgLabel: getThemeColor('--avg-label'),
+    };
+  }
+
+  function updateThemeButtonLabel() {
+    const themeBtn = document.getElementById('themeBtn');
+    if (!themeBtn) return;
+    themeBtn.textContent = currentTheme === 'dark' ? '일반 모드' : '다크 모드';
+    themeBtn.setAttribute('aria-label', currentTheme === 'dark' ? '일반 모드로 전환' : '다크 모드로 전환');
+  }
+
+  function applyTheme(theme, { persist = true, rerender = true } = {}) {
+    currentTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = currentTheme;
+    updateThemeButtonLabel();
+
+    if (persist) {
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, currentTheme);
+      } catch (e) {
+        // 저장 실패 시 현재 세션 테마만 적용한다.
+      }
+    }
+
+    if (rerender) {
+      renderChart();
+      renderPriceChart();
+    }
+  }
+
+  function bindThemeButton() {
+    const themeBtn = document.getElementById('themeBtn');
+    if (!themeBtn) return;
+    themeBtn.addEventListener('click', () => {
+      applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
+    updateThemeButtonLabel();
   }
 
   function normalizeMarketExtras(extras = []) {
@@ -738,6 +859,7 @@ tr:hover { background: var(--surface2); }
 
   // --- Init ---
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
+  bindThemeButton();
   renderTodayOverview();
   renderCards();
   renderTable();
@@ -868,9 +990,9 @@ tr:hover { background: var(--surface2); }
     return `
       <div class="overview-card leader-card clickable${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
         <div class="overview-label">${title}</div>
-        <div class="overview-split">
+        <div class="overview-split runners">
           <div class="overview-main-copy">
-            ${renderGroupSnapshot(items)}
+            ${renderGroupSnapshot(items, { emphasizeChange: true })}
           </div>
           ${renderLeaderRunnerPanel(runners)}
         </div>
@@ -947,12 +1069,12 @@ tr:hover { background: var(--surface2); }
 
     return `
       <div class="overview-rank-list">
-        ${runners.slice(0, 4).map((runner, index) => renderLeaderRunnerItem(runner, index + 2)).join('')}
+        ${runners.slice(0, 4).map(runner => renderLeaderRunnerItem(runner)).join('')}
       </div>
     `;
   }
 
-  function renderLeaderRunnerItem(runner, rank) {
+  function renderLeaderRunnerItem(runner) {
     const items = getGroupItemsByPairId(runner.id);
     const primaryIdx = items?.[0]?.idx;
     const isActive = items ? items.some(item => item.idx === selectedIdx) : false;
@@ -960,7 +1082,6 @@ tr:hover { background: var(--surface2); }
 
     return `
       <button type="button" class="overview-rank-item${isActive ? ' active' : ''}" data-idx="${idxAttr}">
-        <span class="overview-rank-order">${rank}위</span>
         <span class="overview-rank-name">${formatPairName(getOverviewPairName(runner.id, runner.name))}</span>
         <span class="overview-rank-meta">${runner.spread.toFixed(1)}% / ${formatPointChange(runner.spreadChange)}</span>
       </button>
@@ -974,17 +1095,18 @@ tr:hover { background: var(--surface2); }
     return items.length > 1 ? pair.commonName : pair.name;
   }
 
-  function renderGroupSnapshot(items) {
+  function renderGroupSnapshot(items, { emphasizeChange = false } = {}) {
     const top = items[0];
     const p = top.pair;
     const c = p.current;
     const dir = getDirectionClass(c.spreadChange);
     const displayName = items.length > 1 ? p.commonName : p.name;
+    const emphasisClass = emphasizeChange ? ' emphasis' : '';
 
     return `
       <div class="name">${displayName}</div>
       <div class="spread-val">${c.spread.toFixed(1)}%</div>
-      <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
+      <div class="spread-change ${dir}${emphasisClass}">${formatPointChange(c.spreadChange)}</div>
       ${renderGroupPriceDetails(items)}
     `;
   }
@@ -1181,6 +1303,7 @@ tr:hover { background: var(--surface2); }
   // --- Chart ---
   function renderChart() {
     const p = pairs[selectedIdx];
+    const theme = getChartTheme();
     document.getElementById('chartTitle').textContent = p.name + ' 괴리율 추이';
 
     const canvas = document.getElementById('chart');
@@ -1214,11 +1337,11 @@ tr:hover { background: var(--surface2); }
     ctx.clearRect(0, 0, W, H);
 
     // Y axis grid
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
     const yTicks = 5;
     ctx.font = '12px -apple-system, sans-serif';
-    ctx.fillStyle = '#8b90a5';
+    ctx.fillStyle = theme.textDim;
     ctx.textAlign = 'right';
     for (let i = 0; i <= yTicks; i++) {
       const v = minS + (rangeS * i / yTicks);
@@ -1232,19 +1355,19 @@ tr:hover { background: var(--surface2); }
 
     // Average line
     const avgY = pad.top + cH - ((avg - minS) / rangeS * cH);
-    ctx.strokeStyle = 'rgba(108,140,255,0.3)';
+    ctx.strokeStyle = theme.avgLine;
     ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(pad.left, avgY);
     ctx.lineTo(W - pad.right, avgY);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(108,140,255,0.6)';
+    ctx.fillStyle = theme.avgLabel;
     ctx.textAlign = 'left';
     ctx.fillText('평균 ' + avg.toFixed(1) + '%', pad.left + 4, avgY - 6);
 
     // X axis labels
-    ctx.fillStyle = '#8b90a5';
+    ctx.fillStyle = theme.textDim;
     ctx.textAlign = 'center';
     const xLabelCount = Math.min(6, hist.length);
     for (let i = 0; i < xLabelCount; i++) {
@@ -1280,7 +1403,7 @@ tr:hover { background: var(--surface2); }
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = '#6c8cff';
+    ctx.strokeStyle = theme.accent;
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -1333,6 +1456,7 @@ tr:hover { background: var(--surface2); }
     const p = pairs[selectedIdx];
     const isAvg = !!p.isAverage;
     const hist = getFilteredHistory(p);
+    const theme = getChartTheme();
     if (hist.length < 2) return;
 
     // Title & legend
@@ -1380,7 +1504,7 @@ tr:hover { background: var(--surface2); }
 
       drawYAxis(ctx, pad, cW, cH, W, minP, maxP, rangeP, '', 'left');
       drawXAxis(ctx, pad, cH, cW, H, kospiHist);
-      drawLine(ctx, pad, cW, cH, kospiHist, d => d.kospiPrice, minP, rangeP, '#38c96a', true);
+      drawLine(ctx, pad, cW, cH, kospiHist, d => d.kospiPrice, minP, rangeP, theme.green, true);
 
       // Tooltip
       setupPriceTooltip(canvas, pad, W, cW, cH, kospiHist, (d) => {
@@ -1396,8 +1520,8 @@ tr:hover { background: var(--surface2); }
 
       drawYAxis(ctx, pad, cW, cH, W, minP, maxP, rangeP, '', 'left');
       drawXAxis(ctx, pad, cH, cW, H, hist);
-      drawLine(ctx, pad, cW, cH, hist, d => d.commonPrice, minP, rangeP, '#6c8cff', false);
-      drawLine(ctx, pad, cW, cH, hist, d => d.preferredPrice, minP, rangeP, '#f0615e', false);
+      drawLine(ctx, pad, cW, cH, hist, d => d.commonPrice, minP, rangeP, theme.accent, false);
+      drawLine(ctx, pad, cW, cH, hist, d => d.preferredPrice, minP, rangeP, theme.up, false);
 
       // Tooltip
       setupPriceTooltip(canvas, pad, W, cW, cH, hist, (d) => {
@@ -1410,6 +1534,7 @@ tr:hover { background: var(--surface2); }
   }
 
   function drawYAxis(ctx, pad, cW, cH, W, minV, maxV, range, suffix, side, color) {
+    const theme = getChartTheme();
     const yTicks = 4;
     ctx.font = '11px -apple-system, sans-serif';
     for (let i = 0; i <= yTicks; i++) {
@@ -1417,14 +1542,14 @@ tr:hover { background: var(--surface2); }
       const y = pad.top + cH - (cH * i / yTicks);
       // Grid line (only draw once, from left axis)
       if (side === 'left') {
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.strokeStyle = theme.grid;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(pad.left, y);
         ctx.lineTo(W - pad.right, y);
         ctx.stroke();
       }
-      ctx.fillStyle = color || '#8b90a5';
+      ctx.fillStyle = color || theme.textDim;
       if (side === 'left') {
         ctx.textAlign = 'right';
         ctx.fillText(formatAxisPrice(v) + suffix, pad.left - 8, y + 4);
@@ -1436,7 +1561,7 @@ tr:hover { background: var(--surface2); }
   }
 
   function drawXAxis(ctx, pad, cH, cW, H, hist) {
-    ctx.fillStyle = '#8b90a5';
+    ctx.fillStyle = getChartTheme().textDim;
     ctx.textAlign = 'center';
     ctx.font = '11px -apple-system, sans-serif';
     const xLabelCount = Math.min(6, hist.length);
