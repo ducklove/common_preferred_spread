@@ -373,6 +373,14 @@ body {
   font-weight: 700;
   letter-spacing: -1px;
 }
+.overview-value,
+.card .spread-val,
+.overview-card .spread-val,
+.overview-mini-value,
+.overview-change,
+.overview-points {
+  font-variant-numeric: tabular-nums;
+}
 .card .spread-change,
 .overview-card .spread-change {
   font-size: 13px;
@@ -395,6 +403,24 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.price-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.price-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.price-value {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .card .div-yield {
   color: var(--green);
@@ -556,6 +582,11 @@ td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
+th.numeric,
+td.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 tr:last-child td { border-bottom: none; }
 tr:hover { background: var(--surface2); }
 .up-color { color: var(--up); }
@@ -567,6 +598,10 @@ tr:hover { background: var(--surface2); }
   display: flex;
   align-items: center;
   gap: 8px;
+}
+td.numeric .bar-cell {
+  width: 100%;
+  justify-content: flex-end;
 }
 .bar {
   height: 8px;
@@ -592,6 +627,11 @@ tr:hover { background: var(--surface2); }
 .tooltip.visible { opacity: 1; }
 .tooltip .tt-date { color: var(--text-dim); margin-bottom: 6px; }
 .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+.tooltip .tt-row span:last-child {
+  margin-left: auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Price chart */
 .price-chart-container {
@@ -701,11 +741,11 @@ tr:hover { background: var(--surface2); }
       <thead>
         <tr>
           <th>종목</th>
-          <th>보통주</th>
-          <th>우선주</th>
-          <th>현재 괴리율</th>
-          <th>변동</th>
-          <th style="min-width:120px">괴리율</th>
+          <th class="numeric">보통주</th>
+          <th class="numeric">우선주</th>
+          <th class="numeric">현재 괴리율</th>
+          <th class="numeric">변동</th>
+          <th class="numeric" style="min-width:120px">괴리율</th>
         </tr>
       </thead>
       <tbody id="tableBody"></tbody>
@@ -1178,14 +1218,21 @@ tr:hover { background: var(--surface2); }
     `;
   }
 
+  function renderPriceLine(label, valueHtml) {
+    return `<span class="price-line">
+      <span class="price-label">${label}</span>
+      <span class="price-value">${valueHtml}</span>
+    </span>`;
+  }
+
   function renderGroupPriceDetails(items) {
     const p = items[0].pair;
     const c = p.current;
 
     if (items.length === 1) {
       return `<div class="prices">
-        <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
-        <span>${p.preferredName} ${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}</span>
+        ${renderPriceLine(p.commonName, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
+        ${renderPriceLine(p.preferredName, `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
         <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
       </div>`;
     }
@@ -1194,11 +1241,11 @@ tr:hover { background: var(--surface2); }
       const ip = item.pair;
       const ic = ip.current;
       const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
-      return `<span>${suffix} ${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%</span>`;
+      return renderPriceLine(suffix, `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%`);
     }).join('');
 
     return `<div class="prices">
-      <span>${p.commonName} ${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}</span>
+      ${renderPriceLine(p.commonName, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
       ${prefLines}
       <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
     </div>`;
@@ -1321,21 +1368,21 @@ tr:hover { background: var(--surface2); }
       if (p.isAverage) {
         return `<tr style="border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--surface2)">
           <td><strong>${p.name}</strong></td>
-          <td></td>
-          <td></td>
-          <td><strong>${c.spread.toFixed(2)}%</strong></td>
-          <td class="${textColorClass}">${formatPointChange(c.spreadChange)}</td>
-          <td><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
+          <td class="numeric"></td>
+          <td class="numeric"></td>
+          <td class="numeric"><strong>${c.spread.toFixed(2)}%</strong></td>
+          <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
+          <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
       }
       const displayName = p.name.includes('/') ? p.commonName : p.name;
       return `<tr>
         <td><strong>${displayName}</strong></td>
-        <td>${formatPrice(c.commonPrice)}</td>
-        <td>${formatPrice(c.preferredPrice)}</td>
-        <td><strong>${c.spread.toFixed(2)}%</strong></td>
-        <td class="${textColorClass}">${formatPointChange(c.spreadChange)}</td>
-        <td><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
+        <td class="numeric">${formatPrice(c.commonPrice)}</td>
+        <td class="numeric">${formatPrice(c.preferredPrice)}</td>
+        <td class="numeric"><strong>${c.spread.toFixed(2)}%</strong></td>
+        <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
+        <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
     }).join('');
   }
