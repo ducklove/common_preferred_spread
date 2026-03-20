@@ -253,17 +253,7 @@ body {
   min-width: 0;
 }
 .overview-market-line {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
   margin-top: 2px;
-}
-.overview-market-line .overview-value {
-  font-size: 24px;
-}
-.overview-market-line .overview-change {
-  white-space: nowrap;
 }
 .overview-side-list,
 .overview-rank-list {
@@ -276,10 +266,9 @@ body {
 }
 .overview-mini-item {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .overview-mini-label {
   font-size: 11px;
@@ -288,7 +277,10 @@ body {
 }
 .overview-mini-data {
   min-width: 0;
-  text-align: right;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
 }
 .overview-mini-value {
   font-size: 15px;
@@ -298,7 +290,7 @@ body {
 }
 .overview-mini-change {
   font-size: 11px;
-  margin-top: 2px;
+  text-align: right;
   white-space: nowrap;
 }
 .overview-mini-change.up { color: var(--up); }
@@ -944,10 +936,8 @@ tr:hover { background: var(--surface2); }
         <div class="overview-split market">
           <div class="overview-main-copy">
             <div class="overview-label">KOSPI 지수</div>
-            <div class="overview-market-line">
-              <div class="overview-value">${formatMarketPrice(mergedMarket?.price)}</div>
-              <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">${formatPercentChange(mergedMarket?.changePct)}</div>
-            </div>
+            <div class="overview-value overview-market-line">${formatMarketPrice(mergedMarket?.price)}</div>
+            <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">${formatPercentChange(mergedMarket?.changePct)}</div>
             <div class="overview-points">${formatSignedPoints(mergedMarket?.change, 'pt')}</div>
           </div>
           <div class="overview-side-list">
@@ -1929,10 +1919,10 @@ tr:hover { background: var(--surface2); }
     ]);
     const marketQuote = marketPayload?.datas?.[0] || null;
     const marketExtras = [
-      buildLiveMarketMetric(kosdaqPayload?.datas?.[0] || null, { id: 'KOSDAQ', name: 'KOSDAQ' }),
-      extractMarketIndexMetricFromHtml(marketIndexHtml, 'usd', { id: 'USDKRW', name: '환율', unit: '원' }),
-      extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_domestic', { id: 'GOLD', name: '금가격', unit: '원' }),
-      buildLiveMarketMetric(sp500Payload?.datas?.[0] || null, { id: 'SP500', name: 'S&P500' }),
+      buildLiveMarketMetric(kosdaqPayload?.datas?.[0] || null, { id: 'KOSDAQ', name: 'KOSDAQ', priceDecimals: 2 }),
+      extractMarketIndexMetricFromHtml(marketIndexHtml, 'usd', { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 }),
+      extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_domestic', { id: 'GOLD', name: '금가격', unit: '원', priceDecimals: 0 }),
+      buildLiveMarketMetric(sp500Payload?.datas?.[0] || null, { id: 'SP500', name: 'S&P500', priceDecimals: 2 }),
     ].filter(Boolean);
 
     const prices = {};
