@@ -202,6 +202,13 @@ body {
   align-items: center;
   text-align: center;
 }
+.overview-card.average-card .overview-label,
+.overview-card.average-card .overview-detail {
+  width: 100%;
+}
+.overview-card.average-card .overview-label {
+  text-align: left;
+}
 .overview-card.average-card .overview-value {
   font-size: 42px;
   line-height: 1;
@@ -212,6 +219,9 @@ body {
 }
 .overview-card.average-card .overview-stat {
   text-align: center;
+}
+.overview-card.average-card .overview-detail {
+  text-align: right;
 }
 .overview-label {
   font-size: 12px;
@@ -971,8 +981,8 @@ tr:hover { background: var(--surface2); }
         <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
         <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
         <div class="overview-summary-grid">
-          ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
           ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
+          ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
         </div>
         <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
       </div>
