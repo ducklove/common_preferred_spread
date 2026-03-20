@@ -363,6 +363,7 @@ body {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -412,6 +413,7 @@ body {
 }
 .price-label {
   min-width: 0;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -457,9 +459,16 @@ body {
 .overview-rank-name {
   font-size: 11.5px;
   font-weight: 600;
+  line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.autofit-wrap {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
 }
 .overview-rank-meta {
   color: var(--text-dim);
@@ -821,6 +830,59 @@ td.numeric .bar-cell {
     return pairs.find(pair => pair.isAverage);
   }
 
+  function getAverageHistoryMarketFallback() {
+    const averagePair = getAveragePair();
+    if (!averagePair) return null;
+
+    const kospiHistory = averagePair.history.filter(entry => entry.kospiPrice != null);
+    const latestKospi = kospiHistory[kospiHistory.length - 1];
+    const previousKospi = kospiHistory[kospiHistory.length - 2];
+    if (!latestKospi) return null;
+
+    return {
+      id: 'KOSPI',
+      name: '코스피',
+      price: +latestKospi.kospiPrice.toFixed(2),
+      change: previousKospi ? +(latestKospi.kospiPrice - previousKospi.kospiPrice).toFixed(2) : null,
+      changePct: previousKospi ? +(((latestKospi.kospiPrice - previousKospi.kospiPrice) / previousKospi.kospiPrice) * 100).toFixed(2) : null,
+    };
+  }
+
+  function getRenderableMarketSummary(market) {
+    return mergeMarketSummary(
+      market,
+      mergeMarketSummary(getAverageHistoryMarketFallback(), { extras: latestMarketExtras }),
+    );
+  }
+
+  function fitTextToWidth(el, { maxFontSize, minFontSize }) {
+    if (!el) return;
+
+    el.style.fontSize = `${maxFontSize}px`;
+    el.classList.remove('autofit-wrap');
+
+    if (!el.clientWidth) return;
+    while (parseFloat(el.style.fontSize) > minFontSize && el.scrollWidth > el.clientWidth + 1) {
+      el.style.fontSize = `${(parseFloat(el.style.fontSize) - 0.5).toFixed(1)}px`;
+    }
+
+    if (el.scrollWidth > el.clientWidth + 1) {
+      el.classList.add('autofit-wrap');
+    }
+  }
+
+  function applyAutoFitText(root = document) {
+    const configs = [
+      { selector: '.card .name, .overview-card .name', maxFontSize: 14, minFontSize: 11 },
+      { selector: '.overview-rank-name', maxFontSize: 11.5, minFontSize: 9.5 },
+      { selector: '.price-label', maxFontSize: 12, minFontSize: 9.5 },
+    ];
+
+    configs.forEach(config => {
+      root.querySelectorAll(config.selector).forEach(el => fitTextToWidth(el, config));
+    });
+  }
+
   function getThemeColor(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -1004,10 +1066,11 @@ td.numeric .bar-cell {
         selectPair(parseInt(item.dataset.idx, 10));
       });
     });
+    applyAutoFitText(overviewEl);
   }
 
   function renderMarketOverviewCard(market) {
-    const mergedMarket = mergeMarketSummary(market, { extras: latestMarketExtras });
+    const mergedMarket = getRenderableMarketSummary(market);
     const extras = mergeMarketExtras(mergedMarket?.extras || [], latestMarketExtras);
 
     return `
@@ -1106,20 +1169,7 @@ td.numeric .bar-cell {
     const representatives = getRepresentativePairs().filter(pair => pair.current.spread != null);
     if (!representatives.length) return null;
 
-    const averagePair = getAveragePair();
-    const kospiHistory = averagePair
-      ? averagePair.history.filter(entry => entry.kospiPrice != null)
-      : [];
-    const latestKospi = kospiHistory[kospiHistory.length - 1];
-    const previousKospi = kospiHistory[kospiHistory.length - 2];
-    const fallbackMarket = latestKospi ? {
-      id: 'KOSPI',
-      name: '코스피',
-      price: +latestKospi.kospiPrice.toFixed(2),
-      change: previousKospi ? +(latestKospi.kospiPrice - previousKospi.kospiPrice).toFixed(2) : null,
-      changePct: previousKospi ? +(((latestKospi.kospiPrice - previousKospi.kospiPrice) / previousKospi.kospiPrice) * 100).toFixed(2) : null,
-    } : null;
-    const market = mergeMarketSummary(marketOverride, fallbackMarket);
+    const market = getRenderableMarketSummary(marketOverride);
     const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
     const changeValues = representatives
       .map(pair => pair.current.spreadChange)
@@ -1352,6 +1402,7 @@ td.numeric .bar-cell {
         selectPair(parseInt(card.dataset.idx, 10));
       });
     });
+    applyAutoFitText(el);
   }
 
   // --- Table ---
@@ -1797,7 +1848,11 @@ td.numeric .bar-cell {
   }
 
   // Resize
-  window.addEventListener('resize', () => { renderChart(); renderPriceChart(); });
+  window.addEventListener('resize', () => {
+    applyAutoFitText();
+    renderChart();
+    renderPriceChart();
+  });
 
   // --- Live price updates from current.json ---
   function getPrevDaySpread(pair, today) {
