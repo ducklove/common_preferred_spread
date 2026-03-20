@@ -1268,6 +1268,21 @@ td.numeric .bar-cell {
     `;
   }
 
+  function getPreferredShortLabel(pair) {
+    if (!pair?.name) return '우';
+    if (!pair.name.includes('/')) return '우';
+    const suffix = pair.name.split('/')[1];
+    return suffix ? suffix.trim() : '우';
+  }
+
+  function getDetailLabels(pair, items = null) {
+    const groupItems = items || getGroupItemsByPairId(pair?.id) || (pair ? [{ pair }] : []);
+    return {
+      common: '보통주',
+      preferred: groupItems.length > 1 ? getPreferredShortLabel(pair) : '우선주',
+    };
+  }
+
   function renderPriceLine(label, valueHtml) {
     return `<span class="price-line">
       <span class="price-label">${label}</span>
@@ -1278,11 +1293,12 @@ td.numeric .bar-cell {
   function renderGroupPriceDetails(items) {
     const p = items[0].pair;
     const c = p.current;
+    const labels = getDetailLabels(p, items);
 
     if (items.length === 1) {
       return `<div class="prices">
-        ${renderPriceLine(p.commonName, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
-        ${renderPriceLine(p.preferredName, `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
+        ${renderPriceLine(labels.common, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
+        ${renderPriceLine(labels.preferred, `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
         <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
       </div>`;
     }
@@ -1290,12 +1306,11 @@ td.numeric .bar-cell {
     const prefLines = items.map(item => {
       const ip = item.pair;
       const ic = ip.current;
-      const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
-      return renderPriceLine(suffix, `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)}`);
+      return renderPriceLine(getPreferredShortLabel(ip), `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)}`);
     }).join('');
 
     return `<div class="prices">
-      ${renderPriceLine(p.commonName, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
+      ${renderPriceLine(labels.common, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
       ${prefLines}
       <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
     </div>`;
@@ -1621,6 +1636,7 @@ td.numeric .bar-cell {
     const isAvg = !!p.isAverage;
     const hist = getFilteredHistory(p);
     const theme = getChartTheme();
+    const detailLabels = isAvg ? null : getDetailLabels(p);
     if (hist.length < 2) return;
 
     // Title & legend
@@ -1631,7 +1647,7 @@ td.numeric .bar-cell {
       legendEl.innerHTML = '<span class="leg-kospi">KOSPI</span>';
     } else {
       titleEl.textContent = p.name + ' 시세 추이';
-      legendEl.innerHTML = `<span class="leg-common">${p.commonName}</span><span class="leg-preferred">${p.preferredName}</span>`;
+      legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${detailLabels.preferred}</span>`;
     }
 
     const canvas = document.getElementById('priceChart');
@@ -1690,8 +1706,8 @@ td.numeric .bar-cell {
       // Tooltip
       setupPriceTooltip(canvas, pad, W, cW, cH, hist, (d) => {
         return `<div class="tt-date">${d.date}</div>
-          <div class="tt-row"><span>${p.commonName}</span><span>${formatPrice(d.commonPrice)}</span></div>
-          <div class="tt-row"><span>${p.preferredName}</span><span>${formatPrice(d.preferredPrice)}</span></div>
+          <div class="tt-row"><span>${detailLabels.common}</span><span>${formatPrice(d.commonPrice)}</span></div>
+          <div class="tt-row"><span>${detailLabels.preferred}</span><span>${formatPrice(d.preferredPrice)}</span></div>
           <div class="tt-row"><span><strong>괴리율</strong></span><span><strong>${d.spread.toFixed(2)}%</strong></span></div>`;
       }, d => d.commonPrice, minP, rangeP);
     }
