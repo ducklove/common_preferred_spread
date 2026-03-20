@@ -34,10 +34,36 @@ body {
   font-weight: 700;
   letter-spacing: -0.5px;
 }
+.header .updated-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
 .header .updated {
   font-size: 13px;
   color: var(--text-dim);
-  margin-top: 4px;
+}
+.header .refresh-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.header .refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(108,140,255,0.08);
+}
+.header .refresh-btn:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 .container {
   max-width: 1400px;
@@ -423,7 +449,10 @@ tr:hover { background: var(--surface2); }
 
 <div class="header">
   <h1>우선주 괴리율 대시보드</h1>
-  <div class="updated" id="lastUpdated"></div>
+  <div class="updated-row">
+    <div class="updated" id="lastUpdated"></div>
+    <button type="button" class="refresh-btn" id="refreshBtn">새로 고침</button>
+  </div>
 </div>
 
 <div class="container">
@@ -487,6 +516,7 @@ tr:hover { background: var(--surface2); }
   let todayOverviewData = buildTodaySummaryFromPairs();
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
+  let refreshButtonBusy = false;
   let pairConfigMap = new Map();
   const configLoadPromise = loadPairConfig();
 
@@ -1343,6 +1373,28 @@ tr:hover { background: var(--surface2); }
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  function setRefreshButtonState(isBusy) {
+    refreshButtonBusy = isBusy;
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (!refreshBtn) return;
+    refreshBtn.disabled = isBusy;
+    refreshBtn.textContent = isBusy ? '갱신 중...' : '새로 고침';
+  }
+
+  function bindRefreshButton() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (!refreshBtn) return;
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshButtonBusy) return;
+      setRefreshButtonState(true);
+      try {
+        await fetchCurrentPrices({ forceLiveRefresh: true });
+      } finally {
+        setRefreshButtonState(false);
+      }
+    });
+  }
+
   function getTickerCode(ticker) {
     return String(ticker || '').split('.')[0];
   }
@@ -1576,10 +1628,10 @@ tr:hover { background: var(--surface2); }
     return true;
   }
 
-  async function refreshLivePricesIfNeeded(baseSnapshot) {
+  async function refreshLivePricesIfNeeded(baseSnapshot, { forceRefresh = false } = {}) {
     const baseSnapshotMs = parseSnapshotTimestamp(baseSnapshot?.lastUpdated)?.getTime() || 0;
     const referenceSnapshotMs = Math.max(baseSnapshotMs, latestAppliedSnapshotMs || 0);
-    if (!isSnapshotMsStale(referenceSnapshotMs)) return false;
+    if (!forceRefresh && !isSnapshotMsStale(referenceSnapshotMs)) return false;
     if (liveRefreshPromise) {
       return liveRefreshPromise;
     }
@@ -1599,10 +1651,15 @@ tr:hover { background: var(--surface2); }
     return liveRefreshPromise;
   }
 
-  async function refreshLivePricesWithRetry(baseSnapshot, attempts = LIVE_REFRESH_RETRY_ATTEMPTS) {
+  async function refreshLivePricesWithRetry(
+    baseSnapshot,
+    attempts = LIVE_REFRESH_RETRY_ATTEMPTS,
+    options = {},
+  ) {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const refreshed = await refreshLivePricesIfNeeded(baseSnapshot);
-      if (refreshed || !isSnapshotMsStale(latestAppliedSnapshotMs || 0)) {
+      const refreshed = await refreshLivePricesIfNeeded(baseSnapshot, options);
+      const hasFreshSnapshot = !isSnapshotMsStale(latestAppliedSnapshotMs || 0);
+      if (refreshed || (!options.forceRefresh && hasFreshSnapshot)) {
         return refreshed;
       }
       if (attempt < attempts - 1) {
@@ -1612,7 +1669,7 @@ tr:hover { background: var(--surface2); }
     return false;
   }
 
-  async function fetchCurrentPrices() {
+  async function fetchCurrentPrices({ forceLiveRefresh = false } = {}) {
     let baseSnapshot = {
       source: 'data.js',
       lastUpdated: STOCK_DATA.lastUpdated,
@@ -1629,9 +1686,12 @@ tr:hover { background: var(--surface2); }
       // current.json 로드 실패 시 data.js 기준으로 실시간 조회만 시도한다.
     }
 
-    await refreshLivePricesWithRetry(baseSnapshot);
+    await refreshLivePricesWithRetry(baseSnapshot, LIVE_REFRESH_RETRY_ATTEMPTS, {
+      forceRefresh: forceLiveRefresh,
+    });
   }
 
+  bindRefreshButton();
   fetchCurrentPrices();
 })();
 </script>
