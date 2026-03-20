@@ -614,7 +614,9 @@ tr:hover { background: var(--surface2); }
   ];
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
+  let latestMarketExtras = [];
   let todayOverviewData = buildTodaySummaryFromPairs();
+  latestMarketExtras = normalizeMarketExtras(todayOverviewData?.market?.extras || []);
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
   let refreshButtonBusy = false;
@@ -669,6 +671,33 @@ tr:hover { background: var(--surface2); }
     });
   }
 
+  function hasMarketMetricValue(metric) {
+    return metric && metric.price != null && !Number.isNaN(metric.price);
+  }
+
+  function mergeMarketExtras(primaryExtras = [], fallbackExtras = [], preservedExtras = []) {
+    const primary = normalizeMarketExtras(primaryExtras);
+    const fallback = normalizeMarketExtras(fallbackExtras);
+    const preserved = normalizeMarketExtras(preservedExtras);
+
+    return MARKET_EXTRA_SPECS.map(spec => {
+      const candidates = [
+        primary.find(metric => metric.id === spec.id),
+        fallback.find(metric => metric.id === spec.id),
+        preserved.find(metric => metric.id === spec.id),
+      ];
+      return candidates.find(hasMarketMetricValue)
+        || candidates.find(Boolean)
+        || {
+          ...spec,
+          price: null,
+          change: null,
+          changePct: null,
+          marketStatus: null,
+        };
+    });
+  }
+
   function mergeMarketSummary(primaryMarket, fallbackMarket) {
     if (!primaryMarket && !fallbackMarket) return null;
     const primary = primaryMarket || {};
@@ -677,10 +706,7 @@ tr:hover { background: var(--surface2); }
     return {
       ...fallback,
       ...primary,
-      extras: normalizeMarketExtras([
-        ...(fallback.extras || []),
-        ...(primary.extras || []),
-      ]),
+      extras: mergeMarketExtras(primary.extras || [], fallback.extras || [], latestMarketExtras),
     };
   }
 
@@ -759,8 +785,8 @@ tr:hover { background: var(--surface2); }
   }
 
   function renderMarketOverviewCard(market) {
-    const mergedMarket = mergeMarketSummary(market, null);
-    const extras = normalizeMarketExtras(mergedMarket?.extras || []);
+    const mergedMarket = mergeMarketSummary(market, { extras: latestMarketExtras });
+    const extras = mergeMarketExtras(mergedMarket?.extras || [], latestMarketExtras);
 
     return `
       <div class="overview-card primary">
@@ -1894,6 +1920,11 @@ tr:hover { background: var(--surface2); }
           market: mergeMarketSummary(nextSummary?.market || null, marketSummary),
           source: cur.source || fallbackSource,
         };
+
+    latestMarketExtras = mergeMarketExtras(
+      todayOverviewData?.market?.extras || [],
+      latestMarketExtras,
+    );
 
     latestAppliedSnapshotMs = incomingSnapshotMs || Date.now();
     document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + effectiveLastUpdated;
