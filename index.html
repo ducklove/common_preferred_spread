@@ -187,13 +187,12 @@ body {
   padding-left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 .overview-mini-item {
   min-width: 0;
 }
-.overview-mini-label,
-.overview-rank-heading {
+.overview-mini-label {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.04em;
@@ -301,26 +300,24 @@ body {
 .overview-rank-item {
   appearance: none;
   width: 100%;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(15,17,23,0.28);
-  border-radius: 10px;
+  border: none;
+  background: transparent;
   color: inherit;
   cursor: pointer;
   font: inherit;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 2px 8px;
-  padding: 8px 10px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 1px 8px;
+  padding: 2px 0;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s;
+  transition: color 0.15s, transform 0.15s;
 }
 .overview-rank-item:hover {
-  border-color: var(--accent);
-  background: rgba(15,17,23,0.42);
+  color: var(--accent);
+  transform: translateX(1px);
 }
 .overview-rank-item.active {
-  border-color: var(--accent);
-  background: rgba(108,140,255,0.1);
+  color: var(--accent);
 }
 .overview-rank-order {
   color: var(--text-dim);
@@ -342,7 +339,8 @@ body {
 }
 .overview-rank-empty {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: 11px;
+  padding-top: 2px;
 }
 
 /* Chart area */
@@ -916,7 +914,6 @@ tr:hover { background: var(--surface2); }
     if (!runners.length) {
       return `
         <div class="overview-rank-list">
-          <div class="overview-rank-heading">2~5위</div>
           <div class="overview-rank-empty">후속 종목 없음</div>
         </div>
       `;
@@ -924,7 +921,6 @@ tr:hover { background: var(--surface2); }
 
     return `
       <div class="overview-rank-list">
-        <div class="overview-rank-heading">2~5위</div>
         ${runners.slice(0, 4).map((runner, index) => renderLeaderRunnerItem(runner, index + 2)).join('')}
       </div>
     `;
