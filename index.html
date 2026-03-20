@@ -1291,7 +1291,7 @@ td.numeric .bar-cell {
       const ip = item.pair;
       const ic = ip.current;
       const suffix = ip.name.includes('/') ? ip.name.split('/')[1] : '우';
-      return renderPriceLine(suffix, `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)} ${ic.spread.toFixed(1)}%`);
+      return renderPriceLine(suffix, `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)}`);
     }).join('');
 
     return `<div class="prices">
