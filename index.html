@@ -374,6 +374,13 @@ body {
   font-weight: 700;
   letter-spacing: -1px;
 }
+.spread-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
 .overview-value,
 .card .spread-val,
 .overview-card .spread-val,
@@ -386,6 +393,16 @@ body {
 .overview-card .spread-change {
   font-size: 13px;
   margin-top: 2px;
+}
+.spread-line .spread-change,
+.spread-line .overview-change {
+  margin-top: 0;
+  white-space: nowrap;
+  text-align: right;
+}
+.overview-card.average-card .spread-line {
+  justify-content: center;
+  gap: 12px;
 }
 .overview-card .spread-change.emphasis {
   font-weight: 800;
@@ -1099,8 +1116,10 @@ td.numeric .bar-cell {
     return `
       <div class="overview-card average-card">
         <div class="overview-label">평균 괴리율</div>
-        <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
-        <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
+        <div class="spread-line">
+          <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
+          <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
+        </div>
         <div class="overview-summary-grid">
           ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
           ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
@@ -1267,8 +1286,10 @@ td.numeric .bar-cell {
 
     return `
       <div class="name">${displayName}</div>
-      <div class="spread-val">${c.spread.toFixed(1)}%</div>
-      <div class="spread-change ${dir}${emphasisClass}">${formatPointChange(c.spreadChange)}</div>
+      <div class="spread-line">
+        <div class="spread-val">${c.spread.toFixed(1)}%</div>
+        <div class="spread-change ${dir}${emphasisClass}">${formatPointChange(c.spreadChange)}</div>
+      </div>
       ${renderGroupPriceDetails(items)}
     `;
   }
@@ -1408,8 +1429,10 @@ td.numeric .bar-cell {
         const dir = getDirectionClass(c.spreadChange);
         return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
           <div class="name">${p.name}</div>
-          <div class="spread-val">${c.spread.toFixed(1)}%</div>
-          <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
+          <div class="spread-line">
+            <div class="spread-val">${c.spread.toFixed(1)}%</div>
+            <div class="spread-change ${dir}">${formatPointChange(c.spreadChange)}</div>
+          </div>
         </div>`;
       }
 
