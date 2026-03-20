@@ -172,6 +172,45 @@ body {
   font-size: 12px;
   color: var(--text-dim);
 }
+.overview-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 14px;
+  min-height: 100%;
+}
+.overview-main-copy {
+  min-width: 0;
+}
+.overview-side-list,
+.overview-rank-list {
+  border-left: 1px solid rgba(255,255,255,0.08);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.overview-mini-item {
+  min-width: 0;
+}
+.overview-mini-label,
+.overview-rank-heading {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.overview-mini-value {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+.overview-mini-change {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.overview-mini-change.up { color: var(--up); }
+.overview-mini-change.down { color: var(--down); }
+.overview-mini-change.flat { color: var(--text-dim); }
 .overview-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -258,6 +297,52 @@ body {
   color: var(--green);
   font-size: 11px;
   margin-top: 2px;
+}
+.overview-rank-item {
+  appearance: none;
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(15,17,23,0.28);
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 8px 10px;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.overview-rank-item:hover {
+  border-color: var(--accent);
+  background: rgba(15,17,23,0.42);
+}
+.overview-rank-item.active {
+  border-color: var(--accent);
+  background: rgba(108,140,255,0.1);
+}
+.overview-rank-order {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.overview-rank-name {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overview-rank-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.overview-rank-empty {
+  color: var(--text-dim);
+  font-size: 12px;
 }
 
 /* Chart area */
@@ -443,6 +528,18 @@ tr:hover { background: var(--surface2); }
   .chart-container { height: 280px; }
   .price-chart-container { height: 200px; }
 }
+@media (max-width: 1100px) {
+  .overview-split {
+    grid-template-columns: 1fr;
+  }
+  .overview-side-list,
+  .overview-rank-list {
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-left: 0;
+    padding-top: 12px;
+  }
+}
 </style>
 </head>
 <body>
@@ -511,6 +608,12 @@ tr:hover { background: var(--surface2); }
   const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
   const LIVE_FETCH_CONCURRENCY = 4;
+  const MARKET_EXTRA_SPECS = [
+    { id: 'KOSDAQ', name: 'KOSDAQ', unit: '' },
+    { id: 'USDKRW', name: '환율', unit: '원' },
+    { id: 'GOLD', name: '금가격', unit: '원' },
+    { id: 'SP500', name: 'S&P500', unit: '' },
+  ];
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let todayOverviewData = buildTodaySummaryFromPairs();
@@ -545,6 +648,42 @@ tr:hover { background: var(--surface2); }
 
   function getAveragePair() {
     return pairs.find(pair => pair.isAverage);
+  }
+
+  function normalizeMarketExtras(extras = []) {
+    const byId = new Map();
+    extras.forEach(metric => {
+      if (!metric || !metric.id) return;
+      const spec = MARKET_EXTRA_SPECS.find(item => item.id === metric.id) || {};
+      byId.set(metric.id, {
+        ...spec,
+        ...metric,
+        name: metric.name || spec.name || metric.id,
+        unit: metric.unit != null ? metric.unit : (spec.unit || ''),
+      });
+    });
+    return MARKET_EXTRA_SPECS.map(spec => byId.get(spec.id) || {
+      ...spec,
+      price: null,
+      change: null,
+      changePct: null,
+      marketStatus: null,
+    });
+  }
+
+  function mergeMarketSummary(primaryMarket, fallbackMarket) {
+    if (!primaryMarket && !fallbackMarket) return null;
+    const primary = primaryMarket || {};
+    const fallback = fallbackMarket || {};
+
+    return {
+      ...fallback,
+      ...primary,
+      extras: normalizeMarketExtras([
+        ...(fallback.extras || []),
+        ...(primary.extras || []),
+      ]),
+    };
   }
 
   async function loadPairConfig() {
@@ -603,8 +742,8 @@ tr:hover { background: var(--surface2); }
       <div class="today-overview-grid">
         ${renderMarketOverviewCard(summary.market)}
         ${renderAverageOverviewCard(summary, representativeCount)}
-        ${renderLeaderOverviewCard('최고 괴리율 확대', summary.topWidening, '전 종목이 괴리율 축소 또는 보합입니다.')}
-        ${renderLeaderOverviewCard('최고 괴리율 축소', summary.topNarrowing, '전 종목이 괴리율 확대 또는 보합입니다.')}
+        ${renderLeaderOverviewCard('최고 괴리율 확대', summary.topWidening, summary.topWideningRunners || [], '전 종목이 괴리율 축소 또는 보합입니다.')}
+        ${renderLeaderOverviewCard('최고 괴리율 축소', summary.topNarrowing, summary.topNarrowingRunners || [], '전 종목이 괴리율 확대 또는 보합입니다.')}
       </div>
     `;
 
@@ -613,25 +752,31 @@ tr:hover { background: var(--surface2); }
         selectPair(parseInt(card.dataset.idx, 10));
       });
     });
+    overviewEl.querySelectorAll('.overview-rank-item[data-idx]').forEach(item => {
+      item.addEventListener('click', event => {
+        event.stopPropagation();
+        selectPair(parseInt(item.dataset.idx, 10));
+      });
+    });
   }
 
   function renderMarketOverviewCard(market) {
-    if (!market || market.price == null) {
-      return `
-        <div class="overview-card primary">
-          <div class="overview-label">KOSPI 지수</div>
-          <div class="overview-value">-</div>
-          <div class="overview-detail">금일 상승률 데이터를 불러오지 못했습니다.</div>
-        </div>
-      `;
-    }
+    const mergedMarket = mergeMarketSummary(market, null);
+    const extras = normalizeMarketExtras(mergedMarket?.extras || []);
 
     return `
       <div class="overview-card primary">
-        <div class="overview-label">KOSPI 지수</div>
-        <div class="overview-value">${formatMarketPrice(market.price)}</div>
-        <div class="overview-change ${getDirectionClass(market.changePct)}">금일상승률 ${formatPercentChange(market.changePct)}</div>
-        <div class="overview-points">${formatSignedPoints(market.change, 'pt')}</div>
+        <div class="overview-split">
+          <div class="overview-main-copy">
+            <div class="overview-label">KOSPI 지수</div>
+            <div class="overview-value">${formatMarketPrice(mergedMarket?.price)}</div>
+            <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">금일상승률 ${formatPercentChange(mergedMarket?.changePct)}</div>
+            <div class="overview-points">${formatSignedPoints(mergedMarket?.change, 'pt')}</div>
+          </div>
+          <div class="overview-side-list">
+            ${extras.map(renderMarketExtraMetric).join('')}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -660,7 +805,17 @@ tr:hover { background: var(--surface2); }
     `;
   }
 
-  function renderLeaderOverviewCard(title, leader, emptyMessage) {
+  function renderMarketExtraMetric(metric) {
+    return `
+      <div class="overview-mini-item">
+        <div class="overview-mini-label">${metric.name}</div>
+        <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
+        <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
+      </div>
+    `;
+  }
+
+  function renderLeaderOverviewCard(title, leader, runners, emptyMessage) {
     if (!leader) {
       return `
         <div class="overview-card leader-card">
@@ -689,7 +844,12 @@ tr:hover { background: var(--surface2); }
     return `
       <div class="overview-card leader-card clickable${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
         <div class="overview-label">${title}</div>
-        ${renderGroupSnapshot(items)}
+        <div class="overview-split">
+          <div class="overview-main-copy">
+            ${renderGroupSnapshot(items)}
+          </div>
+          ${renderLeaderRunnerPanel(runners)}
+        </div>
       </div>
     `;
   }
@@ -704,13 +864,14 @@ tr:hover { background: var(--surface2); }
       : [];
     const latestKospi = kospiHistory[kospiHistory.length - 1];
     const previousKospi = kospiHistory[kospiHistory.length - 2];
-    const market = marketOverride || (latestKospi ? {
+    const fallbackMarket = latestKospi ? {
       id: 'KOSPI',
       name: '코스피',
       price: +latestKospi.kospiPrice.toFixed(2),
       change: previousKospi ? +(latestKospi.kospiPrice - previousKospi.kospiPrice).toFixed(2) : null,
       changePct: previousKospi ? +(((latestKospi.kospiPrice - previousKospi.kospiPrice) / previousKospi.kospiPrice) * 100).toFixed(2) : null,
-    } : null);
+    } : null;
+    const market = mergeMarketSummary(marketOverride, fallbackMarket);
     const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
     const changeValues = representatives
       .map(pair => pair.current.spreadChange)
@@ -725,12 +886,12 @@ tr:hover { background: var(--surface2); }
       .map(pair => pair.current.preferredChange)
       .filter(value => value != null && !Number.isNaN(value));
 
-    const topWidening = representatives
+    const topWideningRanked = representatives
       .filter(pair => pair.current.spreadChange > 0)
-      .sort((a, b) => b.current.spreadChange - a.current.spreadChange)[0];
-    const topNarrowing = representatives
+      .sort((a, b) => b.current.spreadChange - a.current.spreadChange);
+    const topNarrowingRanked = representatives
       .filter(pair => pair.current.spreadChange < 0)
-      .sort((a, b) => a.current.spreadChange - b.current.spreadChange)[0];
+      .sort((a, b) => a.current.spreadChange - b.current.spreadChange);
 
     return {
       source: '기본 데이터 기준',
@@ -744,9 +905,51 @@ tr:hover { background: var(--surface2); }
       averagePreferredChange: preferredChangeValues.length
         ? +(preferredChangeValues.reduce((sum, value) => sum + value, 0) / preferredChangeValues.length).toFixed(2)
         : null,
-      topWidening: topWidening ? serializePairSummary(topWidening) : null,
-      topNarrowing: topNarrowing ? serializePairSummary(topNarrowing) : null,
+      topWidening: topWideningRanked[0] ? serializePairSummary(topWideningRanked[0]) : null,
+      topWideningRunners: topWideningRanked.slice(1, 5).map(serializePairSummary),
+      topNarrowing: topNarrowingRanked[0] ? serializePairSummary(topNarrowingRanked[0]) : null,
+      topNarrowingRunners: topNarrowingRanked.slice(1, 5).map(serializePairSummary),
     };
+  }
+
+  function renderLeaderRunnerPanel(runners = []) {
+    if (!runners.length) {
+      return `
+        <div class="overview-rank-list">
+          <div class="overview-rank-heading">2~5위</div>
+          <div class="overview-rank-empty">후속 종목 없음</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="overview-rank-list">
+        <div class="overview-rank-heading">2~5위</div>
+        ${runners.slice(0, 4).map((runner, index) => renderLeaderRunnerItem(runner, index + 2)).join('')}
+      </div>
+    `;
+  }
+
+  function renderLeaderRunnerItem(runner, rank) {
+    const items = getGroupItemsByPairId(runner.id);
+    const primaryIdx = items?.[0]?.idx;
+    const isActive = items ? items.some(item => item.idx === selectedIdx) : false;
+    const idxAttr = primaryIdx == null ? '' : primaryIdx;
+
+    return `
+      <button type="button" class="overview-rank-item${isActive ? ' active' : ''}" data-idx="${idxAttr}">
+        <span class="overview-rank-order">${rank}위</span>
+        <span class="overview-rank-name">${formatPairName(getOverviewPairName(runner.id, runner.name))}</span>
+        <span class="overview-rank-meta">${runner.spread.toFixed(1)}% / ${formatPointChange(runner.spreadChange)}</span>
+      </button>
+    `;
+  }
+
+  function getOverviewPairName(pairId, fallbackName) {
+    const items = getGroupItemsByPairId(pairId);
+    if (!items || !items.length) return fallbackName;
+    const pair = items[0].pair;
+    return items.length > 1 ? pair.commonName : pair.name;
   }
 
   function renderGroupSnapshot(items) {
@@ -806,6 +1009,16 @@ tr:hover { background: var(--surface2); }
   function formatMarketPrice(value) {
     if (value == null || Number.isNaN(value)) return '-';
     return value.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatCompactMetricValue(metric) {
+    if (!metric || metric.price == null || Number.isNaN(metric.price)) return '-';
+    const decimals = metric.priceDecimals == null ? 2 : metric.priceDecimals;
+    const value = metric.price.toLocaleString('ko-KR', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    return metric.unit ? `${value}${metric.unit}` : value;
   }
 
   function getDirectionClass(value) {
@@ -1413,6 +1626,14 @@ tr:hover { background: var(--surface2); }
     return resp.json();
   }
 
+  async function fetchLiveText(url) {
+    const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url));
+    if (!resp.ok) {
+      throw new Error(`실시간 조회 실패 (${resp.status})`);
+    }
+    return resp.text();
+  }
+
   async function mapWithConcurrency(items, limit, mapper) {
     const results = new Array(items.length);
     let nextIndex = 0;
@@ -1431,16 +1652,70 @@ tr:hover { background: var(--surface2); }
     return results;
   }
 
-  function buildLiveMarketSummary(marketQuote) {
-    if (!marketQuote) return null;
+  function buildLiveMarketMetric(quote, defaults = {}) {
+    if (!quote) return null;
     return {
-      id: marketQuote.itemCode || 'KOSPI',
-      name: marketQuote.stockName || '코스피',
-      price: parseRawNumber(marketQuote.closePriceRaw || marketQuote.closePrice),
-      change: parseRawNumber(marketQuote.compareToPreviousClosePriceRaw || marketQuote.compareToPreviousClosePrice),
-      changePct: parseRawNumber(marketQuote.fluctuationsRatioRaw || marketQuote.fluctuationsRatio),
-      marketStatus: marketQuote.marketStatus || null,
+      id: defaults.id || quote.itemCode || quote.symbolCode || quote.reutersCode,
+      name: defaults.name || quote.stockName || quote.indexName || defaults.id,
+      price: parseRawNumber(quote.closePriceRaw || quote.closePrice),
+      change: parseRawNumber(quote.compareToPreviousClosePriceRaw || quote.compareToPreviousClosePrice),
+      changePct: parseRawNumber(quote.fluctuationsRatioRaw || quote.fluctuationsRatio),
+      marketStatus: quote.marketStatus || null,
+      unit: defaults.unit || '',
+      priceDecimals: defaults.priceDecimals == null ? 2 : defaults.priceDecimals,
     };
+  }
+
+  function extractMarketIndexMetricFromHtml(html, headClass, defaults = {}) {
+    if (!html) return null;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const link = doc.querySelector(`a.head.${headClass}`);
+    const item = link ? link.closest('li') : null;
+    if (!item) return null;
+
+    const headInfo = item.querySelector('.head_info');
+    const price = parseRawNumber(headInfo?.querySelector('.value')?.textContent);
+    const rawChange = parseRawNumber(headInfo?.querySelector('.change')?.textContent);
+    if (price == null || rawChange == null) return null;
+
+    let signedChange = rawChange;
+    if (headInfo?.classList.contains('point_up')) {
+      signedChange = Math.abs(rawChange);
+    } else if (headInfo?.classList.contains('point_dn')) {
+      signedChange = -Math.abs(rawChange);
+    } else if (headInfo?.classList.contains('point_eq')) {
+      signedChange = 0;
+    }
+
+    const previousPrice = price - signedChange;
+    const changePct = previousPrice ? +((signedChange / previousPrice) * 100).toFixed(2) : null;
+
+    return {
+      id: defaults.id,
+      name: defaults.name,
+      price: +price.toFixed(2),
+      change: +signedChange.toFixed(2),
+      changePct,
+      marketStatus: null,
+      unit: defaults.unit || '',
+      priceDecimals: defaults.priceDecimals == null ? 2 : defaults.priceDecimals,
+    };
+  }
+
+  function buildLiveMarketSummary(marketQuote, extras = []) {
+    if (!marketQuote && !extras.length) return null;
+    const summary = buildLiveMarketMetric(marketQuote, { id: 'KOSPI', name: '코스피' }) || {
+      id: 'KOSPI',
+      name: '코스피',
+      price: null,
+      change: null,
+      changePct: null,
+      marketStatus: null,
+    };
+    if (extras.length) {
+      summary.extras = extras;
+    }
+    return summary;
   }
 
   async function buildLiveSnapshot() {
@@ -1466,13 +1741,19 @@ tr:hover { background: var(--surface2); }
     });
     const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
 
-    let marketQuote = null;
-    try {
-      const marketPayload = await fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI');
-      marketQuote = marketPayload.datas?.[0] || null;
-    } catch (e) {
-      marketQuote = null;
-    }
+    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml] = await Promise.all([
+      fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
+      fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
+      fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
+      fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
+    ]);
+    const marketQuote = marketPayload?.datas?.[0] || null;
+    const marketExtras = [
+      buildLiveMarketMetric(kosdaqPayload?.datas?.[0] || null, { id: 'KOSDAQ', name: 'KOSDAQ' }),
+      extractMarketIndexMetricFromHtml(marketIndexHtml, 'usd', { id: 'USDKRW', name: '환율', unit: '원' }),
+      extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_domestic', { id: 'GOLD', name: '금가격', unit: '원' }),
+      buildLiveMarketMetric(sp500Payload?.datas?.[0] || null, { id: 'SP500', name: 'S&P500' }),
+    ].filter(Boolean);
 
     const prices = {};
     const tradedAtValues = [];
@@ -1511,7 +1792,7 @@ tr:hover { background: var(--surface2); }
     }
 
     if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
-    const market = buildLiveMarketSummary(marketQuote);
+    const market = buildLiveMarketSummary(marketQuote, marketExtras);
     const parsedTimes = tradedAtValues
       .map(value => parseSnapshotTimestamp(value))
       .filter(Boolean);
@@ -1538,7 +1819,8 @@ tr:hover { background: var(--surface2); }
     }
 
     const previousMarketSummary = todayOverviewData?.market || null;
-    const marketSummary = cur.market || cur.summary?.market || previousMarketSummary || null;
+    const incomingMarketSummary = mergeMarketSummary(cur.market || null, cur.summary?.market || null);
+    const marketSummary = mergeMarketSummary(incomingMarketSummary, previousMarketSummary);
     const effectiveLastUpdated = cur.lastUpdated || formatKstTimestamp(new Date());
     const today = effectiveLastUpdated.slice(0, 10);
 
@@ -1608,12 +1890,12 @@ tr:hover { background: var(--surface2); }
       ? {
           ...(nextSummary || {}),
           ...cur.summary,
-          market: cur.summary.market || nextSummary?.market || marketSummary,
+          market: mergeMarketSummary(cur.summary.market || nextSummary?.market || null, marketSummary),
           source: cur.source || fallbackSource,
         }
       : {
           ...(nextSummary || {}),
-          market: nextSummary?.market || marketSummary,
+          market: mergeMarketSummary(nextSummary?.market || null, marketSummary),
           source: cur.source || fallbackSource,
         };
 

@@ -5,6 +5,7 @@
 """
 
 import json
+import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,8 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 OUTPUT_PATH = Path(__file__).parent / "current.json"
 STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
 INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
+WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worldstock/index/{code}"
+MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
 USER_AGENT = "Mozilla/5.0"
 REQUEST_TIMEOUT = 10
 MAX_WORKERS = 8
@@ -66,12 +69,26 @@ def fetch_json(url):
     return datas[0]
 
 
+def fetch_text(url):
+    request = Request(
+        url,
+        headers={"User-Agent": USER_AGENT},
+    )
+    with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        charset = response.headers.get_content_charset() or "utf-8"
+        return response.read().decode(charset, errors="replace")
+
+
 def fetch_stock_quote(code):
     return fetch_json(STOCK_API_URL.format(code=code))
 
 
 def fetch_index_quote(code):
     return fetch_json(INDEX_API_URL.format(code=code))
+
+
+def fetch_world_index_quote(code):
+    return fetch_json(WORLD_INDEX_API_URL.format(code=code))
 
 
 def fetch_all_quotes(codes):
@@ -93,29 +110,91 @@ def fetch_all_quotes(codes):
     return quotes, errors
 
 
-def build_market_summary(market_quote):
-    if not market_quote:
+def build_quote_metric(quote, metric_id, name, unit=None):
+    if not quote:
         return None
     return {
-        "id": market_quote.get("itemCode") or "KOSPI",
-        "name": market_quote.get("stockName") or "KOSPI",
+        "id": metric_id,
+        "name": name,
         "price": round_or_none(
-            parse_float(market_quote.get("closePriceRaw") or market_quote.get("closePrice"))
+            parse_float(quote.get("closePriceRaw") or quote.get("closePrice"))
         ),
         "change": round_or_none(
             parse_float(
-                market_quote.get("compareToPreviousClosePriceRaw")
-                or market_quote.get("compareToPreviousClosePrice")
+                quote.get("compareToPreviousClosePriceRaw")
+                or quote.get("compareToPreviousClosePrice")
             )
         ),
         "changePct": round_or_none(
             parse_float(
-                market_quote.get("fluctuationsRatioRaw")
-                or market_quote.get("fluctuationsRatio")
+                quote.get("fluctuationsRatioRaw")
+                or quote.get("fluctuationsRatio")
             )
         ),
-        "marketStatus": market_quote.get("marketStatus"),
+        "marketStatus": quote.get("marketStatus"),
+        "unit": unit,
     }
+
+
+def build_marketindex_metric(html, head_class, metric_id, name, unit=None):
+    pattern = re.compile(
+        rf'<a[^>]+class="head\s+[^"]*\b{re.escape(head_class)}\b[^"]*"[^>]*>'
+        rf'[\s\S]*?<div class="head_info ([^"]+)"[\s\S]*?<span class="value">([^<]+)</span>'
+        rf'[\s\S]*?<span class="change">\s*([^<]+)</span>[\s\S]*?</a>'
+        rf'[\s\S]*?<div class="graph_info">[\s\S]*?<span class="time">([^<]+)</span>',
+        re.IGNORECASE,
+    )
+    match = pattern.search(html)
+    if not match:
+        return None
+
+    class_name, value_text, change_text, _ = match.groups()
+    price = parse_float(value_text)
+    raw_change = parse_float(change_text)
+    if price is None or raw_change is None:
+        return None
+
+    if "point_up" in class_name:
+        signed_change = abs(raw_change)
+    elif "point_dn" in class_name:
+        signed_change = -abs(raw_change)
+    else:
+        signed_change = 0.0
+
+    previous_price = price - signed_change
+    change_pct = (
+        round_or_none(signed_change / previous_price * 100)
+        if previous_price not in (None, 0)
+        else None
+    )
+
+    return {
+        "id": metric_id,
+        "name": name,
+        "price": round_or_none(price),
+        "change": round_or_none(signed_change),
+        "changePct": change_pct,
+        "marketStatus": None,
+        "unit": unit,
+    }
+
+
+def build_market_summary(market_quote, extras=None):
+    market_summary = build_quote_metric(market_quote, "KOSPI", "코스피")
+    if not market_summary and not extras:
+        return None
+    market_summary = market_summary or {
+        "id": "KOSPI",
+        "name": "코스피",
+        "price": None,
+        "change": None,
+        "changePct": None,
+        "marketStatus": None,
+        "unit": None,
+    }
+    if extras:
+        market_summary["extras"] = extras
+    return market_summary
 
 
 def build_summary(prices, market_summary=None):
@@ -190,6 +269,13 @@ def build_summary(prices, market_summary=None):
             "spreadChange": price["spreadChange"],
         }
 
+    widening_ranked = sorted(
+        widening_candidates, key=lambda item: item["price"]["spreadChange"], reverse=True
+    )
+    narrowing_ranked = sorted(
+        narrowing_candidates, key=lambda item: item["price"]["spreadChange"]
+    )
+
     return {
         "market": market_summary,
         "averageSpread": avg_spread,
@@ -197,16 +283,10 @@ def build_summary(prices, market_summary=None):
         "averageCommonChange": avg_common_change,
         "averagePreferredChange": avg_preferred_change,
         "representativeCount": len(representatives),
-        "topWidening": serialize_leader(
-            max(widening_candidates, key=lambda item: item["price"]["spreadChange"])
-            if widening_candidates
-            else None
-        ),
-        "topNarrowing": serialize_leader(
-            min(narrowing_candidates, key=lambda item: item["price"]["spreadChange"])
-            if narrowing_candidates
-            else None
-        ),
+        "topWidening": serialize_leader(widening_ranked[0] if widening_ranked else None),
+        "topWideningRunners": [serialize_leader(item) for item in widening_ranked[1:5]],
+        "topNarrowing": serialize_leader(narrowing_ranked[0] if narrowing_ranked else None),
+        "topNarrowingRunners": [serialize_leader(item) for item in narrowing_ranked[1:5]],
     }
 
 
@@ -224,10 +304,72 @@ def main():
 
     quotes, quote_errors = fetch_all_quotes(all_codes)
     market_quote = None
-    try:
-        market_quote = fetch_index_quote("KOSPI")
-    except Exception as exc:  # noqa: BLE001 - KOSPI 실패 시 나머지 데이터는 유지
-        print(f"  WARNING: KOSPI 현재가 조회 실패: {exc}")
+    market_extras = []
+    market_tasks = {
+        "KOSPI": lambda: fetch_index_quote("KOSPI"),
+        "KOSDAQ": lambda: fetch_index_quote("KOSDAQ"),
+        "SP500": lambda: fetch_world_index_quote(".INX"),
+        "MARKETINDEX": lambda: fetch_text(MARKETINDEX_URL),
+    }
+    market_results = {}
+
+    with ThreadPoolExecutor(max_workers=len(market_tasks)) as executor:
+        future_map = {
+            executor.submit(task): name for name, task in market_tasks.items()
+        }
+        for future in as_completed(future_map):
+            name = future_map[future]
+            try:
+                market_results[name] = future.result()
+            except Exception as exc:  # noqa: BLE001 - 보조 지표 실패 시 기존 데이터는 계속 사용
+                print(f"  WARNING: {name} 현재가 조회 실패: {exc}")
+
+    market_quote = market_results.get("KOSPI")
+    marketindex_html = market_results.get("MARKETINDEX")
+
+    kosdaq_metric = build_quote_metric(
+        market_results.get("KOSDAQ"),
+        "KOSDAQ",
+        "KOSDAQ",
+    )
+    if kosdaq_metric:
+        market_extras.append(kosdaq_metric)
+
+    usdkrw_metric = (
+        build_marketindex_metric(
+            marketindex_html,
+            "usd",
+            "USDKRW",
+            "환율",
+            unit="원",
+        )
+        if marketindex_html
+        else None
+    )
+    if usdkrw_metric:
+        market_extras.append(usdkrw_metric)
+
+    gold_metric = (
+        build_marketindex_metric(
+            marketindex_html,
+            "gold_domestic",
+            "GOLD",
+            "금가격",
+            unit="원",
+        )
+        if marketindex_html
+        else None
+    )
+    if gold_metric:
+        market_extras.append(gold_metric)
+
+    sp500_metric = build_quote_metric(
+        market_results.get("SP500"),
+        "SP500",
+        "S&P500",
+    )
+    if sp500_metric:
+        market_extras.append(sp500_metric)
 
     for code, error in quote_errors.items():
         print(f"  WARNING: {code} 현재가 조회 실패: {error}")
@@ -320,7 +462,7 @@ def main():
         if valid_times
         else datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     )
-    market_summary = build_market_summary(market_quote)
+    market_summary = build_market_summary(market_quote, market_extras)
     summary = build_summary(prices, market_summary)
     avg_spread = summary["averageSpread"] if summary else None
     avg_spread_change = summary["averageSpreadChange"] if summary else None
