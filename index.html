@@ -755,7 +755,20 @@ tr:hover { background: var(--surface2); }
     for (const items of map.values()) {
       items.sort((a, b) => b.pair.current.spread - a.pair.current.spread);
     }
-    return [...map.values()];
+    const groups = [...map.values()];
+    const averageGroup = groups.find(items => items[0]?.pair.isAverage) || null;
+    const stockGroups = groups
+      .filter(items => !items[0]?.pair.isAverage)
+      .sort((a, b) => {
+        const spreadA = a[0]?.pair.current.spread ?? Number.NEGATIVE_INFINITY;
+        const spreadB = b[0]?.pair.current.spread ?? Number.NEGATIVE_INFINITY;
+        if (spreadB !== spreadA) return spreadB - spreadA;
+        const nameA = a[0]?.pair.commonName || a[0]?.pair.name || '';
+        const nameB = b[0]?.pair.commonName || b[0]?.pair.name || '';
+        return nameA.localeCompare(nameB, 'ko');
+      });
+
+    return averageGroup ? [averageGroup, ...stockGroups] : stockGroups;
   }
 
   function getRepresentativePairs() {
