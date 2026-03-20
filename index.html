@@ -241,12 +241,29 @@ body {
   min-height: 100%;
   align-items: start;
 }
+.overview-split.market {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
 .overview-split.runners {
   grid-template-columns: minmax(0, 1fr) 132px;
   gap: 12px;
 }
 .overview-main-copy {
   min-width: 0;
+}
+.overview-market-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+}
+.overview-market-line .overview-value {
+  font-size: 24px;
+}
+.overview-market-line .overview-change {
+  white-space: nowrap;
 }
 .overview-side-list,
 .overview-rank-list {
@@ -259,11 +276,19 @@ body {
 }
 .overview-mini-item {
   min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 .overview-mini-label {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.04em;
+}
+.overview-mini-data {
+  min-width: 0;
+  text-align: right;
 }
 .overview-mini-value {
   font-size: 15px;
@@ -274,6 +299,7 @@ body {
 .overview-mini-change {
   font-size: 11px;
   margin-top: 2px;
+  white-space: nowrap;
 }
 .overview-mini-change.up { color: var(--up); }
 .overview-mini-change.down { color: var(--down); }
@@ -594,6 +620,9 @@ tr:hover { background: var(--surface2); }
   .overview-split {
     grid-template-columns: 1fr;
   }
+  .overview-split.market {
+    grid-template-columns: 1fr;
+  }
   .overview-split.runners {
     grid-template-columns: 1fr;
   }
@@ -676,10 +705,10 @@ tr:hover { background: var(--surface2); }
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
   const LIVE_FETCH_CONCURRENCY = 4;
   const MARKET_EXTRA_SPECS = [
-    { id: 'KOSDAQ', name: 'KOSDAQ', unit: '' },
-    { id: 'USDKRW', name: '환율', unit: '원' },
-    { id: 'GOLD', name: '금가격', unit: '원' },
-    { id: 'SP500', name: 'S&P500', unit: '' },
+    { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
+    { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 },
+    { id: 'GOLD', name: '금가격', unit: '원', priceDecimals: 0 },
+    { id: 'SP500', name: 'S&P500', unit: '', priceDecimals: 2 },
   ];
   let currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   let selectedIdx = 0;
@@ -912,11 +941,13 @@ tr:hover { background: var(--surface2); }
 
     return `
       <div class="overview-card primary">
-        <div class="overview-split">
+        <div class="overview-split market">
           <div class="overview-main-copy">
             <div class="overview-label">KOSPI 지수</div>
-            <div class="overview-value">${formatMarketPrice(mergedMarket?.price)}</div>
-            <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">금일상승률 ${formatPercentChange(mergedMarket?.changePct)}</div>
+            <div class="overview-market-line">
+              <div class="overview-value">${formatMarketPrice(mergedMarket?.price)}</div>
+              <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">${formatPercentChange(mergedMarket?.changePct)}</div>
+            </div>
             <div class="overview-points">${formatSignedPoints(mergedMarket?.change, 'pt')}</div>
           </div>
           <div class="overview-side-list">
@@ -955,8 +986,10 @@ tr:hover { background: var(--surface2); }
     return `
       <div class="overview-mini-item">
         <div class="overview-mini-label">${metric.name}</div>
-        <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
-        <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
+        <div class="overview-mini-data">
+          <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
+          <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
+        </div>
       </div>
     `;
   }
