@@ -418,6 +418,13 @@ body {
 .overview-rank-meta {
   color: var(--text-dim);
   font-size: 10.5px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.overview-rank-meta .spread-change {
+  margin-top: 0;
 }
 .overview-rank-empty {
   color: var(--text-dim);
@@ -1102,11 +1109,16 @@ tr:hover { background: var(--surface2); }
     const primaryIdx = items?.[0]?.idx;
     const isActive = items ? items.some(item => item.idx === selectedIdx) : false;
     const idxAttr = primaryIdx == null ? '' : primaryIdx;
+    const spreadChangeClass = getDirectionClass(runner.spreadChange);
 
     return `
       <button type="button" class="overview-rank-item${isActive ? ' active' : ''}" data-idx="${idxAttr}">
         <span class="overview-rank-name">${formatPairName(getOverviewPairName(runner.id, runner.name))}</span>
-        <span class="overview-rank-meta">${runner.spread.toFixed(1)}% / ${formatPointChange(runner.spreadChange)}</span>
+        <span class="overview-rank-meta">
+          <span>${runner.spread.toFixed(1)}%</span>
+          <span>/</span>
+          <span class="spread-change ${spreadChangeClass} emphasis">${formatPointChange(runner.spreadChange)}</span>
+        </span>
       </button>
     `;
   }
@@ -1181,11 +1193,10 @@ tr:hover { background: var(--surface2); }
   function formatCompactMetricValue(metric) {
     if (!metric || metric.price == null || Number.isNaN(metric.price)) return '-';
     const decimals = metric.priceDecimals == null ? 2 : metric.priceDecimals;
-    const value = metric.price.toLocaleString('ko-KR', {
+    return metric.price.toLocaleString('ko-KR', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
-    return metric.unit ? `${value}${metric.unit}` : value;
   }
 
   function getDirectionClass(value) {
@@ -1692,7 +1703,7 @@ tr:hover { background: var(--surface2); }
   }
 
   function formatPrice(n) {
-    return n.toLocaleString('ko-KR') + '원';
+    return n.toLocaleString('ko-KR');
   }
 
   function fmtChange(v) {
