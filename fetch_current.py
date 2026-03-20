@@ -49,6 +49,15 @@ def round_or_none(value, digits=2):
     return round(value, digits)
 
 
+def fraction_digits(value):
+    if value in (None, ""):
+        return 0
+    text = str(value).replace(",", "")
+    if "." not in text:
+        return 0
+    return len(text.split(".", 1)[1])
+
+
 def compute_spread(common_price, preferred_price):
     if common_price in (None, 0) or preferred_price is None:
         return None
@@ -136,7 +145,9 @@ def build_quote_metric(quote, metric_id, name, unit=None):
     }
 
 
-def build_marketindex_metric(html, head_class, metric_id, name, unit=None):
+def build_marketindex_metric(
+    html, head_class, metric_id, name, unit=None, price_digits=None
+):
     pattern = re.compile(
         rf'<a[^>]+class="head\s+[^"]*\b{re.escape(head_class)}\b[^"]*"[^>]*>'
         rf'[\s\S]*?<div class="head_info ([^"]+)"[\s\S]*?<span class="value">([^<]+)</span>'
@@ -153,6 +164,9 @@ def build_marketindex_metric(html, head_class, metric_id, name, unit=None):
     raw_change = parse_float(change_text)
     if price is None or raw_change is None:
         return None
+    display_price_digits = (
+        fraction_digits(value_text) if price_digits is None else price_digits
+    )
 
     if "point_up" in class_name:
         signed_change = abs(raw_change)
@@ -171,7 +185,7 @@ def build_marketindex_metric(html, head_class, metric_id, name, unit=None):
     return {
         "id": metric_id,
         "name": name,
-        "price": round_or_none(price),
+        "price": round_or_none(price, display_price_digits),
         "change": round_or_none(signed_change),
         "changePct": change_pct,
         "marketStatus": None,
@@ -352,10 +366,10 @@ def main():
     gold_metric = (
         build_marketindex_metric(
             marketindex_html,
-            "gold_domestic",
+            "gold_inter",
             "GOLD",
-            "금가격",
-            unit="원",
+            "금가격 (COMEX)",
+            price_digits=1,
         )
         if marketindex_html
         else None
