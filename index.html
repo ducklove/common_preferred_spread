@@ -1010,8 +1010,13 @@ td.numeric .bar-cell {
     const fallback = fallbackMarket || {};
 
     return {
-      ...fallback,
-      ...primary,
+      id: primary.id || fallback.id || 'KOSPI',
+      name: primary.name || fallback.name || '코스피',
+      price: primary.price != null ? primary.price : fallback.price ?? null,
+      change: primary.change != null ? primary.change : fallback.change ?? null,
+      changePct: primary.changePct != null ? primary.changePct : fallback.changePct ?? null,
+      marketStatus: primary.marketStatus || fallback.marketStatus || null,
+      unit: primary.unit != null ? primary.unit : fallback.unit ?? null,
       extras: mergeMarketExtras(primary.extras || [], fallback.extras || [], latestMarketExtras),
     };
   }
