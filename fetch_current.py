@@ -146,6 +146,13 @@ def round_or_none(value, digits=2):
     return round(value, digits)
 
 
+def first_not_none(*values):
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def fraction_digits(value):
     if value in (None, ""):
         return 0
@@ -433,17 +440,24 @@ def build_quote_metric(quote, metric_id, name, unit=None, price_digits=2):
         "id": metric_id,
         "name": name,
         "price": round_or_none(
-            parse_float(quote.get("closePriceRaw") or quote.get("closePrice")),
+            parse_float(first_not_none(quote.get("closePriceRaw"), quote.get("closePrice"))),
             price_digits,
         ),
         "change": round_or_none(
             parse_float(
-                quote.get("compareToPreviousClosePriceRaw")
-                or quote.get("compareToPreviousClosePrice")
+                first_not_none(
+                    quote.get("compareToPreviousClosePriceRaw"),
+                    quote.get("compareToPreviousClosePrice"),
+                )
             )
         ),
         "changePct": round_or_none(
-            parse_float(quote.get("fluctuationsRatioRaw") or quote.get("fluctuationsRatio"))
+            parse_float(
+                first_not_none(
+                    quote.get("fluctuationsRatioRaw"),
+                    quote.get("fluctuationsRatio"),
+                )
+            )
         ),
         "marketStatus": quote.get("marketStatus"),
         "unit": unit,
@@ -1090,18 +1104,28 @@ def main():
         if common_quote and preferred_quote:
             try:
                 common_price = parse_int(
-                    common_quote.get("closePriceRaw") or common_quote.get("closePrice")
+                    first_not_none(
+                        common_quote.get("closePriceRaw"),
+                        common_quote.get("closePrice"),
+                    )
                 )
                 preferred_price = parse_int(
-                    preferred_quote.get("closePriceRaw") or preferred_quote.get("closePrice")
+                    first_not_none(
+                        preferred_quote.get("closePriceRaw"),
+                        preferred_quote.get("closePrice"),
+                    )
                 )
                 common_delta = parse_int(
-                    common_quote.get("compareToPreviousClosePriceRaw")
-                    or common_quote.get("compareToPreviousClosePrice")
+                    first_not_none(
+                        common_quote.get("compareToPreviousClosePriceRaw"),
+                        common_quote.get("compareToPreviousClosePrice"),
+                    )
                 )
                 preferred_delta = parse_int(
-                    preferred_quote.get("compareToPreviousClosePriceRaw")
-                    or preferred_quote.get("compareToPreviousClosePrice")
+                    first_not_none(
+                        preferred_quote.get("compareToPreviousClosePriceRaw"),
+                        preferred_quote.get("compareToPreviousClosePrice"),
+                    )
                 )
 
                 previous_common_price = (
@@ -1133,14 +1157,18 @@ def main():
                     "spreadChange": spread_change,
                     "commonChange": round_or_none(
                         parse_float(
-                            common_quote.get("fluctuationsRatioRaw")
-                            or common_quote.get("fluctuationsRatio")
+                            first_not_none(
+                                common_quote.get("fluctuationsRatioRaw"),
+                                common_quote.get("fluctuationsRatio"),
+                            )
                         )
                     ),
                     "preferredChange": round_or_none(
                         parse_float(
-                            preferred_quote.get("fluctuationsRatioRaw")
-                            or preferred_quote.get("fluctuationsRatio")
+                            first_not_none(
+                                preferred_quote.get("fluctuationsRatioRaw"),
+                                preferred_quote.get("fluctuationsRatio"),
+                            )
                         )
                     ),
                 }

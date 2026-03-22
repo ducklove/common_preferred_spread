@@ -2109,6 +2109,13 @@ td.numeric .bar-cell {
     return Number.isNaN(parsed) ? null : parsed;
   }
 
+  function pickDefined(...values) {
+    for (const value of values) {
+      if (value !== null && value !== undefined) return value;
+    }
+    return null;
+  }
+
   async function fetchLiveJson(url) {
     return fetchWithTimeout(url, 'json');
   }
@@ -2140,9 +2147,9 @@ td.numeric .bar-cell {
     return {
       id: defaults.id || quote.itemCode || quote.symbolCode || quote.reutersCode,
       name: defaults.name || quote.stockName || quote.indexName || defaults.id,
-      price: parseRawNumber(quote.closePriceRaw || quote.closePrice),
-      change: parseRawNumber(quote.compareToPreviousClosePriceRaw || quote.compareToPreviousClosePrice),
-      changePct: parseRawNumber(quote.fluctuationsRatioRaw || quote.fluctuationsRatio),
+      price: parseRawNumber(pickDefined(quote.closePriceRaw, quote.closePrice)),
+      change: parseRawNumber(pickDefined(quote.compareToPreviousClosePriceRaw, quote.compareToPreviousClosePrice)),
+      changePct: parseRawNumber(pickDefined(quote.fluctuationsRatioRaw, quote.fluctuationsRatio)),
       marketStatus: quote.marketStatus || null,
       unit: defaults.unit || '',
       priceDecimals: defaults.priceDecimals == null ? 2 : defaults.priceDecimals,
@@ -2251,10 +2258,10 @@ td.numeric .bar-cell {
       const preferredQuote = quoteMap.get(getTickerCode(config.preferredTicker));
       if (!commonQuote || !preferredQuote) continue;
 
-      const commonPrice = parseRawNumber(commonQuote.closePriceRaw || commonQuote.closePrice);
-      const preferredPrice = parseRawNumber(preferredQuote.closePriceRaw || preferredQuote.closePrice);
-      const commonDelta = parseRawNumber(commonQuote.compareToPreviousClosePriceRaw || commonQuote.compareToPreviousClosePrice);
-      const preferredDelta = parseRawNumber(preferredQuote.compareToPreviousClosePriceRaw || preferredQuote.compareToPreviousClosePrice);
+      const commonPrice = parseRawNumber(pickDefined(commonQuote.closePriceRaw, commonQuote.closePrice));
+      const preferredPrice = parseRawNumber(pickDefined(preferredQuote.closePriceRaw, preferredQuote.closePrice));
+      const commonDelta = parseRawNumber(pickDefined(commonQuote.compareToPreviousClosePriceRaw, commonQuote.compareToPreviousClosePrice));
+      const preferredDelta = parseRawNumber(pickDefined(preferredQuote.compareToPreviousClosePriceRaw, preferredQuote.compareToPreviousClosePrice));
       const previousCommonPrice = commonPrice != null && commonDelta != null ? commonPrice - commonDelta : null;
       const previousPreferredPrice = preferredPrice != null && preferredDelta != null ? preferredPrice - preferredDelta : null;
       const spread = commonPrice != null && commonPrice !== 0 && preferredPrice != null
@@ -2269,8 +2276,8 @@ td.numeric .bar-cell {
         preferredPrice,
         spread,
         spreadChange: spread != null && previousSpread != null ? +(spread - previousSpread).toFixed(2) : null,
-        commonChange: parseRawNumber(commonQuote.fluctuationsRatioRaw || commonQuote.fluctuationsRatio),
-        preferredChange: parseRawNumber(preferredQuote.fluctuationsRatioRaw || preferredQuote.fluctuationsRatio),
+        commonChange: parseRawNumber(pickDefined(commonQuote.fluctuationsRatioRaw, commonQuote.fluctuationsRatio)),
+        preferredChange: parseRawNumber(pickDefined(preferredQuote.fluctuationsRatioRaw, preferredQuote.fluctuationsRatio)),
       };
 
       if (commonQuote.localTradedAt) tradedAtValues.push(commonQuote.localTradedAt);
