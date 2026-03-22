@@ -1014,6 +1014,25 @@ def build_summary(prices, market_summary=None):
         narrowing_candidates,
         key=lambda item: item["price"]["spreadChange"],
     )
+    ranked_by_widening = sorted(
+        [
+            item
+            for item in representatives
+            if item["price"]["spreadChange"] is not None
+        ],
+        key=lambda item: item["price"]["spreadChange"],
+        reverse=True,
+    )
+    ranked_by_narrowing = sorted(
+        [
+            item
+            for item in representatives
+            if item["price"]["spreadChange"] is not None
+        ],
+        key=lambda item: item["price"]["spreadChange"],
+    )
+    top_widening = widening_ranked[0] if widening_ranked else None
+    top_narrowing = narrowing_ranked[0] if narrowing_ranked else None
 
     return {
         "market": market_summary,
@@ -1022,10 +1041,18 @@ def build_summary(prices, market_summary=None):
         "averageCommonChange": avg_common_change,
         "averagePreferredChange": avg_preferred_change,
         "representativeCount": len(representatives),
-        "topWidening": serialize_leader(widening_ranked[0] if widening_ranked else None),
-        "topWideningRunners": [serialize_leader(item) for item in widening_ranked[1:5]],
-        "topNarrowing": serialize_leader(narrowing_ranked[0] if narrowing_ranked else None),
-        "topNarrowingRunners": [serialize_leader(item) for item in narrowing_ranked[1:5]],
+        "topWidening": serialize_leader(top_widening),
+        "topWideningRunners": [
+            serialize_leader(item)
+            for item in ranked_by_widening
+            if top_widening is None or item["pair"]["id"] != top_widening["pair"]["id"]
+        ][:4],
+        "topNarrowing": serialize_leader(top_narrowing),
+        "topNarrowingRunners": [
+            serialize_leader(item)
+            for item in ranked_by_narrowing
+            if top_narrowing is None or item["pair"]["id"] != top_narrowing["pair"]["id"]
+        ][:4],
     }
 
 

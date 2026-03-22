@@ -239,6 +239,10 @@ body {
   line-height: 1.25;
   letter-spacing: -0.4px;
 }
+.overview-card.leader-card .name {
+  font-size: 16px;
+  font-weight: 700;
+}
 .overview-change {
   font-size: 14px;
   font-weight: 600;
@@ -291,6 +295,9 @@ body {
 .overview-split.runners {
   grid-template-columns: minmax(0, 1fr) 132px;
   gap: 12px;
+}
+.overview-split.runners.no-side {
+  grid-template-columns: minmax(0, 1fr);
 }
 .overview-main-copy {
   min-width: 0;
@@ -815,8 +822,11 @@ td.numeric .bar-cell {
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
   const LIVE_REFRESH_RETRY_DELAY_MS = 1500;
   const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
+  const LIVE_REFRESH_FORCE_ATTEMPTS = 1;
+  const LIVE_FETCH_TIMEOUT_MS = 2500;
+  const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
-  const LIVE_FETCH_CONCURRENCY = 4;
+  const LIVE_FETCH_CONCURRENCY = 8;
   const MARKET_EXTRA_SPECS = [
     { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
     { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 },
@@ -947,7 +957,8 @@ td.numeric .bar-cell {
 
   function applyAutoFitText(root = document) {
     const configs = [
-      { selector: '.card .name, .overview-card .name', maxFontSize: 14, minFontSize: 11 },
+      { selector: '.overview-card.leader-card .name', maxFontSize: 16, minFontSize: 12 },
+      { selector: '.card .name, .overview-card:not(.leader-card) .name', maxFontSize: 14, minFontSize: 11 },
       { selector: '.overview-rank-name', maxFontSize: 11.5, minFontSize: 9.5 },
       { selector: '.price-label', maxFontSize: 12, minFontSize: 9.5 },
     ];
@@ -1249,15 +1260,16 @@ td.numeric .bar-cell {
 
     const primaryIdx = items[0].idx;
     const isActive = items.some(item => item.idx === selectedIdx);
+    const hasRunners = Array.isArray(runners) && runners.length > 0;
 
     return `
       <div class="overview-card leader-card clickable${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
         <div class="overview-label">${title}</div>
-        <div class="overview-split runners">
+        <div class="overview-split runners${hasRunners ? '' : ' no-side'}">
           <div class="overview-main-copy">
             ${renderGroupSnapshot(items, { emphasizeChange: true })}
           </div>
-          ${renderLeaderRunnerPanel(runners)}
+          ${hasRunners ? renderLeaderRunnerPanel(runners) : ''}
         </div>
       </div>
     `;
@@ -1288,6 +1300,14 @@ td.numeric .bar-cell {
     const topNarrowingRanked = representatives
       .filter(pair => pair.current.spreadChange < 0)
       .sort((a, b) => a.current.spreadChange - b.current.spreadChange);
+    const rankedByWidening = representatives
+      .filter(pair => pair.current.spreadChange != null && !Number.isNaN(pair.current.spreadChange))
+      .sort((a, b) => b.current.spreadChange - a.current.spreadChange);
+    const rankedByNarrowing = representatives
+      .filter(pair => pair.current.spreadChange != null && !Number.isNaN(pair.current.spreadChange))
+      .sort((a, b) => a.current.spreadChange - b.current.spreadChange);
+    const topWidening = topWideningRanked[0] || null;
+    const topNarrowing = topNarrowingRanked[0] || null;
 
     return {
       source: '기본 데이터 기준',
@@ -1301,20 +1321,22 @@ td.numeric .bar-cell {
       averagePreferredChange: preferredChangeValues.length
         ? +(preferredChangeValues.reduce((sum, value) => sum + value, 0) / preferredChangeValues.length).toFixed(2)
         : null,
-      topWidening: topWideningRanked[0] ? serializePairSummary(topWideningRanked[0]) : null,
-      topWideningRunners: topWideningRanked.slice(1, 5).map(serializePairSummary),
-      topNarrowing: topNarrowingRanked[0] ? serializePairSummary(topNarrowingRanked[0]) : null,
-      topNarrowingRunners: topNarrowingRanked.slice(1, 5).map(serializePairSummary),
+      topWidening: topWidening ? serializePairSummary(topWidening) : null,
+      topWideningRunners: rankedByWidening
+        .filter(pair => !topWidening || pair.id !== topWidening.id)
+        .slice(0, 4)
+        .map(serializePairSummary),
+      topNarrowing: topNarrowing ? serializePairSummary(topNarrowing) : null,
+      topNarrowingRunners: rankedByNarrowing
+        .filter(pair => !topNarrowing || pair.id !== topNarrowing.id)
+        .slice(0, 4)
+        .map(serializePairSummary),
     };
   }
 
   function renderLeaderRunnerPanel(runners = []) {
     if (!runners.length) {
-      return `
-        <div class="overview-rank-list">
-          <div class="overview-rank-empty">후속 종목 없음</div>
-        </div>
-      `;
+      return '';
     }
 
     return `
@@ -2019,6 +2041,42 @@ td.numeric .bar-cell {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url), {
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        throw new Error(`실시간 조회 실패 (${resp.status})`);
+      }
+      return responseType === 'text' ? resp.text() : resp.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        throw new Error('실시간 조회 시간 초과');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async function runWithTimeout(task, timeoutMs, errorMessage) {
+    let timeoutId = null;
+    try {
+      return await Promise.race([
+        task,
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
   function setRefreshButtonState(isBusy) {
     refreshButtonBusy = isBusy;
     const refreshBtn = document.getElementById('refreshBtn');
@@ -2052,19 +2110,11 @@ td.numeric .bar-cell {
   }
 
   async function fetchLiveJson(url) {
-    const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url));
-    if (!resp.ok) {
-      throw new Error(`실시간 조회 실패 (${resp.status})`);
-    }
-    return resp.json();
+    return fetchWithTimeout(url, 'json');
   }
 
   async function fetchLiveText(url) {
-    const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url));
-    if (!resp.ok) {
-      throw new Error(`실시간 조회 실패 (${resp.status})`);
-    }
-    return resp.text();
+    return fetchWithTimeout(url, 'text');
   }
 
   async function mapWithConcurrency(items, limit, mapper) {
@@ -2365,7 +2415,11 @@ td.numeric .bar-cell {
 
     liveRefreshPromise = (async () => {
       try {
-        const liveSnapshot = await buildLiveSnapshot();
+        const liveSnapshot = await runWithTimeout(
+          buildLiveSnapshot(),
+          LIVE_REFRESH_TIMEOUT_MS,
+          '실시간 갱신 시간이 초과되었습니다.',
+        );
         return applyCurrentSnapshot(liveSnapshot, '네이버 증권 실시간');
       } catch (e) {
         // 실시간 프록시 갱신 실패 시 기존 스냅샷을 유지한다.
@@ -2413,9 +2467,13 @@ td.numeric .bar-cell {
       // current.json 로드 실패 시 data.js 기준으로 실시간 조회만 시도한다.
     }
 
-    await refreshLivePricesWithRetry(baseSnapshot, LIVE_REFRESH_RETRY_ATTEMPTS, {
+    await refreshLivePricesWithRetry(
+      baseSnapshot,
+      forceLiveRefresh ? LIVE_REFRESH_FORCE_ATTEMPTS : LIVE_REFRESH_RETRY_ATTEMPTS,
+      {
       forceRefresh: forceLiveRefresh,
-    });
+      },
+    );
   }
 
   bindRefreshButton();
