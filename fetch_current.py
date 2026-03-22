@@ -1045,8 +1045,12 @@ def build_summary(prices, market_summary=None):
         ],
         key=lambda item: item["price"]["spreadChange"],
     )
-    top_widening = widening_ranked[0] if widening_ranked else None
-    top_narrowing = narrowing_ranked[0] if narrowing_ranked else None
+    top_widening = widening_ranked[0] if widening_ranked else (
+        ranked_by_widening[0] if ranked_by_widening else None
+    )
+    top_narrowing = narrowing_ranked[0] if narrowing_ranked else (
+        ranked_by_narrowing[0] if ranked_by_narrowing else None
+    )
 
     return {
         "market": market_summary,

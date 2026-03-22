@@ -1306,8 +1306,8 @@ td.numeric .bar-cell {
     const rankedByNarrowing = representatives
       .filter(pair => pair.current.spreadChange != null && !Number.isNaN(pair.current.spreadChange))
       .sort((a, b) => a.current.spreadChange - b.current.spreadChange);
-    const topWidening = topWideningRanked[0] || null;
-    const topNarrowing = topNarrowingRanked[0] || null;
+    const topWidening = topWideningRanked[0] || rankedByWidening[0] || null;
+    const topNarrowing = topNarrowingRanked[0] || rankedByNarrowing[0] || null;
 
     return {
       source: '기본 데이터 기준',
