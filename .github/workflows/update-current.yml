@@ -23,7 +23,14 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip websockets
+
       - name: Fetch current prices
+        env:
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          KIS_AUTH_CACHE_PATH: ${{ runner.temp }}/kis_auth_cache.json
         run: python fetch_current.py
 
       - name: Commit and push if changed

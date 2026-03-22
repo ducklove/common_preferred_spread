@@ -254,6 +254,29 @@ body {
   font-size: 12px;
   color: var(--text-dim);
 }
+.overview-market-secondary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--soft-border);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.overview-market-secondary-name {
+  min-width: 0;
+  line-height: 1.2;
+}
+.overview-market-secondary-value {
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.overview-market-secondary-value.up { color: var(--up); }
+.overview-market-secondary-value.down { color: var(--down); }
+.overview-market-secondary-value.flat { color: var(--text-dim); }
 .overview-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 170px;
@@ -804,8 +827,10 @@ td.numeric .bar-cell {
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
   let latestMarketExtras = [];
+  let latestNightFutureMetric = null;
   let todayOverviewData = buildTodaySummaryFromPairs();
   latestMarketExtras = normalizeMarketExtras(todayOverviewData?.market?.extras || []);
+  latestNightFutureMetric = todayOverviewData?.market?.nightFuture || null;
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
   let refreshButtonBusy = false;
@@ -875,6 +900,33 @@ td.numeric .bar-cell {
       market,
       mergeMarketSummary(getAverageHistoryMarketFallback(), { extras: latestMarketExtras }),
     );
+  }
+
+  function normalizeNightFutureMetric(metric) {
+    if (!metric) return null;
+    return {
+      ...metric,
+      price: metric.price != null ? Number(metric.price) : null,
+      change: metric.change != null ? Number(metric.change) : null,
+      changePct: metric.changePct != null ? Number(metric.changePct) : null,
+    };
+  }
+
+  function hasNightFutureMetricValue(metric) {
+    if (!metric) return false;
+    return [metric.price, metric.change, metric.changePct].some(
+      value => value != null && !Number.isNaN(value)
+    );
+  }
+
+  function mergeNightFutureMetric(primaryMetric, fallbackMetric, preservedMetric = latestNightFutureMetric) {
+    const primary = normalizeNightFutureMetric(primaryMetric);
+    const fallback = normalizeNightFutureMetric(fallbackMetric);
+    const preserved = normalizeNightFutureMetric(preservedMetric);
+    const candidates = [primary, fallback, preserved];
+    return candidates.find(hasNightFutureMetricValue)
+      || candidates.find(Boolean)
+      || null;
   }
 
   function fitTextToWidth(el, { maxFontSize, minFontSize }) {
@@ -1018,6 +1070,7 @@ td.numeric .bar-cell {
       marketStatus: primary.marketStatus || fallback.marketStatus || null,
       unit: primary.unit != null ? primary.unit : fallback.unit ?? null,
       extras: mergeMarketExtras(primary.extras || [], fallback.extras || [], latestMarketExtras),
+      nightFuture: mergeNightFutureMetric(primary.nightFuture || null, fallback.nightFuture || null),
     };
   }
 
@@ -1099,6 +1152,10 @@ td.numeric .bar-cell {
   function renderMarketOverviewCard(market) {
     const mergedMarket = getRenderableMarketSummary(market);
     const extras = mergeMarketExtras(mergedMarket?.extras || [], latestMarketExtras);
+    const nightFuture = mergeNightFutureMetric(
+      mergedMarket?.nightFuture || null,
+      latestNightFutureMetric,
+    );
 
     return `
       <div class="overview-card primary">
@@ -1108,6 +1165,7 @@ td.numeric .bar-cell {
             <div class="overview-value overview-market-line">${formatMarketPrice(mergedMarket?.price)}</div>
             <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">${formatPercentChange(mergedMarket?.changePct)}</div>
             <div class="overview-points">${formatSignedPoints(mergedMarket?.change, 'pt')}</div>
+            ${renderNightFutureMetric(nightFuture)}
           </div>
           <div class="overview-side-list">
             ${extras.map(renderMarketExtraMetric).join('')}
@@ -1151,6 +1209,17 @@ td.numeric .bar-cell {
           <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
           <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
         </div>
+      </div>
+    `;
+  }
+
+  function renderNightFutureMetric(metric) {
+    if (!metric) return '';
+    const label = metric.name || 'KOSPI200 야간선물';
+    return `
+      <div class="overview-market-secondary">
+        <span class="overview-market-secondary-name">${label}</span>
+        <span class="overview-market-secondary-value ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</span>
       </div>
     `;
   }
@@ -2066,7 +2135,7 @@ td.numeric .bar-cell {
     };
   }
 
-  function buildLiveMarketSummary(marketQuote, extras = []) {
+  function buildLiveMarketSummary(marketQuote, extras = [], nightFuture = null) {
     if (!marketQuote && !extras.length) return null;
     const summary = buildLiveMarketMetric(marketQuote, { id: 'KOSPI', name: '코스피' }) || {
       id: 'KOSPI',
@@ -2078,6 +2147,9 @@ td.numeric .bar-cell {
     };
     if (extras.length) {
       summary.extras = extras;
+    }
+    if (nightFuture) {
+      summary.nightFuture = nightFuture;
     }
     return summary;
   }
@@ -2266,6 +2338,10 @@ td.numeric .bar-cell {
     latestMarketExtras = mergeMarketExtras(
       todayOverviewData?.market?.extras || [],
       latestMarketExtras,
+    );
+    latestNightFutureMetric = mergeNightFutureMetric(
+      todayOverviewData?.market?.nightFuture || null,
+      latestNightFutureMetric,
     );
 
     latestAppliedSnapshotMs = incomingSnapshotMs || Date.now();
