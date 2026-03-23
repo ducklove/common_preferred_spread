@@ -12,6 +12,7 @@ import re
 import ssl
 import tempfile
 import threading
+import time
 import zipfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,6 +22,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+try:
+    import websocket
+except ImportError:  # pragma: no cover - optional runtime dependency
+    websocket = None
+
 KST = timezone(timedelta(hours=9))
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -28,6 +34,7 @@ OUTPUT_PATH = Path(__file__).parent / "current.json"
 
 KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
 KIS_TOKEN_URL = f"{KIS_BASE_URL}/oauth2/tokenP"
+KIS_APPROVAL_URL = f"{KIS_BASE_URL}/oauth2/Approval"
 KIS_APP_KEY = os.environ.get("KIS_APP_KEY", "").strip()
 KIS_APP_SECRET = os.environ.get("KIS_APP_SECRET", "").strip()
 KIS_AUTH_CACHE_PATH = Path(
@@ -55,6 +62,10 @@ KIS_STOCK_TR_ID = "FHKST01010100"
 KIS_INDEX_TR_ID = "FHPUP02100000"
 KIS_SP500_TR_ID = "FHKST03030200"
 KIS_FUTURES_QUOTE_TR_ID = "FHMIF10000000"
+KIS_NIGHT_FUTURES_TRADE_TR_ID = "H0MFCNT0"
+KIS_NIGHT_FUTURES_WS_URL = "ws://ops.koreainvestment.com:21000"
+KIS_NIGHT_FUTURES_WS_WAIT_SECONDS = 12
+KIS_NIGHT_FUTURES_WS_RETRIES = 2
 
 AUTH_CACHE_LOCK = threading.Lock()
 
@@ -226,6 +237,33 @@ def get_kis_token():
         cache["access_token_expires_at"] = expires_at
         save_auth_cache(cache)
         return token
+
+
+def get_kis_approval_key():
+    with AUTH_CACHE_LOCK:
+        cache = load_auth_cache()
+        if cache_entry_is_valid(cache.get("approval_key_expires_at")) and cache.get(
+            "approval_key"
+        ):
+            return cache["approval_key"]
+
+        payload = http_json(
+            KIS_APPROVAL_URL,
+            method="POST",
+            headers={"content-type": "application/json; charset=UTF-8"},
+            payload={
+                "grant_type": "client_credentials",
+                "appkey": KIS_APP_KEY,
+                "secretkey": KIS_APP_SECRET,
+            },
+        )
+        approval_key = payload["approval_key"]
+        cache["approval_key"] = approval_key
+        cache["approval_key_expires_at"] = (
+            datetime.now(timezone.utc) + timedelta(hours=23, minutes=55)
+        ).isoformat()
+        save_auth_cache(cache)
+        return approval_key
 
 
 def kis_get_json(path, tr_id, params):
@@ -499,6 +537,240 @@ def build_kis_futures_metric(row, metric_id, name, *, code=None):
     }
 
 
+KIS_NIGHT_FUTURES_TRADE_COLUMNS = [
+    "futs_shrn_iscd",
+    "bsop_hour",
+    "futs_prdy_vrss",
+    "prdy_vrss_sign",
+    "futs_prdy_ctrt",
+    "futs_prpr",
+    "futs_oprc",
+    "futs_hgpr",
+    "futs_lwpr",
+    "last_cnqn",
+    "acml_vol",
+    "acml_tr_pbmn",
+    "hts_thpr",
+    "mrkt_basis",
+    "dprt",
+    "nmsc_fctn_stpl_prc",
+    "fmsc_fctn_stpl_prc",
+    "spead_prc",
+    "hts_otst_stpl_qty",
+    "otst_stpl_qty_icdc",
+    "oprc_hour",
+    "oprc_vrss_prpr_sign",
+    "oprc_vrss_nmix_prpr",
+    "hgpr_hour",
+    "hgpr_vrss_prpr_sign",
+    "hgpr_vrss_nmix_prpr",
+    "lwpr_hour",
+    "lwpr_vrss_prpr_sign",
+    "lwpr_vrss_nmix_prpr",
+    "shnu_rate",
+    "cttr",
+    "esdg",
+    "otst_stpl_rgbf_qty_icdc",
+    "thpr_basis",
+    "futs_askp1",
+    "futs_bidp1",
+    "askp_rsqn1",
+    "bidp_rsqn1",
+    "seln_cntg_csnu",
+    "shnu_cntg_csnu",
+    "ntby_cntg_csnu",
+    "seln_cntg_smtn",
+    "shnu_cntg_smtn",
+    "total_askp_rsqn",
+    "total_bidp_rsqn",
+    "prdy_vol_vrss_acml_vol_rate",
+    "dynm_mxpr",
+    "dynm_llam",
+    "dynm_prc_limt_yn",
+]
+
+
+def is_kst_night_session(now=None):
+    now = (now or datetime.now(KST)).astimezone(KST)
+    return now.hour >= 18 or now.hour < 6
+
+
+def get_kst_night_session_date(now=None):
+    now = (now or datetime.now(KST)).astimezone(KST)
+    if now.hour < 6:
+        now -= timedelta(days=1)
+    return now.strftime("%Y-%m-%d")
+
+
+def extract_contract_year_month(contract_name):
+    if not contract_name:
+        return None
+    match = re.search(r"(\d{6})", contract_name)
+    return match.group(1) if match else None
+
+
+def build_kospi200_night_future_keys(contract_name=None):
+    candidates = []
+    year_month = extract_contract_year_month(contract_name)
+    month_text = year_month[-2:] if year_month else None
+
+    if month_text and month_text.isdigit():
+        short_month = str(int(month_text))
+        for prefix in ("W", "V", "T"):
+            candidates.extend(
+                [
+                    f"101{prefix}{month_text}",
+                    f"101{prefix}{short_month}000",
+                ]
+            )
+
+    candidates.extend(["101W09", "101W9000", "101V06"])
+
+    deduped = []
+    for candidate in candidates:
+        if candidate and candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
+def parse_kis_ws_rows(raw_message, expected_tr_id, columns):
+    if not raw_message or raw_message[0] not in {"0", "1"}:
+        return []
+
+    parts = raw_message.split("|", 3)
+    if len(parts) < 4 or parts[1] != expected_tr_id:
+        return []
+
+    values = parts[3].split("^")
+    if not values:
+        return []
+
+    try:
+        row_count = int(parts[2])
+    except (TypeError, ValueError):
+        row_count = 1
+
+    width = len(columns)
+    rows = []
+    for index in range(max(row_count, 1)):
+        start = index * width
+        end = start + width
+        if end > len(values):
+            break
+        rows.append(dict(zip(columns, values[start:end])))
+    return rows
+
+
+def build_kis_night_futures_metric_from_trade_row(row, session_date):
+    metric = build_kis_futures_metric(
+        row,
+        "KOSPI200_NIGHT_FUTURES",
+        "KOSPI200 야간선물",
+    )
+    if not metric or metric.get("price") is None:
+        return None
+
+    metric["source"] = "kis_websocket_trade"
+    metric["sessionTradeDate"] = session_date
+    return metric
+
+
+def fetch_kis_night_futures_metric(contract_name):
+    if websocket is None or not has_kis_credentials():
+        return None
+
+    approval_key = get_kis_approval_key()
+    candidate_keys = build_kospi200_night_future_keys(contract_name)
+    session_date = get_kst_night_session_date()
+
+    for _ in range(KIS_NIGHT_FUTURES_WS_RETRIES):
+        ws = None
+        try:
+            ws = websocket.create_connection(
+                KIS_NIGHT_FUTURES_WS_URL,
+                timeout=REQUEST_TIMEOUT,
+            )
+
+            for tr_key in candidate_keys:
+                ws.send(
+                    json.dumps(
+                        {
+                            "header": {
+                                "approval_key": approval_key,
+                                "custtype": "P",
+                                "tr_type": "1",
+                                "content-type": "utf-8",
+                            },
+                            "body": {
+                                "input": {
+                                    "tr_id": KIS_NIGHT_FUTURES_TRADE_TR_ID,
+                                    "tr_key": tr_key,
+                                }
+                            },
+                        }
+                    )
+                )
+                time.sleep(0.2)
+
+            deadline = time.monotonic() + KIS_NIGHT_FUTURES_WS_WAIT_SECONDS
+            while time.monotonic() < deadline:
+                remaining = max(1, int(deadline - time.monotonic()))
+                ws.settimeout(remaining)
+
+                try:
+                    raw_message = ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    continue
+
+                if not raw_message:
+                    continue
+
+                if raw_message.startswith("{"):
+                    try:
+                        payload = json.loads(raw_message)
+                    except json.JSONDecodeError:
+                        continue
+
+                    if payload.get("header", {}).get("tr_id") == "PINGPONG":
+                        ws.send(raw_message)
+                    continue
+
+                for row in parse_kis_ws_rows(
+                    raw_message,
+                    KIS_NIGHT_FUTURES_TRADE_TR_ID,
+                    KIS_NIGHT_FUTURES_TRADE_COLUMNS,
+                ):
+                    metric = build_kis_night_futures_metric_from_trade_row(
+                        row,
+                        session_date,
+                    )
+                    if metric:
+                        return metric
+        except Exception:
+            continue
+        finally:
+            if ws is not None:
+                try:
+                    ws.close()
+                except Exception:
+                    pass
+
+    return None
+
+
+def previous_night_future_is_reusable(metric, now=None):
+    if not metric or metric.get("id") != "KOSPI200_NIGHT_FUTURES":
+        return False
+
+    if metric.get("source") != "kis_websocket_trade":
+        return False
+
+    if not is_kst_night_session(now):
+        return True
+
+    return metric.get("sessionTradeDate") == get_kst_night_session_date(now)
+
+
 def merge_metric(primary, fallback):
     if not primary and not fallback:
         return None
@@ -521,7 +793,7 @@ def merge_metric(primary, fallback):
         if primary.get("unit") is not None
         else fallback.get("unit"),
     }
-    for extra_key in ("code", "time", "contractName"):
+    for extra_key in ("code", "time", "contractName", "source", "sessionTradeDate"):
         value = primary.get(extra_key)
         merged[extra_key] = value if value is not None else fallback.get(extra_key)
     return merged
@@ -739,26 +1011,31 @@ def find_nearest_kospi200_contract_code():
 
 def fetch_kospi200_metric(previous_snapshot):
     previous_metric = get_previous_night_future(previous_snapshot)
+    reusable_previous_metric = (
+        previous_metric if previous_night_future_is_reusable(previous_metric) else None
+    )
     provider = None
-    night_future_metric = None
+    contract_name = None
 
     if has_kis_credentials():
         try:
             contract_code = find_nearest_kospi200_contract_code()
             if contract_code:
                 raw_snapshot = fetch_kis_future_quote(contract_code)
-                night_future_metric = build_kis_futures_metric(
-                    raw_snapshot,
-                    "KOSPI200_NIGHT_FUTURES",
-                    "KOSPI200 야간선물",
-                    code=contract_code,
-                )
-                if night_future_metric:
-                    provider = "kis"
+                contract_name = raw_snapshot.get("hts_kor_isnm")
         except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI200 야간선물 조회 실패: {exc}")
+            print(f"  WARNING: KOSPI200 야간선물 종목 조회 실패: {exc}")
 
-    return merge_metric(night_future_metric, previous_metric), provider
+    if has_kis_credentials():
+        try:
+            night_future_metric = fetch_kis_night_futures_metric(contract_name)
+            if night_future_metric:
+                provider = "kis"
+                return merge_metric(night_future_metric, reusable_previous_metric), provider
+        except Exception as exc:  # noqa: BLE001
+            print(f"  WARNING: KOSPI200 야간선물 웹소켓 조회 실패: {exc}")
+
+    return merge_metric(None, reusable_previous_metric), provider
 
 
 def build_market_summary(market_quote, extras=None, night_future=None):
