@@ -6,14 +6,12 @@ with safe fallbacks for unsupported or temporarily unavailable metrics.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
 import ssl
 import tempfile
 import threading
-import time
 import zipfile
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,9 +27,7 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 OUTPUT_PATH = Path(__file__).parent / "current.json"
 
 KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
-KIS_WS_URL = "ws://ops.koreainvestment.com:21000/tryitout"
 KIS_TOKEN_URL = f"{KIS_BASE_URL}/oauth2/tokenP"
-KIS_APPROVAL_URL = f"{KIS_BASE_URL}/oauth2/Approval"
 KIS_APP_KEY = os.environ.get("KIS_APP_KEY", "").strip()
 KIS_APP_SECRET = os.environ.get("KIS_APP_SECRET", "").strip()
 KIS_AUTH_CACHE_PATH = Path(
@@ -39,10 +35,6 @@ KIS_AUTH_CACHE_PATH = Path(
     or Path(tempfile.gettempdir()) / "common_preferred_spread" / "kis_auth_cache.json"
 )
 KIS_CACHE_MARGIN_SECONDS = 300
-KOSPI200_NIGHT_FUTURES_WS_CODE = os.environ.get(
-    "KIS_KOSPI200_NIGHT_FUTURES_WS_CODE",
-    "101W9000",
-).strip()
 
 NAVER_STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/stock/{code}"
 NAVER_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
@@ -57,66 +49,12 @@ MAX_WORKERS = 3
 KIS_STOCK_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 KIS_INDEX_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
 KIS_SP500_QUOTE_PATH = "/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice"
-KIS_FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-futures"
+KIS_FUTURES_QUOTE_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
 
 KIS_STOCK_TR_ID = "FHKST01010100"
 KIS_INDEX_TR_ID = "FHPUP02100000"
 KIS_SP500_TR_ID = "FHKST03030200"
-KIS_FUTURES_BOARD_TR_ID = "FHPIF05030200"
-KIS_NIGHT_FUTURES_TR_ID = "H0MFCNT0"
-KOSPI200_FUTURES_CODE_PREFIX = "A016"
-
-KRX_NIGHT_FUTURES_COLUMNS = [
-    "futs_shrn_iscd",
-    "bsop_hour",
-    "futs_prdy_vrss",
-    "prdy_vrss_sign",
-    "futs_prdy_ctrt",
-    "futs_prpr",
-    "futs_oprc",
-    "futs_hgpr",
-    "futs_lwpr",
-    "last_cnqn",
-    "acml_vol",
-    "acml_tr_pbmn",
-    "hts_thpr",
-    "mrkt_basis",
-    "dprt",
-    "nmsc_fctn_stpl_prc",
-    "fmsc_fctn_stpl_prc",
-    "spead_prc",
-    "hts_otst_stpl_qty",
-    "otst_stpl_qty_icdc",
-    "oprc_hour",
-    "oprc_vrss_prpr_sign",
-    "oprc_vrss_nmix_prpr",
-    "hgpr_hour",
-    "hgpr_vrss_prpr_sign",
-    "hgpr_vrss_nmix_prpr",
-    "lwpr_hour",
-    "lwpr_vrss_prpr_sign",
-    "lwpr_vrss_nmix_prpr",
-    "shnu_rate",
-    "cttr",
-    "esdg",
-    "otst_stpl_rgbf_qty_icdc",
-    "thpr_basis",
-    "futs_askp1",
-    "futs_bidp1",
-    "askp_rsqn1",
-    "bidp_rsqn1",
-    "seln_cntg_csnu",
-    "shnu_cntg_csnu",
-    "ntby_cntg_csnu",
-    "seln_cntg_smtn",
-    "shnu_cntg_smtn",
-    "total_askp_rsqn",
-    "total_bidp_rsqn",
-    "prdy_vol_vrss_acml_vol_rate",
-    "dynm_mxpr",
-    "dynm_llam",
-    "dynm_prc_limt_yn",
-]
+KIS_FUTURES_QUOTE_TR_ID = "FHMIF10000000"
 
 AUTH_CACHE_LOCK = threading.Lock()
 
@@ -290,34 +228,6 @@ def get_kis_token():
         return token
 
 
-def get_kis_approval_key():
-    with AUTH_CACHE_LOCK:
-        cache = load_auth_cache()
-        if cache_entry_is_valid(cache.get("approval_key_expires_at")) and cache.get(
-            "approval_key"
-        ):
-            return cache["approval_key"]
-
-        payload = http_json(
-            KIS_APPROVAL_URL,
-            method="POST",
-            headers={"content-type": "application/json; charset=UTF-8"},
-            payload={
-                "grant_type": "client_credentials",
-                "appkey": KIS_APP_KEY,
-                "secretkey": KIS_APP_SECRET,
-            },
-        )
-        approval_key = payload["approval_key"]
-        expires_at = (
-            datetime.now(timezone.utc) + timedelta(hours=23, minutes=55)
-        ).isoformat()
-        cache["approval_key"] = approval_key
-        cache["approval_key_expires_at"] = expires_at
-        save_auth_cache(cache)
-        return approval_key
-
-
 def kis_get_json(path, tr_id, params):
     payload = http_json(
         f"{KIS_BASE_URL}{path}",
@@ -420,17 +330,16 @@ def fetch_kis_sp500_quote():
     return payload.get("output1") or {}
 
 
-def fetch_kis_futures_board():
+def fetch_kis_future_quote(code):
     payload = kis_get_json(
-        KIS_FUTURES_BOARD_PATH,
-        KIS_FUTURES_BOARD_TR_ID,
+        KIS_FUTURES_QUOTE_PATH,
+        KIS_FUTURES_QUOTE_TR_ID,
         {
             "FID_COND_MRKT_DIV_CODE": "F",
-            "FID_COND_SCR_DIV_CODE": "20503",
-            "FID_COND_MRKT_CLS_CODE": "",
+            "FID_INPUT_ISCD": code,
         },
     )
-    return payload.get("output") or []
+    return payload.get("output1") or {}
 
 
 def build_quote_metric(quote, metric_id, name, unit=None, price_digits=2):
@@ -569,14 +478,14 @@ def build_kis_overseas_index_metric(output, metric_id, name):
     }
 
 
-def build_kis_futures_metric(row, metric_id, name):
+def build_kis_futures_metric(row, metric_id, name, *, code=None):
     if not row:
         return None
     sign_code = row.get("prdy_vrss_sign")
     return {
         "id": metric_id,
         "name": name,
-        "code": row.get("futs_shrn_iscd"),
+        "code": first_not_none(row.get("futs_shrn_iscd"), code),
         "price": round_or_none(parse_float(row.get("futs_prpr"))),
         "change": round_or_none(
             parse_signed_number(row.get("futs_prdy_vrss"), sign_code)
@@ -585,7 +494,7 @@ def build_kis_futures_metric(row, metric_id, name):
             parse_signed_number(row.get("futs_prdy_ctrt"), sign_code)
         ),
         "marketStatus": None,
-        "time": row.get("bsop_hour"),
+        "time": first_not_none(row.get("stck_cntg_hour"), row.get("bsop_hour")),
         "contractName": row.get("hts_kor_isnm"),
     }
 
@@ -680,7 +589,10 @@ def get_previous_night_future(previous_snapshot):
         or previous_snapshot.get("summary", {}).get("market")
         or {}
     )
-    return market.get("nightFuture")
+    metric = market.get("nightFuture")
+    if not metric:
+        return None
+    return metric if metric.get("id") == "KOSPI200_NIGHT_FUTURES" else None
 
 
 def fetch_market_metrics(previous_snapshot):
@@ -825,107 +737,28 @@ def find_nearest_kospi200_contract_code():
     return rows[0]["shortCode"]
 
 
-async def fetch_kis_night_future_snapshot_async(approval_key, code):
-    try:
-        import websockets
-    except ImportError as exc:  # pragma: no cover - runtime dependency
-        raise RuntimeError("websockets package is not installed") from exc
-
-    message = {
-        "header": {
-            "approval_key": approval_key,
-            "content-type": "utf-8",
-            "custtype": "P",
-            "tr_type": "1",
-        },
-        "body": {
-            "input": {
-                "tr_id": KIS_NIGHT_FUTURES_TR_ID,
-                "tr_key": code,
-            }
-        },
-    }
-
-    async with websockets.connect(KIS_WS_URL) as websocket:
-        await websocket.send(json.dumps(message, ensure_ascii=False))
-        deadline = time.monotonic() + 8
-
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return None
-
-            raw = await asyncio.wait_for(websocket.recv(), timeout=remaining)
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8", errors="replace")
-            if not raw:
-                continue
-
-            if raw[0] in {"0", "1"}:
-                parts = raw.split("|")
-                if len(parts) < 4 or parts[1] != KIS_NIGHT_FUTURES_TR_ID:
-                    continue
-                values = parts[3].split("^")
-                return dict(zip(KRX_NIGHT_FUTURES_COLUMNS, values))
-
-
 def fetch_kospi200_metric(previous_snapshot):
     previous_metric = get_previous_night_future(previous_snapshot)
-    websocket_metric = None
-    board_metric = None
     provider = None
+    night_future_metric = None
 
     if has_kis_credentials():
         try:
-            raw_snapshot = asyncio.run(
-                fetch_kis_night_future_snapshot_async(
-                    get_kis_approval_key(),
-                    KOSPI200_NIGHT_FUTURES_WS_CODE,
+            contract_code = find_nearest_kospi200_contract_code()
+            if contract_code:
+                raw_snapshot = fetch_kis_future_quote(contract_code)
+                night_future_metric = build_kis_futures_metric(
+                    raw_snapshot,
+                    "KOSPI200_NIGHT_FUTURES",
+                    "KOSPI200 야간선물",
+                    code=contract_code,
                 )
-            )
-            websocket_metric = build_kis_futures_metric(
-                raw_snapshot,
-                "KOSPI200_NIGHT_FUTURES",
-                "KOSPI200 야간선물",
-            )
-            if websocket_metric:
-                provider = "kis"
+                if night_future_metric:
+                    provider = "kis"
         except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI200 야간선물 웹소켓 조회 실패: {exc}")
+            print(f"  WARNING: KOSPI200 야간선물 조회 실패: {exc}")
 
-        try:
-            board_rows = fetch_kis_futures_board()
-            preferred_code = find_nearest_kospi200_contract_code()
-            board_row = None
-            if preferred_code:
-                board_row = next(
-                    (row for row in board_rows if row.get("futs_shrn_iscd") == preferred_code),
-                    None,
-                )
-            if board_row is None:
-                board_row = next(
-                    (
-                        row
-                        for row in board_rows
-                        if str(row.get("futs_shrn_iscd", "")).startswith(
-                            KOSPI200_FUTURES_CODE_PREFIX
-                        )
-                    ),
-                    None,
-                )
-            if board_row is None and board_rows:
-                board_row = board_rows[0]
-            board_metric = build_kis_futures_metric(
-                board_row,
-                "KOSPI200_FUTURES",
-                "KOSPI200 선물",
-            )
-            if provider is None and board_metric:
-                provider = "kis"
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI200 선물 보드 조회 실패: {exc}")
-
-    return merge_metric(websocket_metric or board_metric, previous_metric), provider
+    return merge_metric(night_future_metric, previous_metric), provider
 
 
 def build_market_summary(market_quote, extras=None, night_future=None):
