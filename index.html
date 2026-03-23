@@ -826,6 +826,7 @@ td.numeric .bar-cell {
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
+  const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
   const LIVE_FETCH_CONCURRENCY = 8;
   const MARKET_EXTRA_SPECS = [
     { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
@@ -1224,13 +1225,13 @@ td.numeric .bar-cell {
     `;
   }
 
-  function renderNightFutureMetric(metric) {
+function renderNightFutureMetric(metric) {
     if (!metric) return '';
     const label = metric.name || 'KOSPI200 야간선물';
     return `
       <div class="overview-market-secondary">
         <span class="overview-market-secondary-name">${label}</span>
-        <span class="overview-market-secondary-value ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</span>
+        <span class="overview-market-secondary-value ${getDirectionClass(metric.changePct)}">${formatMarketPrice(metric.price)} ${formatPercentChange(metric.changePct)}</span>
       </div>
     `;
   }
@@ -2092,7 +2093,7 @@ td.numeric .bar-cell {
       if (refreshButtonBusy) return;
       setRefreshButtonState(true);
       try {
-        await fetchCurrentPrices({ forceLiveRefresh: true });
+        await fetchCurrentPrices();
       } finally {
         setRefreshButtonState(false);
       }
@@ -2116,12 +2117,12 @@ td.numeric .bar-cell {
     return null;
   }
 
-  async function fetchLiveJson(url) {
-    return fetchWithTimeout(url, 'json');
+  async function fetchLiveJson(url, timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+    return fetchWithTimeout(url, 'json', timeoutMs);
   }
 
-  async function fetchLiveText(url) {
-    return fetchWithTimeout(url, 'text');
+  async function fetchLiveText(url, timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+    return fetchWithTimeout(url, 'text', timeoutMs);
   }
 
   async function mapWithConcurrency(items, limit, mapper) {
@@ -2192,6 +2193,40 @@ td.numeric .bar-cell {
     };
   }
 
+  function extractNightFutureMetricFromHtml(html) {
+    if (!html) return null;
+    const patterns = {
+      price: /data-test="instrument-price-last"[^>]*>([^<]+)</i,
+      change: /data-test="instrument-price-change"[^>]*>([^<]+)</i,
+      changePct: /data-test="instrument-price-change-percent"[^>]*>([^<]+)</i,
+      time: /data-test="trading-time-label"[^>]*>([^<]+)</i,
+    };
+    const values = Object.fromEntries(
+      Object.entries(patterns).map(([key, pattern]) => {
+        const match = html.match(pattern);
+        return [key, match ? match[1].trim() : null];
+      }),
+    );
+
+    const price = parseRawNumber(values.price);
+    const change = parseRawNumber(values.change);
+    const changePct = parseRawNumber((values.changePct || '').replace(/[()%]/g, ''));
+    if (price == null || change == null || changePct == null) return null;
+
+    return {
+      id: 'KOSPI200_NIGHT_FUTURES',
+      name: 'KOSPI200 야간선물',
+      price: +price.toFixed(2),
+      change: +change.toFixed(2),
+      changePct: +changePct.toFixed(2),
+      marketStatus: null,
+      unit: '',
+      time: values.time || null,
+      source: 'investing_html',
+      sessionTradeDate: formatKstTimestamp(new Date()).slice(0, 10),
+    };
+  }
+
   function buildLiveMarketSummary(marketQuote, extras = [], nightFuture = null) {
     if (!marketQuote && !extras.length) return null;
     const summary = buildLiveMarketMetric(marketQuote, { id: 'KOSPI', name: '코스피' }) || {
@@ -2234,11 +2269,12 @@ td.numeric .bar-cell {
     });
     const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
 
-    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml] = await Promise.all([
+    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, nightFuturesHtml] = await Promise.all([
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
       fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
+      fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null),
     ]);
     const marketQuote = marketPayload?.datas?.[0] || null;
     const marketExtras = [
@@ -2285,13 +2321,12 @@ td.numeric .bar-cell {
     }
 
     if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
-    const market = buildLiveMarketSummary(marketQuote, marketExtras);
+    const nightFuture = extractNightFutureMetricFromHtml(nightFuturesHtml);
+    const market = buildLiveMarketSummary(marketQuote, marketExtras, nightFuture);
     const parsedTimes = tradedAtValues
       .map(value => parseSnapshotTimestamp(value))
       .filter(Boolean);
-    const latestTime = parsedTimes.length
-      ? new Date(Math.max(...parsedTimes.map(value => value.getTime())))
-      : new Date();
+    const latestTime = new Date();
 
     if (!Object.keys(prices).length && !market) {
       throw new Error('실시간 시세를 가져오지 못했습니다.');

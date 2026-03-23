@@ -47,6 +47,7 @@ NAVER_STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/s
 NAVER_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
 NAVER_WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worldstock/index/{code}"
 NAVER_MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
+INVESTING_KOSPI200_FUTURES_URL = "https://kr.investing.com/indices/korea-200-futures"
 DOMESTIC_CME_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_cme_code.mst.zip"
 
 USER_AGENT = "Mozilla/5.0"
@@ -316,6 +317,16 @@ def fetch_json_from_naver(url):
 
 def fetch_text_from_naver(url):
     return http_text(url, headers={"User-Agent": USER_AGENT})
+
+
+def fetch_text_from_public_page(url):
+    return http_text(
+        url,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
+        },
+    )
 
 
 def fetch_naver_stock_quote(code):
@@ -771,6 +782,53 @@ def previous_night_future_is_reusable(metric, now=None):
     return metric.get("sessionTradeDate") == get_kst_night_session_date(now)
 
 
+def build_public_night_futures_metric_from_html(html):
+    if not html:
+        return None
+
+    patterns = {
+        "price": r'data-test="instrument-price-last"[^>]*>([^<]+)<',
+        "change": r'data-test="instrument-price-change"[^>]*>([^<]+)<',
+        "changePct": r'data-test="instrument-price-change-percent"[^>]*>([^<]+)<',
+        "time": r'data-test="trading-time-label"[^>]*>([^<]+)<',
+    }
+    values = {}
+    for key, pattern in patterns.items():
+        match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+        values[key] = match.group(1).strip() if match else None
+
+    price = parse_float(values["price"])
+    change = parse_float(values["change"])
+    change_pct_text = (values["changePct"] or "").strip("() ")
+    change_pct = parse_float(change_pct_text.replace("%", ""))
+
+    if price is None or change is None or change_pct is None:
+        return None
+
+    metric = {
+        "id": "KOSPI200_NIGHT_FUTURES",
+        "name": "KOSPI200 야간선물",
+        "price": round_or_none(price),
+        "change": round_or_none(change),
+        "changePct": round_or_none(change_pct),
+        "marketStatus": None,
+        "unit": None,
+        "source": "investing_html",
+        "sessionTradeDate": get_kst_night_session_date(),
+        "time": values["time"],
+    }
+    return metric
+
+
+def fetch_public_night_futures_metric():
+    try:
+        html = fetch_text_from_public_page(INVESTING_KOSPI200_FUTURES_URL)
+    except Exception:
+        return None
+
+    return build_public_night_futures_metric_from_html(html)
+
+
 def merge_metric(primary, fallback):
     if not primary and not fallback:
         return None
@@ -1034,6 +1092,11 @@ def fetch_kospi200_metric(previous_snapshot):
                 return merge_metric(night_future_metric, reusable_previous_metric), provider
         except Exception as exc:  # noqa: BLE001
             print(f"  WARNING: KOSPI200 야간선물 웹소켓 조회 실패: {exc}")
+
+    public_metric = fetch_public_night_futures_metric()
+    if public_metric:
+        provider = provider or "public"
+        return merge_metric(public_metric, reusable_previous_metric), provider
 
     return merge_metric(None, reusable_previous_metric), provider
 
@@ -1306,6 +1369,10 @@ def main():
         source = "한국투자증권 오픈 API + 네이버 보조지표"
     elif "kis" in providers:
         source = "한국투자증권 오픈 API"
+    elif "public" in providers and "naver" in providers:
+        source = "네이버 증권 + 공개 선물 시세"
+    elif "public" in providers:
+        source = "공개 선물 시세"
     else:
         source = "네이버 증권"
 
