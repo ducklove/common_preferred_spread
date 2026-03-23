@@ -49,6 +49,9 @@ NAVER_WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worl
 NAVER_MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
 HANKYUNG_KOSPI200_FUTURES_URL = "https://markets.hankyung.com/indices/kospi-future"
 INVESTING_KOSPI200_FUTURES_URL = "https://kr.investing.com/indices/korea-200-futures"
+ESIGNAL_NIGHT_FUTURES_WS_URL = (
+    "wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket"
+)
 DOMESTIC_CME_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_cme_code.mst.zip"
 
 USER_AGENT = "Mozilla/5.0"
@@ -624,6 +627,16 @@ def get_kst_day_month(now=None):
     return now.strftime("%d/%m")
 
 
+def format_kst_time(value):
+    if not value:
+        return None
+    value = str(value).strip()
+    if not value.isdigit():
+        return value
+    value = value.zfill(6)
+    return f"{value[:2]}:{value[2:4]}:{value[4:6]}"
+
+
 def get_kst_night_session_day_month(now=None):
     session_date = datetime.strptime(get_kst_night_session_date(now), "%Y-%m-%d").replace(
         tzinfo=KST
@@ -787,11 +800,113 @@ def fetch_kis_night_futures_metric(contract_name):
     return None
 
 
+def build_esignal_night_futures_metric(payload):
+    if not payload:
+        return None
+
+    price = parse_float(payload.get("value"))
+    change = parse_float(payload.get("value_diff"))
+    base_price = parse_float(payload.get("value_day"))
+    if price is None or change is None or base_price in (None, 0):
+        return None
+
+    timestamp = None
+    raw_timestamp = payload.get("tstamp")
+    if raw_timestamp:
+        try:
+            timestamp = datetime.fromisoformat(str(raw_timestamp).replace("Z", "+00:00")).astimezone(
+                KST
+            )
+        except ValueError:
+            timestamp = None
+
+    session_date = get_kst_night_session_date(timestamp)
+    if session_date != get_kst_night_session_date():
+        return None
+
+    return {
+        "id": "KOSPI200_FUTURES",
+        "name": "KOSPI200 선물",
+        "code": payload.get("symbol"),
+        "price": round_or_none(price),
+        "change": round_or_none(change),
+        "changePct": round_or_none((price - base_price) / base_price * 100),
+        "marketStatus": "야간",
+        "unit": None,
+        "time": format_kst_time(payload.get("ttime"))
+        or (timestamp.strftime("%H:%M:%S") if timestamp else None),
+        "contractName": None,
+        "source": "esignal_socket",
+        "sessionTradeDate": session_date,
+    }
+
+
+def fetch_esignal_night_futures_metric():
+    if websocket is None:
+        return None
+
+    ws = None
+    deadline = time.monotonic() + REQUEST_TIMEOUT
+    try:
+        ws = websocket.create_connection(
+            ESIGNAL_NIGHT_FUTURES_WS_URL,
+            timeout=REQUEST_TIMEOUT,
+            origin="https://esignal.co.kr",
+        )
+
+        while time.monotonic() < deadline:
+            remaining = max(1, int(deadline - time.monotonic()))
+            ws.settimeout(remaining)
+            raw_message = ws.recv()
+            if not raw_message:
+                continue
+
+            if raw_message.startswith("0"):
+                ws.send("40")
+                continue
+
+            if raw_message == "2":
+                ws.send("3")
+                continue
+
+            if not raw_message.startswith("42"):
+                continue
+
+            try:
+                packet = json.loads(raw_message[2:])
+            except json.JSONDecodeError:
+                continue
+
+            if not isinstance(packet, list) or len(packet) < 2 or packet[0] != "populate":
+                continue
+
+            payload = packet[1]
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
+            metric = build_esignal_night_futures_metric(payload)
+            if metric:
+                return metric
+    except Exception:
+        return None
+    finally:
+        if ws is not None:
+            try:
+                ws.close()
+            except Exception:
+                pass
+
+    return None
+
+
 def previous_night_future_is_reusable(metric, now=None):
     if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
         return False
 
-    if metric.get("source") != "kis_websocket_trade":
+    if metric.get("source") not in {"kis_websocket_trade", "esignal_socket"}:
         return True
 
     if not is_kst_night_session(now):
@@ -1177,6 +1292,11 @@ def fetch_kospi200_metric(previous_snapshot):
         except Exception as exc:  # noqa: BLE001
             print(f"  WARNING: KOSPI200 선물 현재가 조회 실패: {exc}")
 
+    if is_night_session:
+        esignal_metric = fetch_esignal_night_futures_metric()
+        if esignal_metric:
+            return merge_metric(esignal_metric, reusable_previous_metric), "esignal"
+
     if is_night_session and has_kis_credentials():
         try:
             night_future_metric = fetch_kis_night_futures_metric(contract_name)
@@ -1476,6 +1596,10 @@ def main():
         source = "한국투자증권 오픈 API + 네이버 보조지표"
     elif "kis" in providers:
         source = "한국투자증권 오픈 API"
+    elif "esignal" in providers and "naver" in providers:
+        source = "네이버 증권 + eSignal 선물 시세"
+    elif "esignal" in providers:
+        source = "eSignal 선물 시세"
     elif "public" in providers and "naver" in providers:
         source = "네이버 증권 + 공개 선물 시세"
     elif "public" in providers:

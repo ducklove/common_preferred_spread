@@ -828,6 +828,7 @@ td.numeric .bar-cell {
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
   const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
+  const LIVE_ESIGNAL_NIGHT_SOCKET_URL = 'wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket';
   const LIVE_FETCH_CONCURRENCY = 8;
   const MARKET_EXTRA_SPECS = [
     { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
@@ -2269,6 +2270,100 @@ td.numeric .bar-cell {
     };
   }
 
+  function buildEsignalNightFutureMetric(payload) {
+    if (!payload) return null;
+    const price = parseRawNumber(payload.value);
+    const change = parseRawNumber(payload.value_diff);
+    const basePrice = parseRawNumber(payload.value_day);
+    if (price == null || change == null || basePrice == null || basePrice === 0) return null;
+
+    const timestamp = payload.tstamp ? new Date(payload.tstamp) : null;
+    const parsedTimestamp = timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : null;
+    const sessionTradeDate = parsedTimestamp
+      ? getCurrentKstNightSessionDateString(parsedTimestamp)
+      : getCurrentKstNightSessionDateString();
+    if (sessionTradeDate !== getCurrentKstNightSessionDateString()) return null;
+
+    const timeText = payload.ttime != null
+      ? String(payload.ttime).padStart(6, '0').replace(/(\d{2})(\d{2})(\d{2})/, '$1:$2:$3')
+      : (parsedTimestamp ? formatKstTimestamp(parsedTimestamp).slice(11, 19) : null);
+
+    return {
+      id: 'KOSPI200_FUTURES',
+      name: 'KOSPI200 선물',
+      price: +price.toFixed(2),
+      change: +change.toFixed(2),
+      changePct: +(((price - basePrice) / basePrice) * 100).toFixed(2),
+      marketStatus: '야간',
+      unit: '',
+      code: payload.symbol || null,
+      time: timeText || null,
+      source: 'esignal_socket',
+      sessionTradeDate,
+    };
+  }
+
+  async function fetchLiveEsignalNightFutureMetric(timeoutMs = 7000) {
+    if (typeof WebSocket !== 'function') return null;
+
+    return await new Promise(resolve => {
+      let settled = false;
+      let ws = null;
+      const finish = value => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+        } catch (e) {
+          // ignore close errors
+        }
+        resolve(value || null);
+      };
+      const timer = setTimeout(() => finish(null), timeoutMs);
+
+      try {
+        ws = new WebSocket(LIVE_ESIGNAL_NIGHT_SOCKET_URL);
+      } catch (e) {
+        finish(null);
+        return;
+      }
+
+      ws.addEventListener('message', event => {
+        const raw = String(event.data || '');
+        if (!raw) return;
+        if (raw.startsWith('0')) {
+          try {
+            ws.send('40');
+          } catch (e) {
+            finish(null);
+          }
+          return;
+        }
+        if (raw === '2') {
+          try {
+            ws.send('3');
+          } catch (e) {
+            finish(null);
+          }
+          return;
+        }
+        if (!raw.startsWith('42')) return;
+
+        try {
+          const packet = JSON.parse(raw.slice(2));
+          if (!Array.isArray(packet) || packet[0] !== 'populate') return;
+          const payload = typeof packet[1] === 'string' ? JSON.parse(packet[1]) : packet[1];
+          finish(buildEsignalNightFutureMetric(payload));
+        } catch (e) {
+          finish(null);
+        }
+      });
+      ws.addEventListener('error', () => finish(null));
+      ws.addEventListener('close', () => finish(null));
+    });
+  }
+
   function extractDayFutureMetricFromHankyungHtml(html) {
     if (!html) return null;
     const match = html.match(
@@ -2347,12 +2442,13 @@ td.numeric .bar-cell {
     });
     const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
 
-    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, hankyungFuturesHtml, nightFuturesHtml] = await Promise.all([
+    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, hankyungFuturesHtml, esignalNightFuture, nightFuturesHtml] = await Promise.all([
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
       fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
       fetchLiveText(LIVE_HANKYUNG_FUTURES_URL, 5000).catch(() => null),
+      isCurrentKstNightSession() ? fetchLiveEsignalNightFutureMetric(7000).catch(() => null) : Promise.resolve(null),
       fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null),
     ]);
     const marketQuote = marketPayload?.datas?.[0] || null;
@@ -2402,7 +2498,9 @@ td.numeric .bar-cell {
     if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
     const dayFuture = extractDayFutureMetricFromHankyungHtml(hankyungFuturesHtml);
     const nightFuture = extractNightFutureMetricFromHtml(nightFuturesHtml);
-    const futureMetric = isCurrentKstNightSession() ? nightFuture : (dayFuture || nightFuture);
+    const futureMetric = isCurrentKstNightSession()
+      ? (esignalNightFuture || nightFuture)
+      : (dayFuture || nightFuture);
     const market = buildLiveMarketSummary(marketQuote, marketExtras, futureMetric);
     const parsedTimes = tradedAtValues
       .map(value => parseSnapshotTimestamp(value))
