@@ -47,6 +47,7 @@ NAVER_STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/s
 NAVER_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
 NAVER_WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worldstock/index/{code}"
 NAVER_MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
+HANKYUNG_KOSPI200_FUTURES_URL = "https://markets.hankyung.com/indices/kospi-future"
 INVESTING_KOSPI200_FUTURES_URL = "https://kr.investing.com/indices/korea-200-futures"
 DOMESTIC_CME_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_cme_code.mst.zip"
 
@@ -613,6 +614,23 @@ def get_kst_night_session_date(now=None):
     return now.strftime("%Y-%m-%d")
 
 
+def get_kst_date_string(now=None):
+    now = (now or datetime.now(KST)).astimezone(KST)
+    return now.strftime("%Y-%m-%d")
+
+
+def get_kst_day_month(now=None):
+    now = (now or datetime.now(KST)).astimezone(KST)
+    return now.strftime("%d/%m")
+
+
+def get_kst_night_session_day_month(now=None):
+    session_date = datetime.strptime(get_kst_night_session_date(now), "%Y-%m-%d").replace(
+        tzinfo=KST
+    )
+    return session_date.strftime("%d/%m")
+
+
 def extract_contract_year_month(contract_name):
     if not contract_name:
         return None
@@ -675,8 +693,8 @@ def parse_kis_ws_rows(raw_message, expected_tr_id, columns):
 def build_kis_night_futures_metric_from_trade_row(row, session_date):
     metric = build_kis_futures_metric(
         row,
-        "KOSPI200_NIGHT_FUTURES",
-        "KOSPI200 야간선물",
+        "KOSPI200_FUTURES",
+        "KOSPI200 선물",
     )
     if not metric or metric.get("price") is None:
         return None
@@ -770,11 +788,11 @@ def fetch_kis_night_futures_metric(contract_name):
 
 
 def previous_night_future_is_reusable(metric, now=None):
-    if not metric or metric.get("id") != "KOSPI200_NIGHT_FUTURES":
+    if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
         return False
 
     if metric.get("source") != "kis_websocket_trade":
-        return False
+        return True
 
     if not is_kst_night_session(now):
         return True
@@ -801,13 +819,17 @@ def build_public_night_futures_metric_from_html(html):
     change = parse_float(values["change"])
     change_pct_text = (values["changePct"] or "").strip("() ")
     change_pct = parse_float(change_pct_text.replace("%", ""))
+    time_text = (values["time"] or "").strip()
 
     if price is None or change is None or change_pct is None:
         return None
+    if time_text and re.fullmatch(r"\d{2}/\d{2}", time_text):
+        if time_text != get_kst_night_session_day_month():
+            return None
 
     metric = {
-        "id": "KOSPI200_NIGHT_FUTURES",
-        "name": "KOSPI200 야간선물",
+        "id": "KOSPI200_FUTURES",
+        "name": "KOSPI200 선물",
         "price": round_or_none(price),
         "change": round_or_none(change),
         "changePct": round_or_none(change_pct),
@@ -815,7 +837,7 @@ def build_public_night_futures_metric_from_html(html):
         "unit": None,
         "source": "investing_html",
         "sessionTradeDate": get_kst_night_session_date(),
-        "time": values["time"],
+        "time": time_text or None,
     }
     return metric
 
@@ -827,6 +849,62 @@ def fetch_public_night_futures_metric():
         return None
 
     return build_public_night_futures_metric_from_html(html)
+
+
+def build_hankyung_kospi200_futures_metric_from_html(html):
+    if not html:
+        return None
+
+    match = re.search(
+        r'<div class="stock-data(?:\s+(?P<direction>\w+))?">.*?'
+        r'<p class="price">\s*(?P<price>[\d,]+\.\d+)\s*</p>.*?'
+        r'<span class="stock-point">\s*(?P<change>[\d,]+\.\d+)\s*</span>.*?'
+        r'<span class="rate">\s*(?P<changePct>[+-]?[\d,]+\.\d+%)\s*</span>.*?'
+        r'<p class="txt-info txt-rt"[^>]*>\s*(?P<tradeDate>\d{4}\.\d{2}\.\d{2})\s*(?P<status>[^<]+?)\s*</p>',
+        html,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+
+    direction = (match.group("direction") or "").lower()
+    price = parse_float(match.group("price"))
+    change = parse_float(match.group("change"))
+    change_pct = parse_float((match.group("changePct") or "").replace("%", ""))
+    trade_date = (match.group("tradeDate") or "").replace(".", "-")
+    status_text = re.sub(r"\s+", " ", (match.group("status") or "").strip())
+
+    if price is None or change is None or change_pct is None:
+        return None
+    if trade_date != get_kst_date_string():
+        return None
+
+    if change_pct < 0 or direction == "down":
+        change = -abs(change)
+    elif change_pct > 0 or direction == "up":
+        change = abs(change)
+
+    return {
+        "id": "KOSPI200_FUTURES",
+        "name": "KOSPI200 선물",
+        "price": round_or_none(price),
+        "change": round_or_none(change),
+        "changePct": round_or_none(change_pct),
+        "marketStatus": status_text or None,
+        "unit": None,
+        "source": "hankyung_html",
+        "sessionTradeDate": trade_date,
+        "time": status_text or None,
+    }
+
+
+def fetch_hankyung_kospi200_futures_metric():
+    try:
+        html = fetch_text_from_public_page(HANKYUNG_KOSPI200_FUTURES_URL)
+    except Exception:
+        return None
+
+    return build_hankyung_kospi200_futures_metric_from_html(html)
 
 
 def merge_metric(primary, fallback):
@@ -919,10 +997,14 @@ def get_previous_night_future(previous_snapshot):
         or previous_snapshot.get("summary", {}).get("market")
         or {}
     )
-    metric = market.get("nightFuture")
+    metric = market.get("nightFuture") or market.get("future")
     if not metric:
         return None
-    return metric if metric.get("id") == "KOSPI200_NIGHT_FUTURES" else None
+    return (
+        metric
+        if metric.get("id") in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}
+        else None
+    )
 
 
 def fetch_market_metrics(previous_snapshot):
@@ -1074,6 +1156,8 @@ def fetch_kospi200_metric(previous_snapshot):
     )
     provider = None
     contract_name = None
+    day_future_metric = None
+    is_night_session = is_kst_night_session()
 
     if has_kis_credentials():
         try:
@@ -1081,10 +1165,19 @@ def fetch_kospi200_metric(previous_snapshot):
             if contract_code:
                 raw_snapshot = fetch_kis_future_quote(contract_code)
                 contract_name = raw_snapshot.get("hts_kor_isnm")
+                day_future_metric = build_kis_futures_metric(
+                    raw_snapshot,
+                    "KOSPI200_FUTURES",
+                    "KOSPI200 선물",
+                    code=contract_code,
+                )
+                if day_future_metric and day_future_metric.get("price") is not None:
+                    day_future_metric["source"] = "kis_future_quote"
+                    provider = "kis"
         except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI200 야간선물 종목 조회 실패: {exc}")
+            print(f"  WARNING: KOSPI200 선물 현재가 조회 실패: {exc}")
 
-    if has_kis_credentials():
+    if is_night_session and has_kis_credentials():
         try:
             night_future_metric = fetch_kis_night_futures_metric(contract_name)
             if night_future_metric:
@@ -1092,6 +1185,20 @@ def fetch_kospi200_metric(previous_snapshot):
                 return merge_metric(night_future_metric, reusable_previous_metric), provider
         except Exception as exc:  # noqa: BLE001
             print(f"  WARNING: KOSPI200 야간선물 웹소켓 조회 실패: {exc}")
+
+    if is_night_session:
+        public_metric = fetch_public_night_futures_metric()
+        if public_metric:
+            provider = provider or "public"
+            return merge_metric(public_metric, reusable_previous_metric), provider
+
+    if day_future_metric:
+        return merge_metric(day_future_metric, reusable_previous_metric), provider or "kis"
+
+    public_metric = fetch_hankyung_kospi200_futures_metric()
+    if public_metric:
+        provider = provider or "public"
+        return merge_metric(public_metric, reusable_previous_metric), provider
 
     public_metric = fetch_public_night_futures_metric()
     if public_metric:

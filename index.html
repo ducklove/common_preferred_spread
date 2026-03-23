@@ -826,6 +826,7 @@ td.numeric .bar-cell {
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
+  const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
   const LIVE_FETCH_CONCURRENCY = 8;
   const MARKET_EXTRA_SPECS = [
@@ -841,7 +842,7 @@ td.numeric .bar-cell {
   let latestNightFutureMetric = null;
   let todayOverviewData = buildTodaySummaryFromPairs();
   latestMarketExtras = normalizeMarketExtras(todayOverviewData?.market?.extras || []);
-  latestNightFutureMetric = todayOverviewData?.market?.nightFuture || null;
+  latestNightFutureMetric = todayOverviewData?.market?.nightFuture || todayOverviewData?.market?.future || null;
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
   let refreshButtonBusy = false;
@@ -1082,7 +1083,10 @@ td.numeric .bar-cell {
       marketStatus: primary.marketStatus || fallback.marketStatus || null,
       unit: primary.unit != null ? primary.unit : fallback.unit ?? null,
       extras: mergeMarketExtras(primary.extras || [], fallback.extras || [], latestMarketExtras),
-      nightFuture: mergeNightFutureMetric(primary.nightFuture || null, fallback.nightFuture || null),
+      nightFuture: mergeNightFutureMetric(
+        primary.nightFuture || primary.future || null,
+        fallback.nightFuture || fallback.future || null,
+      ),
     };
   }
 
@@ -1164,10 +1168,16 @@ td.numeric .bar-cell {
   function renderMarketOverviewCard(market) {
     const mergedMarket = getRenderableMarketSummary(market);
     const extras = mergeMarketExtras(mergedMarket?.extras || [], latestMarketExtras);
-    const nightFuture = mergeNightFutureMetric(
+    const futureMetric = mergeNightFutureMetric(
       mergedMarket?.nightFuture || null,
       latestNightFutureMetric,
     );
+    const kosdaqMetric = extras.find(metric => metric.id === 'KOSDAQ') || null;
+    const sideMetrics = extras.filter(metric => metric.id !== 'KOSDAQ');
+    const secondaryMetric = kosdaqMetric || futureMetric;
+    if (futureMetric && secondaryMetric !== futureMetric) {
+      sideMetrics.unshift(futureMetric);
+    }
 
     return `
       <div class="overview-card primary">
@@ -1177,10 +1187,10 @@ td.numeric .bar-cell {
             <div class="overview-value overview-market-line">${formatMarketPrice(mergedMarket?.price)}</div>
             <div class="overview-change ${getDirectionClass(mergedMarket?.changePct)}">${formatPercentChange(mergedMarket?.changePct)}</div>
             <div class="overview-points">${formatSignedPoints(mergedMarket?.change, 'pt')}</div>
-            ${renderNightFutureMetric(nightFuture)}
+            ${renderMarketSecondaryMetric(secondaryMetric)}
           </div>
           <div class="overview-side-list">
-            ${extras.map(renderMarketExtraMetric).join('')}
+            ${sideMetrics.map(renderMarketExtraMetric).join('')}
           </div>
         </div>
       </div>
@@ -1225,9 +1235,9 @@ td.numeric .bar-cell {
     `;
   }
 
-function renderNightFutureMetric(metric) {
+  function renderMarketSecondaryMetric(metric) {
     if (!metric) return '';
-    const label = metric.name || 'KOSPI200 야간선물';
+    const label = metric.name || 'KOSPI200 선물';
     return `
       <div class="overview-market-secondary">
         <span class="overview-market-secondary-name">${label}</span>
@@ -2033,6 +2043,34 @@ function renderNightFutureMetric(metric) {
     return `${partMap.year}-${partMap.month}-${partMap.day} ${partMap.hour}:${partMap.minute}:${partMap.second}`;
   }
 
+  function getCurrentKstDateString(now = new Date()) {
+    return formatKstTimestamp(now).slice(0, 10);
+  }
+
+  function getCurrentKstDayMonth(now = new Date()) {
+    const timestamp = formatKstTimestamp(now);
+    return `${timestamp.slice(8, 10)}/${timestamp.slice(5, 7)}`;
+  }
+
+  function isCurrentKstNightSession(now = new Date()) {
+    const hour = Number(formatKstTimestamp(now).slice(11, 13));
+    return hour >= 18 || hour < 6;
+  }
+
+  function getCurrentKstNightSessionDateString(now = new Date()) {
+    const base = parseSnapshotTimestamp(formatKstTimestamp(now));
+    if (!base) return '';
+    if (Number(formatKstTimestamp(base).slice(11, 13)) < 6) {
+      base.setDate(base.getDate() - 1);
+    }
+    return formatKstTimestamp(base).slice(0, 10);
+  }
+
+  function getCurrentKstNightSessionDayMonth(now = new Date()) {
+    const dateText = getCurrentKstNightSessionDateString(now);
+    return `${dateText.slice(8, 10)}/${dateText.slice(5, 7)}`;
+  }
+
   function isSnapshotMsStale(timestampMs, maxAgeMs = LIVE_REFRESH_MAX_AGE_MS) {
     if (!timestampMs) return true;
     return Date.now() - timestampMs > maxAgeMs;
@@ -2211,19 +2249,59 @@ function renderNightFutureMetric(metric) {
     const price = parseRawNumber(values.price);
     const change = parseRawNumber(values.change);
     const changePct = parseRawNumber((values.changePct || '').replace(/[()%]/g, ''));
+    const timeText = (values.time || '').trim();
     if (price == null || change == null || changePct == null) return null;
+    if (timeText && /^\d{2}\/\d{2}$/.test(timeText) && timeText !== getCurrentKstNightSessionDayMonth()) {
+      return null;
+    }
 
     return {
-      id: 'KOSPI200_NIGHT_FUTURES',
-      name: 'KOSPI200 야간선물',
+      id: 'KOSPI200_FUTURES',
+      name: 'KOSPI200 선물',
       price: +price.toFixed(2),
       change: +change.toFixed(2),
       changePct: +changePct.toFixed(2),
       marketStatus: null,
       unit: '',
-      time: values.time || null,
+      time: timeText || null,
       source: 'investing_html',
-      sessionTradeDate: formatKstTimestamp(new Date()).slice(0, 10),
+      sessionTradeDate: getCurrentKstNightSessionDateString(),
+    };
+  }
+
+  function extractDayFutureMetricFromHankyungHtml(html) {
+    if (!html) return null;
+    const match = html.match(
+      /<div class="stock-data(?:\s+(\w+))?">[\s\S]*?<p class="price">\s*([\d,]+\.\d+)\s*<\/p>[\s\S]*?<span class="stock-point">\s*([\d,]+\.\d+)\s*<\/span>[\s\S]*?<span class="rate">\s*([+-]?[\d,]+\.\d+%)\s*<\/span>[\s\S]*?<p class="txt-info txt-rt"[^>]*>\s*(\d{4}\.\d{2}\.\d{2})\s*([^<]+?)\s*<\/p>/i,
+    );
+    if (!match) return null;
+
+    const [, direction = '', priceText, changeText, changePctText, tradeDateText, statusText] = match;
+    const price = parseRawNumber(priceText);
+    let change = parseRawNumber(changeText);
+    const changePct = parseRawNumber(String(changePctText).replace('%', ''));
+    const tradeDate = String(tradeDateText).replace(/\./g, '-');
+    const status = String(statusText || '').replace(/\s+/g, ' ').trim();
+    if (price == null || change == null || changePct == null) return null;
+    if (tradeDate !== getCurrentKstDateString()) return null;
+
+    if (changePct < 0 || direction.toLowerCase() === 'down') {
+      change = -Math.abs(change);
+    } else if (changePct > 0 || direction.toLowerCase() === 'up') {
+      change = Math.abs(change);
+    }
+
+    return {
+      id: 'KOSPI200_FUTURES',
+      name: 'KOSPI200 선물',
+      price: +price.toFixed(2),
+      change: +change.toFixed(2),
+      changePct: +changePct.toFixed(2),
+      marketStatus: status || null,
+      unit: '',
+      time: status || null,
+      source: 'hankyung_html',
+      sessionTradeDate: tradeDate,
     };
   }
 
@@ -2269,11 +2347,12 @@ function renderNightFutureMetric(metric) {
     });
     const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
 
-    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, nightFuturesHtml] = await Promise.all([
+    const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, hankyungFuturesHtml, nightFuturesHtml] = await Promise.all([
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
       fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
+      fetchLiveText(LIVE_HANKYUNG_FUTURES_URL, 5000).catch(() => null),
       fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null),
     ]);
     const marketQuote = marketPayload?.datas?.[0] || null;
@@ -2321,8 +2400,10 @@ function renderNightFutureMetric(metric) {
     }
 
     if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
+    const dayFuture = extractDayFutureMetricFromHankyungHtml(hankyungFuturesHtml);
     const nightFuture = extractNightFutureMetricFromHtml(nightFuturesHtml);
-    const market = buildLiveMarketSummary(marketQuote, marketExtras, nightFuture);
+    const futureMetric = isCurrentKstNightSession() ? nightFuture : (dayFuture || nightFuture);
+    const market = buildLiveMarketSummary(marketQuote, marketExtras, futureMetric);
     const parsedTimes = tradedAtValues
       .map(value => parseSnapshotTimestamp(value))
       .filter(Boolean);
@@ -2432,7 +2513,7 @@ function renderNightFutureMetric(metric) {
       latestMarketExtras,
     );
     latestNightFutureMetric = mergeNightFutureMetric(
-      todayOverviewData?.market?.nightFuture || null,
+      todayOverviewData?.market?.nightFuture || todayOverviewData?.market?.future || null,
       latestNightFutureMetric,
     );
 
