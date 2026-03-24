@@ -1610,6 +1610,7 @@ td.numeric .bar-cell {
     const max = Math.max(...spreads);
     const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
     const current = p.current.spread;
+    const beta = calculatePairBeta(hist);
 
     // Percentile
     const sorted = [...spreads].sort((a, b) => a - b);
@@ -1624,6 +1625,7 @@ td.numeric .bar-cell {
       <div class="stat-box"><div class="label">최고</div><div class="value">${max.toFixed(2)}%</div></div>
       <div class="stat-box"><div class="label">백분위</div><div class="value">${percentile}%</div></div>
       <div class="stat-box"><div class="label">데이터 수</div><div class="value">${hist.length}일</div></div>
+      <div class="stat-box"><div class="label">베타</div><div class="value">${beta == null ? '-' : beta.toFixed(2)}</div></div>
     `;
   }
 
@@ -1998,6 +2000,50 @@ td.numeric .bar-cell {
 
   function formatPrice(n) {
     return n.toLocaleString('ko-KR');
+  }
+
+  function calculatePairBeta(hist) {
+    if (!Array.isArray(hist) || hist.length < 2) return null;
+
+    const commonReturns = [];
+    const preferredReturns = [];
+
+    for (let i = 1; i < hist.length; i++) {
+      const prev = hist[i - 1];
+      const curr = hist[i];
+      const prevCommon = prev?.commonPrice;
+      const currCommon = curr?.commonPrice;
+      const prevPreferred = prev?.preferredPrice;
+      const currPreferred = curr?.preferredPrice;
+
+      if (
+        prevCommon == null || currCommon == null || prevPreferred == null || currPreferred == null
+        || prevCommon <= 0 || currCommon <= 0 || prevPreferred <= 0 || currPreferred <= 0
+      ) {
+        continue;
+      }
+
+      commonReturns.push((currCommon - prevCommon) / prevCommon);
+      preferredReturns.push((currPreferred - prevPreferred) / prevPreferred);
+    }
+
+    if (commonReturns.length < 2) return null;
+
+    const commonMean = commonReturns.reduce((sum, value) => sum + value, 0) / commonReturns.length;
+    const preferredMean = preferredReturns.reduce((sum, value) => sum + value, 0) / preferredReturns.length;
+
+    let covariance = 0;
+    let variance = 0;
+
+    for (let i = 0; i < commonReturns.length; i++) {
+      const commonDelta = commonReturns[i] - commonMean;
+      covariance += commonDelta * (preferredReturns[i] - preferredMean);
+      variance += commonDelta * commonDelta;
+    }
+
+    if (variance === 0) return null;
+
+    return covariance / variance;
   }
 
   function fmtChange(v) {
