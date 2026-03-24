@@ -12,6 +12,7 @@ import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import yfinance as yf
 import pandas as pd
@@ -60,6 +61,7 @@ def get_last_date(existing_data):
 # 배당수익률 캐시 (동일 보통주 공유 종목의 중복 요청 방지)
 _div_yield_cache = {}
 _ticker_meta_cache = {}
+_naver_meta_cache = {}
 
 
 def get_div_yield(ticker):
@@ -82,6 +84,68 @@ def _read_fast_info_value(fast_info, *keys):
         if value is not None:
             return value
     return None
+
+
+def parse_number_text(value):
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit() or ch == ",")
+    if not digits:
+        return None
+    return int(digits.replace(",", ""))
+
+
+def extract_naver_row_value(html, label):
+    marker = f'<th scope="row">{label}</th>'
+    marker_idx = html.find(marker)
+    if marker_idx == -1:
+        return None
+    row_end = html.find("</tr>", marker_idx)
+    if row_end == -1:
+        row_end = marker_idx + 400
+    row_html = html[marker_idx:row_end]
+    em_start = row_html.find("<em")
+    if em_start == -1:
+        return None
+    text_start = row_html.find(">", em_start)
+    text_end = row_html.find("</em>", text_start)
+    if text_start == -1 or text_end == -1:
+        return None
+    return parse_number_text(row_html[text_start + 1:text_end])
+
+
+def get_naver_ticker_meta(ticker):
+    if ticker in _naver_meta_cache:
+        return _naver_meta_cache[ticker]
+
+    meta = {
+        "marketCap": None,
+        "sharesOutstanding": None,
+    }
+
+    code = ticker.split(".")[0]
+    if not code:
+        _naver_meta_cache[ticker] = meta
+        return meta
+
+    try:
+        request = Request(
+            f"https://finance.naver.com/item/main.naver?code={code}",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(request, timeout=10) as response:
+            html = response.read().decode("utf-8", errors="replace")
+    except Exception:
+        _naver_meta_cache[ticker] = meta
+        return meta
+
+    market_cap_eok = extract_naver_row_value(html, "시가총액")
+    shares_outstanding = extract_naver_row_value(html, "상장주식수")
+    if market_cap_eok is not None:
+        meta["marketCap"] = market_cap_eok * 100_000_000
+    if shares_outstanding is not None:
+        meta["sharesOutstanding"] = shares_outstanding
+
+    _naver_meta_cache[ticker] = meta
+    return meta
 
 
 def get_ticker_meta(ticker):
@@ -108,13 +172,17 @@ def get_ticker_meta(ticker):
         except Exception:
             fast_info = None
 
+    naver_meta = get_naver_ticker_meta(ticker)
+
     meta["dividendYield"] = info.get("dividendYield") or 0
     meta["marketCap"] = (
-        info.get("marketCap")
+        naver_meta["marketCap"]
+        or info.get("marketCap")
         or _read_fast_info_value(fast_info, "marketCap", "market_cap")
     )
     meta["sharesOutstanding"] = (
-        info.get("sharesOutstanding")
+        naver_meta["sharesOutstanding"]
+        or info.get("sharesOutstanding")
         or _read_fast_info_value(fast_info, "sharesOutstanding", "shares", "shares_outstanding")
     )
 

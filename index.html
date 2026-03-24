@@ -828,6 +828,7 @@ td.numeric .bar-cell {
           <th class="numeric">우선주</th>
           <th class="numeric">보통주 시총</th>
           <th class="numeric">우선주 시총</th>
+          <th class="numeric">우선주 비중</th>
           <th class="numeric">변동</th>
           <th class="numeric" style="min-width:120px">괴리율</th>
         </tr>
@@ -859,6 +860,7 @@ td.numeric .bar-cell {
     name: 'asc',
     commonMarketCap: 'desc',
     preferredMarketCap: 'desc',
+    preferredWeight: 'desc',
     spreadChange: 'desc',
     spread: 'desc',
   };
@@ -868,6 +870,7 @@ td.numeric .bar-cell {
     { key: 'preferredPrice', label: '\uC6B0\uC120\uC8FC', sortable: false, numeric: true },
     { key: 'commonMarketCap', label: '\uBCF4\uD1B5\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
     { key: 'preferredMarketCap', label: '\uC6B0\uC120\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
+    { key: 'preferredWeight', label: '\uC6B0\uC120\uC8FC \uBE44\uC911', sortable: true, numeric: true },
     { key: 'spreadChange', label: '\uBCC0\uB3D9', sortable: true, numeric: true },
     { key: 'spread', label: '\uAD34\uB9AC\uC728', sortable: true, numeric: true },
   ];
@@ -1665,19 +1668,22 @@ td.numeric .bar-cell {
 
   function getTableRowMetrics(pair) {
     const current = pair.current || {};
+    const commonMarketCap = calculateLiveMarketCap(
+      current.commonPrice,
+      current.commonSharesOutstanding,
+      current.commonMarketCap,
+    );
+    const preferredMarketCap = calculateLiveMarketCap(
+      current.preferredPrice,
+      current.preferredSharesOutstanding,
+      current.preferredMarketCap,
+    );
     return {
       pair,
       name: getPairTableName(pair),
-      commonMarketCap: calculateLiveMarketCap(
-        current.commonPrice,
-        current.commonSharesOutstanding,
-        current.commonMarketCap,
-      ),
-      preferredMarketCap: calculateLiveMarketCap(
-        current.preferredPrice,
-        current.preferredSharesOutstanding,
-        current.preferredMarketCap,
-      ),
+      commonMarketCap,
+      preferredMarketCap,
+      preferredWeight: calculatePreferredWeight(commonMarketCap, preferredMarketCap),
       spread: pair.current.spread,
       spreadChange: pair.current.spreadChange,
     };
@@ -1731,6 +1737,7 @@ td.numeric .bar-cell {
           <td class="numeric"></td>
           <td class="numeric"></td>
           <td class="numeric"></td>
+          <td class="numeric"></td>
           <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
           <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
@@ -1739,12 +1746,14 @@ td.numeric .bar-cell {
       const displayName = row?.name || getPairTableName(p);
       const commonMarketCap = row?.commonMarketCap ?? null;
       const preferredMarketCap = row?.preferredMarketCap ?? null;
+      const preferredWeight = row?.preferredWeight ?? null;
       return `<tr>
         <td><strong>${displayName}</strong></td>
         <td class="numeric">${formatPrice(c.commonPrice)}</td>
         <td class="numeric">${formatPrice(c.preferredPrice)}</td>
         <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
         <td class="numeric">${formatMarketCap(preferredMarketCap)}</td>
+        <td class="numeric">${formatRatioPercent(preferredWeight)}</td>
         <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
         <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
@@ -2318,10 +2327,27 @@ td.numeric .bar-cell {
     return null;
   }
 
+  function calculatePreferredWeight(commonMarketCap, preferredMarketCap) {
+    if (
+      commonMarketCap == null || Number.isNaN(commonMarketCap) || commonMarketCap < 0
+      || preferredMarketCap == null || Number.isNaN(preferredMarketCap) || preferredMarketCap < 0
+    ) {
+      return null;
+    }
+    const total = commonMarketCap + preferredMarketCap;
+    if (total <= 0) return null;
+    return preferredMarketCap / total * 100;
+  }
+
   function formatMarketCap(value) {
     if (value == null || Number.isNaN(value) || value <= 0) return '-';
     if (value >= 1e12) return `${(value / 1e12).toFixed(2)}조`;
     return `${(value / 1e8).toFixed(0)}억`;
+  }
+
+  function formatRatioPercent(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)}%`;
   }
 
   function formatYield(value) {
