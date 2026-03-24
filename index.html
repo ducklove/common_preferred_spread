@@ -648,6 +648,28 @@ td.numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+th.sortable::after {
+  content: '↕';
+  display: inline-block;
+  margin-left: 6px;
+  opacity: 0.35;
+  font-size: 11px;
+}
+th.sortable.sorted-asc::after {
+  content: '↑';
+  opacity: 0.9;
+}
+th.sortable.sorted-desc::after {
+  content: '↓';
+  opacity: 0.9;
+}
+th.sortable:hover {
+  color: var(--text);
+}
 tr:last-child td { border-bottom: none; }
 tr:hover { background: var(--surface2); }
 .up-color { color: var(--up); }
@@ -831,6 +853,21 @@ td.numeric .bar-cell {
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
   const LIVE_ESIGNAL_NIGHT_SOCKET_URL = 'wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket';
   const LIVE_FETCH_CONCURRENCY = 8;
+  const EMA_ALPHA = 0.1;
+  const TABLE_SORT_DEFAULT_DIRECTION = {
+    name: 'asc',
+    beta: 'desc',
+    spreadChange: 'desc',
+    spread: 'desc',
+  };
+  const TABLE_HEADER_CONFIG = [
+    { key: 'name', label: '\uC885\uBAA9', sortable: true, numeric: false },
+    { key: 'commonPrice', label: '\uBCF4\uD1B5\uC8FC', sortable: false, numeric: true },
+    { key: 'preferredPrice', label: '\uC6B0\uC120\uC8FC', sortable: false, numeric: true },
+    { key: 'beta', label: '\uBCA0\uD0C0', sortable: true, numeric: true },
+    { key: 'spreadChange', label: '\uBCC0\uB3D9', sortable: true, numeric: true },
+    { key: 'spread', label: '\uAD34\uB9AC\uC728', sortable: true, numeric: true },
+  ];
   const MARKET_EXTRA_SPECS = [
     { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
     { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 },
@@ -852,6 +889,10 @@ td.numeric .bar-cell {
   let lastCurrentPricesFetchStartedAt = 0;
   let refreshButtonBusy = false;
   let pairConfigMap = new Map();
+  let tableSortState = {
+    key: 'name',
+    direction: TABLE_SORT_DEFAULT_DIRECTION.name,
+  };
   const configLoadPromise = loadPairConfig();
 
   function getCardGroups() {
@@ -1132,6 +1173,7 @@ td.numeric .bar-cell {
   // --- Init ---
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
   bindThemeButton();
+  bindTableSortHeaders();
   renderTodayOverview();
   renderCards();
   renderTable();
@@ -1568,12 +1610,105 @@ td.numeric .bar-cell {
     applyAutoFitText(el);
   }
 
+  function renderTableHeaders() {
+    const headers = document.querySelectorAll('.table-section thead th');
+    headers.forEach((th, index) => {
+      const config = TABLE_HEADER_CONFIG[index];
+      if (!config) return;
+      th.textContent = config.label;
+      th.dataset.sortKey = config.sortable ? config.key : '';
+      th.tabIndex = config.sortable ? 0 : -1;
+      th.classList.toggle('sortable', !!config.sortable);
+      th.classList.toggle('numeric', !!config.numeric);
+      th.classList.toggle('sorted-asc', tableSortState.key === config.key && tableSortState.direction === 'asc');
+      th.classList.toggle('sorted-desc', tableSortState.key === config.key && tableSortState.direction === 'desc');
+      th.setAttribute('aria-sort', config.sortable
+        ? (tableSortState.key === config.key
+          ? (tableSortState.direction === 'asc' ? 'ascending' : 'descending')
+          : 'none')
+        : 'none');
+    });
+  }
+
+  function bindTableSortHeaders() {
+    document.querySelectorAll('.table-section thead th').forEach((th, index) => {
+      if (th.dataset.sortBound === '1') return;
+      th.dataset.sortBound = '1';
+      const handleSort = () => {
+        const config = TABLE_HEADER_CONFIG[index];
+        if (!config?.sortable) return;
+        if (tableSortState.key === config.key) {
+          tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          tableSortState = {
+            key: config.key,
+            direction: TABLE_SORT_DEFAULT_DIRECTION[config.key] || 'desc',
+          };
+        }
+        renderTable();
+      };
+      th.addEventListener('click', handleSort);
+      th.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        handleSort();
+      });
+    });
+  }
+
+  function getPairTableName(pair) {
+    return pair.name.includes('/') ? pair.commonName : pair.name;
+  }
+
+  function getTableRowMetrics(pair) {
+    return {
+      pair,
+      name: getPairTableName(pair),
+      beta: calculatePairBeta(getFilteredHistory(pair)),
+      spread: pair.current.spread,
+      spreadChange: pair.current.spreadChange,
+    };
+  }
+
+  function compareTableMetric(a, b, direction) {
+    const aMissing = a == null || Number.isNaN(a);
+    const bMissing = b == null || Number.isNaN(b);
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    if (a === b) return 0;
+    return direction === 'asc' ? a - b : b - a;
+  }
+
+  function compareTableRows(a, b) {
+    if (tableSortState.key === 'name') {
+      const base = a.name.localeCompare(b.name, 'ko');
+      return tableSortState.direction === 'asc' ? base : -base;
+    }
+
+    const metricCompare = compareTableMetric(a[tableSortState.key], b[tableSortState.key], tableSortState.direction);
+    if (metricCompare !== 0) return metricCompare;
+    return a.name.localeCompare(b.name, 'ko');
+  }
+
   // --- Table ---
   function renderTable() {
+    renderTableHeaders();
+
     // Show only the highest-spread pair per group
     const cardGroups = getCardGroups();
-    const tablePairs = cardGroups.map(items => items[0].pair);
-    const maxSpread = Math.max(...tablePairs.filter(p => !p.isAverage).map(p => p.current.spread));
+    const averagePair = cardGroups.find(items => items[0]?.pair.isAverage)?.[0]?.pair || null;
+    const stockRows = cardGroups
+      .map(items => items[0].pair)
+      .filter(p => !p.isAverage)
+      .map(getTableRowMetrics)
+      .sort(compareTableRows);
+    const maxSpread = Math.max(1, ...stockRows.map(row => row.spread || 0));
+    const tablePairs = [
+      ...(averagePair ? [averagePair] : []),
+      ...stockRows.map(row => row.pair),
+    ];
+    const stockMetricsById = new Map(stockRows.map(row => [row.pair.id, row]));
 
     document.getElementById('tableBody').innerHTML = tablePairs.map(p => {
       const c = p.current;
@@ -1584,17 +1719,19 @@ td.numeric .bar-cell {
           <td><strong>${p.name}</strong></td>
           <td class="numeric"></td>
           <td class="numeric"></td>
-          <td class="numeric"><strong>${c.spread.toFixed(2)}%</strong></td>
+          <td class="numeric"></td>
           <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
           <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
       }
-      const displayName = p.name.includes('/') ? p.commonName : p.name;
+      const row = stockMetricsById.get(p.id);
+      const displayName = row?.name || getPairTableName(p);
+      const beta = row?.beta ?? null;
       return `<tr>
         <td><strong>${displayName}</strong></td>
         <td class="numeric">${formatPrice(c.commonPrice)}</td>
         <td class="numeric">${formatPrice(c.preferredPrice)}</td>
-        <td class="numeric"><strong>${c.spread.toFixed(2)}%</strong></td>
+        <td class="numeric">${beta == null ? '-' : beta.toFixed(2)}</td>
         <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
         <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
@@ -1608,7 +1745,7 @@ td.numeric .bar-cell {
     const spreads = hist.map(h => h.spread);
     const min = Math.min(...spreads);
     const max = Math.max(...spreads);
-    const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+    const ema = calculateLatestEma(spreads) ?? p.current.spread;
     const current = p.current.spread;
     const beta = calculatePairBeta(hist);
 
@@ -1620,7 +1757,7 @@ td.numeric .bar-cell {
     const statsEl = document.getElementById('statsRow');
     statsEl.innerHTML = `
       <div class="stat-box"><div class="label">현재 괴리율</div><div class="value">${current.toFixed(2)}%</div></div>
-      <div class="stat-box"><div class="label">평균</div><div class="value">${avg.toFixed(2)}%</div></div>
+      <div class="stat-box"><div class="label">평균 (EMA)</div><div class="value">${ema.toFixed(2)}%</div></div>
       <div class="stat-box"><div class="label">최저</div><div class="value">${min.toFixed(2)}%</div></div>
       <div class="stat-box"><div class="label">최고</div><div class="value">${max.toFixed(2)}%</div></div>
       <div class="stat-box"><div class="label">백분위</div><div class="value">${percentile}%</div></div>
@@ -1656,7 +1793,8 @@ td.numeric .bar-cell {
     const minS = Math.min(...spreads);
     const maxS = Math.max(...spreads);
     const rangeS = maxS - minS || 1;
-    const avg = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+    const emaSeries = calculateEmaSeries(spreads);
+    const ema = emaSeries[emaSeries.length - 1] ?? spreads[spreads.length - 1];
 
     const pad = { top: 20, right: 16, bottom: 36, left: 56 };
     const cW = W - pad.left - pad.right;
@@ -1682,18 +1820,6 @@ td.numeric .bar-cell {
       ctx.fillText(v.toFixed(1) + '%', pad.left - 8, y + 4);
     }
 
-    // Average line
-    const avgY = pad.top + cH - ((avg - minS) / rangeS * cH);
-    ctx.strokeStyle = theme.avgLine;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(pad.left, avgY);
-    ctx.lineTo(W - pad.right, avgY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = theme.avgLabel;
-    ctx.textAlign = 'left';
-    ctx.fillText('평균 ' + avg.toFixed(1) + '%', pad.left + 4, avgY - 6);
 
     // X axis labels
     ctx.fillStyle = theme.textDim;
@@ -1723,6 +1849,23 @@ td.numeric .bar-cell {
     ctx.closePath();
     ctx.fillStyle = gradient;
     ctx.fill();
+
+    // EMA line
+    ctx.strokeStyle = theme.avgLine;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    emaSeries.forEach((value, i) => {
+      const x = pad.left + (i / (hist.length - 1)) * cW;
+      const y = pad.top + cH - ((value - minS) / rangeS * cH);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = theme.avgLabel;
+    ctx.textAlign = 'right';
+    ctx.fillText(`EMA ${ema.toFixed(1)}%`, W - pad.right, pad.top + 12);
 
     // Line
     ctx.beginPath();
@@ -1982,6 +2125,7 @@ td.numeric .bar-cell {
       this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       periodDays = parseInt(e.target.dataset.days);
+      renderTable();
       renderChart();
       renderPriceChart();
       renderStats();
@@ -2044,6 +2188,26 @@ td.numeric .bar-cell {
     if (variance === 0) return null;
 
     return covariance / variance;
+  }
+
+  function calculateEmaSeries(values, alpha = EMA_ALPHA) {
+    if (!Array.isArray(values) || !values.length) return [];
+
+    let ema = null;
+    return values.map(value => {
+      if (value == null || Number.isNaN(value)) return ema;
+      ema = ema == null ? value : ((alpha * value) + ((1 - alpha) * ema));
+      return ema;
+    });
+  }
+
+  function calculateLatestEma(values, alpha = EMA_ALPHA) {
+    const series = calculateEmaSeries(values, alpha);
+    for (let i = series.length - 1; i >= 0; i--) {
+      const value = series[i];
+      if (value != null && !Number.isNaN(value)) return value;
+    }
+    return null;
   }
 
   function fmtChange(v) {
