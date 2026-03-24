@@ -57,6 +57,8 @@ DOMESTIC_CME_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_
 USER_AGENT = "Mozilla/5.0"
 REQUEST_TIMEOUT = 10
 MAX_WORKERS = 3
+TOP_LEVEL_TASK_WORKERS = 3
+MARKET_FETCH_WORKERS = 4
 
 KIS_STOCK_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 KIS_INDEX_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
@@ -1130,29 +1132,46 @@ def fetch_market_metrics(previous_snapshot):
     kospi_metric = None
     kosdaq_metric = None
     sp500_metric = None
+    marketindex_html = None
 
-    if has_kis_credentials():
-        try:
-            kospi_metric = build_kis_index_metric(fetch_kis_index_quote("0001"), "KOSPI", "코스피")
-            providers.add("kis")
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI 현재가 조회 실패: {exc}")
+    tasks = {}
+    with ThreadPoolExecutor(max_workers=MARKET_FETCH_WORKERS) as executor:
+        if has_kis_credentials():
+            tasks["kospi_kis"] = executor.submit(fetch_kis_index_quote, "0001")
+            tasks["kosdaq_kis"] = executor.submit(fetch_kis_index_quote, "1001")
+            tasks["sp500_kis"] = executor.submit(fetch_kis_sp500_quote)
+        tasks["marketindex_html"] = executor.submit(fetch_text_from_naver, NAVER_MARKETINDEX_URL)
 
-        try:
-            kosdaq_metric = build_kis_index_metric(fetch_kis_index_quote("1001"), "KOSDAQ", "KOSDAQ")
-            providers.add("kis")
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSDAQ 현재가 조회 실패: {exc}")
+        for task_name, future in tasks.items():
+            try:
+                payload = future.result()
+            except Exception as exc:  # noqa: BLE001
+                if task_name == "kospi_kis":
+                    print(f"  WARNING: KOSPI 현재가 조회 실패: {exc}")
+                elif task_name == "kosdaq_kis":
+                    print(f"  WARNING: KOSDAQ 현재가 조회 실패: {exc}")
+                elif task_name == "sp500_kis":
+                    print(f"  WARNING: S&P500 현재가 조회 실패: {exc}")
+                elif task_name == "marketindex_html":
+                    print(f"  WARNING: 시장지표 HTML 조회 실패: {exc}")
+                continue
 
-        try:
-            sp500_metric = build_kis_overseas_index_metric(
-                fetch_kis_sp500_quote(),
-                "SP500",
-                "S&P500",
-            )
-            providers.add("kis")
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: S&P500 현재가 조회 실패: {exc}")
+            if task_name == "kospi_kis":
+                kospi_metric = build_kis_index_metric(payload, "KOSPI", "코스피")
+                if kospi_metric:
+                    providers.add("kis")
+            elif task_name == "kosdaq_kis":
+                kosdaq_metric = build_kis_index_metric(payload, "KOSDAQ", "KOSDAQ")
+                if kosdaq_metric:
+                    providers.add("kis")
+            elif task_name == "sp500_kis":
+                sp500_metric = build_kis_overseas_index_metric(payload, "SP500", "S&P500")
+                if sp500_metric:
+                    providers.add("kis")
+            elif task_name == "marketindex_html":
+                marketindex_html = payload
+                if marketindex_html:
+                    providers.add("naver")
 
     if kospi_metric is None:
         try:
@@ -1178,13 +1197,6 @@ def fetch_market_metrics(previous_snapshot):
             providers.add("naver")
         except Exception as exc:  # noqa: BLE001
             print(f"  WARNING: S&P500 네이버 fallback 실패: {exc}")
-
-    marketindex_html = None
-    try:
-        marketindex_html = fetch_text_from_naver(NAVER_MARKETINDEX_URL)
-        providers.add("naver")
-    except Exception as exc:  # noqa: BLE001
-        print(f"  WARNING: 시장지표 HTML 조회 실패: {exc}")
 
     usdkrw_metric = (
         build_marketindex_metric(
@@ -1271,27 +1283,7 @@ def fetch_kospi200_metric(previous_snapshot):
         previous_metric if previous_night_future_is_reusable(previous_metric) else None
     )
     provider = None
-    contract_name = None
-    day_future_metric = None
     is_night_session = is_kst_night_session()
-
-    if has_kis_credentials():
-        try:
-            contract_code = find_nearest_kospi200_contract_code()
-            if contract_code:
-                raw_snapshot = fetch_kis_future_quote(contract_code)
-                contract_name = raw_snapshot.get("hts_kor_isnm")
-                day_future_metric = build_kis_futures_metric(
-                    raw_snapshot,
-                    "KOSPI200_FUTURES",
-                    "KOSPI200 선물",
-                    code=contract_code,
-                )
-                if day_future_metric and day_future_metric.get("price") is not None:
-                    day_future_metric["source"] = "kis_future_quote"
-                    provider = "kis"
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARNING: KOSPI200 선물 현재가 조회 실패: {exc}")
 
     if is_night_session:
         esignal_metric = fetch_esignal_night_futures_metric()
@@ -1300,7 +1292,7 @@ def fetch_kospi200_metric(previous_snapshot):
 
     if is_night_session and has_kis_credentials():
         try:
-            night_future_metric = fetch_kis_night_futures_metric(contract_name)
+            night_future_metric = fetch_kis_night_futures_metric(None)
             if night_future_metric:
                 provider = "kis"
                 return merge_metric(night_future_metric, reusable_previous_metric), provider
@@ -1312,6 +1304,24 @@ def fetch_kospi200_metric(previous_snapshot):
         if public_metric:
             provider = provider or "public"
             return merge_metric(public_metric, reusable_previous_metric), provider
+
+    day_future_metric = None
+    if has_kis_credentials():
+        try:
+            contract_code = find_nearest_kospi200_contract_code()
+            if contract_code:
+                raw_snapshot = fetch_kis_future_quote(contract_code)
+                day_future_metric = build_kis_futures_metric(
+                    raw_snapshot,
+                    "KOSPI200_FUTURES",
+                    "KOSPI200 선물",
+                    code=contract_code,
+                )
+                if day_future_metric and day_future_metric.get("price") is not None:
+                    day_future_metric["source"] = "kis_future_quote"
+                    provider = "kis"
+        except Exception as exc:  # noqa: BLE001
+            print(f"  WARNING: KOSPI200 선물 현재가 조회 실패: {exc}")
 
     if day_future_metric:
         return merge_metric(day_future_metric, reusable_previous_metric), provider or "kis"
@@ -1490,9 +1500,15 @@ def main():
 
     print(f"{len(all_codes)}개 종목 현재가 조회 중...")
 
-    quotes, quote_errors, quote_providers = fetch_all_quotes(all_codes)
-    market_quote, market_extras, market_providers = fetch_market_metrics(previous_snapshot)
-    night_future_metric, night_future_provider = fetch_kospi200_metric(previous_snapshot)
+    with ThreadPoolExecutor(max_workers=TOP_LEVEL_TASK_WORKERS) as executor:
+        quotes_future = executor.submit(fetch_all_quotes, all_codes)
+        market_future = executor.submit(fetch_market_metrics, previous_snapshot)
+        futures_future = executor.submit(fetch_kospi200_metric, previous_snapshot)
+
+        quotes, quote_errors, quote_providers = quotes_future.result()
+        market_quote, market_extras, market_providers = market_future.result()
+        night_future_metric, night_future_provider = futures_future.result()
+
     if night_future_provider:
         market_providers.add(night_future_provider)
 
