@@ -906,13 +906,14 @@ def previous_night_future_is_reusable(metric, now=None):
     if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
         return False
 
-    if metric.get("source") not in {"kis_websocket_trade", "esignal_socket"}:
-        return True
+    metric_session_date = metric.get("sessionTradeDate")
+    if not metric_session_date:
+        return False
 
-    if not is_kst_night_session(now):
-        return True
+    if is_kst_night_session(now):
+        return metric_session_date == get_kst_night_session_date(now)
 
-    return metric.get("sessionTradeDate") == get_kst_night_session_date(now)
+    return metric_session_date == get_kst_date_string(now)
 
 
 def build_public_night_futures_metric_from_html(html):

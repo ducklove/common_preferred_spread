@@ -932,13 +932,21 @@ td.numeric .bar-cell {
     );
   }
 
+  function isNightFutureMetricCurrent(metric, now = new Date()) {
+    if (!metric || !hasNightFutureMetricValue(metric)) return false;
+    if (!metric.sessionTradeDate) return true;
+    return isCurrentKstNightSession(now)
+      ? metric.sessionTradeDate === getCurrentKstNightSessionDateString(now)
+      : metric.sessionTradeDate === getCurrentKstDateString(now);
+  }
+
   function mergeNightFutureMetric(primaryMetric, fallbackMetric, preservedMetric = latestNightFutureMetric) {
     const primary = normalizeNightFutureMetric(primaryMetric);
     const fallback = normalizeNightFutureMetric(fallbackMetric);
     const preserved = normalizeNightFutureMetric(preservedMetric);
     const candidates = [primary, fallback, preserved];
-    return candidates.find(hasNightFutureMetricValue)
-      || candidates.find(Boolean)
+    return candidates.find(metric => isNightFutureMetricCurrent(metric))
+      || candidates.find(metric => metric && !metric.sessionTradeDate && hasNightFutureMetricValue(metric))
       || null;
   }
 
