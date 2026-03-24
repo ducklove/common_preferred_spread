@@ -1745,11 +1745,14 @@ td.numeric .bar-cell {
     const spreads = hist.map(h => h.spread).filter(value => value != null && !Number.isNaN(value));
     const current = p.current.spread;
     const beta = calculatePairBeta(hist);
+    const startDate = hist[0]?.date || "-";
     const overallAverage = spreads.length
       ? spreads.reduce((sum, value) => sum + value, 0) / spreads.length
       : null;
     const sma250 = calculateSma(spreads, 250);
     const ema = calculateLatestEma(spreads) ?? p.current.spread;
+    const preferredLabel = formatPairName(p.preferredName || "우선주");
+    const commonLabel = formatPairName(p.commonName || "보통주");
     const commonMarketCap = calculateLiveMarketCap(
       p.current.commonPrice,
       p.current.commonSharesOutstanding,
@@ -1768,19 +1771,19 @@ td.numeric .bar-cell {
 
     const stats = [
       { label: "현재 괴리율", value: current == null ? "-" : `${current.toFixed(2)}%` },
-      { label: "보통주 현재가", value: formatStatPrice(p.current.commonPrice) },
-      { label: "보통주 전일 대비", value: renderChangeHtml(p.current.commonChange) },
-      { label: "우선주 현재가", value: formatStatPrice(p.current.preferredPrice) },
-      { label: "우선주 전일 대비", value: renderChangeHtml(p.current.preferredChange) },
-      { label: "데이터 수", value: `${hist.length}일` },
+      { label: preferredLabel, value: formatStatPrice(p.current.preferredPrice) },
+      { label: "전일비", value: renderChangeHtml(p.current.preferredChange) },
+      { label: commonLabel, value: formatStatPrice(p.current.commonPrice) },
+      { label: "전일비", value: renderChangeHtml(p.current.commonChange) },
       { label: "베타", value: beta == null ? "-" : beta.toFixed(2) },
-      { label: "전체 평균", value: overallAverage == null ? "-" : `${overallAverage.toFixed(2)}%` },
-      { label: "SMA (250일)", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
-      { label: "EMA (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
-      { label: "보통주 시가총액", value: formatMarketCap(commonMarketCap) },
-      { label: "보통주 배당수익률", value: formatYield(p.current.commonDivYield) },
+      { label: "데이터 시작일", value: startDate },
+      { label: "괴리율 평균", value: overallAverage == null ? "-" : `${overallAverage.toFixed(2)}%` },
+      { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
+      { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
       { label: "우선주 시가총액", value: formatMarketCap(preferredMarketCap) },
       { label: "우선주 배당수익률", value: formatYield(p.current.preferredDivYield) },
+      { label: "보통주 시가총액", value: formatMarketCap(commonMarketCap) },
+      { label: "보통주 배당수익률", value: formatYield(p.current.commonDivYield) },
     ];
 
     const statsEl = document.getElementById("statsRow");
@@ -1806,6 +1809,7 @@ td.numeric .bar-cell {
     const W = rect.width;
     const H = rect.height;
 
+    const fullHist = p.history || [];
     const hist = getFilteredHistory(p);
     if (hist.length < 2) return;
 
@@ -1813,12 +1817,39 @@ td.numeric .bar-cell {
     const minS = Math.min(...spreads);
     const maxS = Math.max(...spreads);
     const rangeS = maxS - minS || 1;
-    const emaSeries = calculateEmaSeries(spreads);
-    const ema = emaSeries[emaSeries.length - 1] ?? spreads[spreads.length - 1];
+    const fullSmaSeries = calculateSmaSeries(fullHist.map(entry => entry.spread), 250);
+    const fullEmaSeries = calculateEmaSeries(fullHist.map(entry => entry.spread));
+    const smaByDate = new Map(fullHist.map((entry, index) => [entry.date, fullSmaSeries[index]]));
+    const emaByDate = new Map(fullHist.map((entry, index) => [entry.date, fullEmaSeries[index]]));
+    const smaSeries = hist.map(entry => smaByDate.get(entry.date));
+    const emaSeries = hist.map(entry => emaByDate.get(entry.date));
+    const latestSma = smaSeries[smaSeries.length - 1] ?? calculateSma(spreads, 250);
+    const latestEma = emaSeries[emaSeries.length - 1] ?? calculateLatestEma(spreads);
 
     const pad = { top: 20, right: 16, bottom: 36, left: 56 };
     const cW = W - pad.left - pad.right;
     const cH = H - pad.top - pad.bottom;
+
+    const drawTrendSeries = (series, color, dashPattern) => {
+      let started = false;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(dashPattern);
+      ctx.beginPath();
+      series.forEach((value, i) => {
+        if (value == null || Number.isNaN(value)) return;
+        const x = pad.left + (i / (hist.length - 1)) * cW;
+        const y = pad.top + cH - ((value - minS) / rangeS * cH);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      });
+      if (started) ctx.stroke();
+      ctx.setLineDash([]);
+    };
 
     // Clear
     ctx.clearRect(0, 0, W, H);
@@ -1839,7 +1870,6 @@ td.numeric .bar-cell {
       ctx.stroke();
       ctx.fillText(v.toFixed(1) + '%', pad.left - 8, y + 4);
     }
-
 
     // X axis labels
     ctx.fillStyle = theme.textDim;
@@ -1870,22 +1900,18 @@ td.numeric .bar-cell {
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // EMA line
-    ctx.strokeStyle = theme.avgLine;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    emaSeries.forEach((value, i) => {
-      const x = pad.left + (i / (hist.length - 1)) * cW;
-      const y = pad.top + cH - ((value - minS) / rangeS * cH);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // SMA / EMA trend lines
+    drawTrendSeries(smaSeries, theme.avgLine, [6, 4]);
+    drawTrendSeries(emaSeries, theme.green, [2, 4]);
     ctx.fillStyle = theme.avgLabel;
     ctx.textAlign = 'right';
-    ctx.fillText(`EMA ${ema.toFixed(1)}%`, W - pad.right, pad.top + 12);
+    if (latestSma != null && !Number.isNaN(latestSma)) {
+      ctx.fillText(`SMA 250 ${latestSma.toFixed(1)}%`, W - pad.right, pad.top + 12);
+    }
+    if (latestEma != null && !Number.isNaN(latestEma)) {
+      ctx.fillStyle = theme.green;
+      ctx.fillText(`EMA 0.1 ${latestEma.toFixed(1)}%`, W - pad.right, pad.top + 28);
+    }
 
     // Line
     ctx.beginPath();
@@ -1942,7 +1968,6 @@ td.numeric .bar-cell {
       tooltip.classList.remove('visible');
     };
   }
-
   // --- Price Chart ---
   function renderPriceChart() {
     const p = pairs[selectedIdx];
@@ -2235,6 +2260,36 @@ td.numeric .bar-cell {
     const sliced = values.slice(-windowSize).filter(value => value != null && !Number.isNaN(value));
     if (!sliced.length) return null;
     return sliced.reduce((sum, value) => sum + value, 0) / sliced.length;
+  }
+
+  function calculateSmaSeries(values, windowSize) {
+    if (!Array.isArray(values) || !values.length) return [];
+
+    const series = [];
+    let rollingSum = 0;
+    let validCount = 0;
+    const queue = [];
+
+    values.forEach(value => {
+      const normalized = value == null || Number.isNaN(value) ? null : value;
+      queue.push(normalized);
+      if (normalized != null) {
+        rollingSum += normalized;
+        validCount += 1;
+      }
+
+      if (queue.length > windowSize) {
+        const removed = queue.shift();
+        if (removed != null) {
+          rollingSum -= removed;
+          validCount -= 1;
+        }
+      }
+
+      series.push(validCount ? rollingSum / validCount : null);
+    });
+
+    return series;
   }
 
   function calculateLiveMarketCap(price, sharesOutstanding, fallbackMarketCap = null) {
