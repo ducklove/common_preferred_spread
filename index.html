@@ -826,7 +826,8 @@ td.numeric .bar-cell {
           <th>종목</th>
           <th class="numeric">보통주</th>
           <th class="numeric">우선주</th>
-          <th class="numeric">현재 괴리율</th>
+          <th class="numeric">보통주 시총</th>
+          <th class="numeric">우선주 시총</th>
           <th class="numeric">변동</th>
           <th class="numeric" style="min-width:120px">괴리율</th>
         </tr>
@@ -856,7 +857,8 @@ td.numeric .bar-cell {
   const EMA_ALPHA = 0.1;
   const TABLE_SORT_DEFAULT_DIRECTION = {
     name: 'asc',
-    beta: 'desc',
+    commonMarketCap: 'desc',
+    preferredMarketCap: 'desc',
     spreadChange: 'desc',
     spread: 'desc',
   };
@@ -864,7 +866,8 @@ td.numeric .bar-cell {
     { key: 'name', label: '\uC885\uBAA9', sortable: true, numeric: false },
     { key: 'commonPrice', label: '\uBCF4\uD1B5\uC8FC', sortable: false, numeric: true },
     { key: 'preferredPrice', label: '\uC6B0\uC120\uC8FC', sortable: false, numeric: true },
-    { key: 'beta', label: '\uBCA0\uD0C0', sortable: true, numeric: true },
+    { key: 'commonMarketCap', label: '\uBCF4\uD1B5\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
+    { key: 'preferredMarketCap', label: '\uC6B0\uC120\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
     { key: 'spreadChange', label: '\uBCC0\uB3D9', sortable: true, numeric: true },
     { key: 'spread', label: '\uAD34\uB9AC\uC728', sortable: true, numeric: true },
   ];
@@ -1661,10 +1664,20 @@ td.numeric .bar-cell {
   }
 
   function getTableRowMetrics(pair) {
+    const current = pair.current || {};
     return {
       pair,
       name: getPairTableName(pair),
-      beta: calculatePairBeta(pair.history),
+      commonMarketCap: calculateLiveMarketCap(
+        current.commonPrice,
+        current.commonSharesOutstanding,
+        current.commonMarketCap,
+      ),
+      preferredMarketCap: calculateLiveMarketCap(
+        current.preferredPrice,
+        current.preferredSharesOutstanding,
+        current.preferredMarketCap,
+      ),
       spread: pair.current.spread,
       spreadChange: pair.current.spreadChange,
     };
@@ -1720,18 +1733,21 @@ td.numeric .bar-cell {
           <td class="numeric"></td>
           <td class="numeric"></td>
           <td class="numeric"></td>
+          <td class="numeric"></td>
           <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
           <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
         </tr>`;
       }
       const row = stockMetricsById.get(p.id);
       const displayName = row?.name || getPairTableName(p);
-      const beta = row?.beta ?? null;
+      const commonMarketCap = row?.commonMarketCap ?? null;
+      const preferredMarketCap = row?.preferredMarketCap ?? null;
       return `<tr>
         <td><strong>${displayName}</strong></td>
         <td class="numeric">${formatPrice(c.commonPrice)}</td>
         <td class="numeric">${formatPrice(c.preferredPrice)}</td>
-        <td class="numeric">${beta == null ? '-' : beta.toFixed(2)}</td>
+        <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
+        <td class="numeric">${formatMarketCap(preferredMarketCap)}</td>
         <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
         <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
