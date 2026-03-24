@@ -1660,7 +1660,7 @@ td.numeric .bar-cell {
   }
 
   function getPairTableName(pair) {
-    return pair.name.includes('/') ? pair.commonName : pair.name;
+    return pair?.preferredName || pair?.name || pair?.commonName || '';
   }
 
   function getTableRowMetrics(pair) {
@@ -1708,11 +1708,8 @@ td.numeric .bar-cell {
   function renderTable() {
     renderTableHeaders();
 
-    // Show only the highest-spread pair per group
-    const cardGroups = getCardGroups();
-    const averagePair = cardGroups.find(items => items[0]?.pair.isAverage)?.[0]?.pair || null;
-    const stockRows = cardGroups
-      .map(items => items[0].pair)
+    const averagePair = getAveragePair();
+    const stockRows = pairs
       .filter(p => !p.isAverage)
       .map(getTableRowMetrics)
       .sort(compareTableRows);
