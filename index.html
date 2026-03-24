@@ -1664,7 +1664,7 @@ td.numeric .bar-cell {
     return {
       pair,
       name: getPairTableName(pair),
-      beta: calculatePairBeta(getFilteredHistory(pair)),
+      beta: calculatePairBeta(pair.history),
       spread: pair.current.spread,
       spreadChange: pair.current.spreadChange,
     };
@@ -1741,31 +1741,51 @@ td.numeric .bar-cell {
   // --- Stats ---
   function renderStats() {
     const p = pairs[selectedIdx];
-    const hist = getFilteredHistory(p);
-    const spreads = hist.map(h => h.spread);
-    const min = Math.min(...spreads);
-    const max = Math.max(...spreads);
-    const ema = calculateLatestEma(spreads) ?? p.current.spread;
+    const hist = p.history || [];
+    const spreads = hist.map(h => h.spread).filter(value => value != null && !Number.isNaN(value));
     const current = p.current.spread;
     const beta = calculatePairBeta(hist);
+    const overallAverage = spreads.length
+      ? spreads.reduce((sum, value) => sum + value, 0) / spreads.length
+      : null;
+    const sma250 = calculateSma(spreads, 250);
+    const ema = calculateLatestEma(spreads) ?? p.current.spread;
+    const commonMarketCap = calculateLiveMarketCap(
+      p.current.commonPrice,
+      p.current.commonSharesOutstanding,
+      p.current.commonMarketCap,
+    );
+    const preferredMarketCap = calculateLiveMarketCap(
+      p.current.preferredPrice,
+      p.current.preferredSharesOutstanding,
+      p.current.preferredMarketCap,
+    );
 
-    // Percentile
-    const sorted = [...spreads].sort((a, b) => a - b);
-    const rank = sorted.filter(s => s <= current).length;
-    const percentile = (rank / sorted.length * 100).toFixed(0);
+    const renderChangeHtml = value => {
+      if (value == null || Number.isNaN(value)) return "-";
+      return `<span class="${getTextColorClass(value)}">${formatPercentChange(value)}</span>`;
+    };
 
-    const statsEl = document.getElementById('statsRow');
-    statsEl.innerHTML = `
-      <div class="stat-box"><div class="label">현재 괴리율</div><div class="value">${current.toFixed(2)}%</div></div>
-      <div class="stat-box"><div class="label">평균 (EMA)</div><div class="value">${ema.toFixed(2)}%</div></div>
-      <div class="stat-box"><div class="label">최저</div><div class="value">${min.toFixed(2)}%</div></div>
-      <div class="stat-box"><div class="label">최고</div><div class="value">${max.toFixed(2)}%</div></div>
-      <div class="stat-box"><div class="label">백분위</div><div class="value">${percentile}%</div></div>
-      <div class="stat-box"><div class="label">데이터 수</div><div class="value">${hist.length}일</div></div>
-      <div class="stat-box"><div class="label">베타</div><div class="value">${beta == null ? '-' : beta.toFixed(2)}</div></div>
-    `;
+    const stats = [
+      { label: "현재 괴리율", value: current == null ? "-" : `${current.toFixed(2)}%` },
+      { label: "보통주 현재가", value: formatStatPrice(p.current.commonPrice) },
+      { label: "보통주 전일 대비", value: renderChangeHtml(p.current.commonChange) },
+      { label: "우선주 현재가", value: formatStatPrice(p.current.preferredPrice) },
+      { label: "우선주 전일 대비", value: renderChangeHtml(p.current.preferredChange) },
+      { label: "데이터 수", value: `${hist.length}일` },
+      { label: "베타", value: beta == null ? "-" : beta.toFixed(2) },
+      { label: "전체 평균", value: overallAverage == null ? "-" : `${overallAverage.toFixed(2)}%` },
+      { label: "SMA (250일)", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
+      { label: "EMA (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
+      { label: "보통주 시가총액", value: formatMarketCap(commonMarketCap) },
+      { label: "보통주 배당수익률", value: formatYield(p.current.commonDivYield) },
+      { label: "우선주 시가총액", value: formatMarketCap(preferredMarketCap) },
+      { label: "우선주 배당수익률", value: formatYield(p.current.preferredDivYield) },
+    ];
+
+    const statsEl = document.getElementById("statsRow");
+    statsEl.innerHTML = stats.map(item => `<div class="stat-box"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
   }
-
   // --- Chart ---
   function renderChart() {
     const p = pairs[selectedIdx];
@@ -2208,6 +2228,42 @@ td.numeric .bar-cell {
       if (value != null && !Number.isNaN(value)) return value;
     }
     return null;
+  }
+
+  function calculateSma(values, windowSize) {
+    if (!Array.isArray(values) || !values.length) return null;
+    const sliced = values.slice(-windowSize).filter(value => value != null && !Number.isNaN(value));
+    if (!sliced.length) return null;
+    return sliced.reduce((sum, value) => sum + value, 0) / sliced.length;
+  }
+
+  function calculateLiveMarketCap(price, sharesOutstanding, fallbackMarketCap = null) {
+    if (
+      price != null && !Number.isNaN(price) && price > 0
+      && sharesOutstanding != null && !Number.isNaN(sharesOutstanding) && sharesOutstanding > 0
+    ) {
+      return price * sharesOutstanding;
+    }
+    if (fallbackMarketCap != null && !Number.isNaN(fallbackMarketCap) && fallbackMarketCap > 0) {
+      return fallbackMarketCap;
+    }
+    return null;
+  }
+
+  function formatMarketCap(value) {
+    if (value == null || Number.isNaN(value) || value <= 0) return '-';
+    if (value >= 1e12) return `${(value / 1e12).toFixed(2)}조`;
+    return `${(value / 1e8).toFixed(0)}억`;
+  }
+
+  function formatYield(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)}%`;
+  }
+
+  function formatStatPrice(value) {
+    if (value == null || Number.isNaN(value) || value <= 0) return '-';
+    return formatPrice(value);
   }
 
   function fmtChange(v) {

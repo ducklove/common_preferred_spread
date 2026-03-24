@@ -59,15 +59,67 @@ def get_last_date(existing_data):
 
 # 배당수익률 캐시 (동일 보통주 공유 종목의 중복 요청 방지)
 _div_yield_cache = {}
+_ticker_meta_cache = {}
 
 
 def get_div_yield(ticker):
     if ticker not in _div_yield_cache:
-        try:
-            _div_yield_cache[ticker] = yf.Ticker(ticker).info.get("dividendYield") or 0
-        except Exception:
-            _div_yield_cache[ticker] = 0
+        _div_yield_cache[ticker] = get_ticker_meta(ticker)["dividendYield"] or 0
     return _div_yield_cache[ticker]
+
+
+def _read_fast_info_value(fast_info, *keys):
+    if fast_info is None:
+        return None
+    for key in keys:
+        try:
+            if hasattr(fast_info, "get"):
+                value = fast_info.get(key)
+            else:
+                value = fast_info[key]
+        except Exception:
+            value = None
+        if value is not None:
+            return value
+    return None
+
+
+def get_ticker_meta(ticker):
+    if ticker in _ticker_meta_cache:
+        return _ticker_meta_cache[ticker]
+
+    meta = {
+        "dividendYield": 0,
+        "marketCap": None,
+        "sharesOutstanding": None,
+    }
+
+    try:
+        yf_ticker = yf.Ticker(ticker)
+        info = yf_ticker.info or {}
+    except Exception:
+        yf_ticker = None
+        info = {}
+
+    fast_info = None
+    if yf_ticker is not None:
+        try:
+            fast_info = yf_ticker.fast_info
+        except Exception:
+            fast_info = None
+
+    meta["dividendYield"] = info.get("dividendYield") or 0
+    meta["marketCap"] = (
+        info.get("marketCap")
+        or _read_fast_info_value(fast_info, "marketCap", "market_cap")
+    )
+    meta["sharesOutstanding"] = (
+        info.get("sharesOutstanding")
+        or _read_fast_info_value(fast_info, "sharesOutstanding", "shares", "shares_outstanding")
+    )
+
+    _ticker_meta_cache[ticker] = meta
+    return meta
 
 
 def main():
@@ -213,6 +265,8 @@ def main():
             preferred_change = 0
 
         # 배당수익률 조회
+        common_meta = get_ticker_meta(ct)
+        preferred_meta = get_ticker_meta(pt)
         c_dy = get_div_yield(ct)
         p_dy = get_div_yield(pt)
 
@@ -230,6 +284,10 @@ def main():
                 "preferredChange": preferred_change,
                 "commonDivYield": round(c_dy, 2),
                 "preferredDivYield": round(p_dy, 2),
+                "commonMarketCap": common_meta["marketCap"],
+                "preferredMarketCap": preferred_meta["marketCap"],
+                "commonSharesOutstanding": common_meta["sharesOutstanding"],
+                "preferredSharesOutstanding": preferred_meta["sharesOutstanding"],
             },
             "history": history,
         }
