@@ -825,6 +825,7 @@ td.numeric .bar-cell {
   const LIVE_REFRESH_FORCE_ATTEMPTS = 1;
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
+  const AUTO_REFRESH_INTERVAL_MS = 300 * 1000;
   const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
   const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
@@ -846,6 +847,9 @@ td.numeric .bar-cell {
   latestNightFutureMetric = todayOverviewData?.market?.nightFuture || todayOverviewData?.market?.future || null;
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
+  let currentPricesFetchPromise = null;
+  let autoRefreshTimer = null;
+  let lastCurrentPricesFetchStartedAt = 0;
   let refreshButtonBusy = false;
   let pairConfigMap = new Map();
   const configLoadPromise = loadPairConfig();
@@ -2147,6 +2151,36 @@ td.numeric .bar-cell {
     });
   }
 
+  function scheduleAutoRefresh(delayMs = AUTO_REFRESH_INTERVAL_MS) {
+    if (autoRefreshTimer) {
+      clearTimeout(autoRefreshTimer);
+    }
+    autoRefreshTimer = setTimeout(async () => {
+      if (document.hidden) {
+        scheduleAutoRefresh(AUTO_REFRESH_INTERVAL_MS);
+        return;
+      }
+      try {
+        await fetchCurrentPrices();
+      } finally {
+        scheduleAutoRefresh(AUTO_REFRESH_INTERVAL_MS);
+      }
+    }, delayMs);
+  }
+
+  function bindAutoRefresh() {
+    scheduleAutoRefresh();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      const elapsed = Date.now() - lastCurrentPricesFetchStartedAt;
+      if (!lastCurrentPricesFetchStartedAt || elapsed >= AUTO_REFRESH_INTERVAL_MS) {
+        fetchCurrentPrices();
+      } else {
+        scheduleAutoRefresh(Math.max(1000, AUTO_REFRESH_INTERVAL_MS - elapsed));
+      }
+    });
+  }
+
   function getTickerCode(ticker) {
     return String(ticker || '').split('.')[0];
   }
@@ -2432,6 +2466,7 @@ td.numeric .bar-cell {
     if (!pairConfigMap.size) {
       throw new Error('config.json을 불러오지 못했습니다.');
     }
+    const isNightSession = isCurrentKstNightSession();
 
     const uniqueCodes = [...new Set(
       [...pairConfigMap.values()].flatMap(item => [
@@ -2455,9 +2490,9 @@ td.numeric .bar-cell {
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
       fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
-      fetchLiveText(LIVE_HANKYUNG_FUTURES_URL, 5000).catch(() => null),
-      isCurrentKstNightSession() ? fetchLiveEsignalNightFutureMetric(7000).catch(() => null) : Promise.resolve(null),
-      fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null),
+      isNightSession ? Promise.resolve(null) : fetchLiveText(LIVE_HANKYUNG_FUTURES_URL, 5000).catch(() => null),
+      isNightSession ? fetchLiveEsignalNightFutureMetric(7000).catch(() => null) : Promise.resolve(null),
+      isNightSession ? fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null) : Promise.resolve(null),
     ]);
     const marketQuote = marketPayload?.datas?.[0] || null;
     const marketExtras = [
@@ -2468,7 +2503,6 @@ td.numeric .bar-cell {
     ].filter(Boolean);
 
     const prices = {};
-    const tradedAtValues = [];
     for (const pair of pairs.filter(item => !item.isAverage)) {
       const config = pairConfigMap.get(pair.id);
       if (!config) continue;
@@ -2498,21 +2532,14 @@ td.numeric .bar-cell {
         commonChange: parseRawNumber(pickDefined(commonQuote.fluctuationsRatioRaw, commonQuote.fluctuationsRatio)),
         preferredChange: parseRawNumber(pickDefined(preferredQuote.fluctuationsRatioRaw, preferredQuote.fluctuationsRatio)),
       };
-
-      if (commonQuote.localTradedAt) tradedAtValues.push(commonQuote.localTradedAt);
-      if (preferredQuote.localTradedAt) tradedAtValues.push(preferredQuote.localTradedAt);
     }
 
-    if (marketQuote?.localTradedAt) tradedAtValues.push(marketQuote.localTradedAt);
     const dayFuture = extractDayFutureMetricFromHankyungHtml(hankyungFuturesHtml);
     const nightFuture = extractNightFutureMetricFromHtml(nightFuturesHtml);
-    const futureMetric = isCurrentKstNightSession()
+    const futureMetric = isNightSession
       ? (esignalNightFuture || nightFuture)
       : (dayFuture || nightFuture);
     const market = buildLiveMarketSummary(marketQuote, marketExtras, futureMetric);
-    const parsedTimes = tradedAtValues
-      .map(value => parseSnapshotTimestamp(value))
-      .filter(Boolean);
     const latestTime = new Date();
 
     if (!Object.keys(prices).length && !market) {
@@ -2680,32 +2707,46 @@ td.numeric .bar-cell {
   }
 
   async function fetchCurrentPrices({ forceLiveRefresh = false } = {}) {
-    let baseSnapshot = {
-      source: 'data.js',
-      lastUpdated: STOCK_DATA.lastUpdated,
-    };
-
-    try {
-      const resp = await fetch('current.json?t=' + Date.now());
-      if (resp.ok) {
-        const cur = await resp.json();
-        applyCurrentSnapshot(cur, cur.source || '네이버 증권');
-        baseSnapshot = cur;
-      }
-    } catch (e) {
-      // current.json 로드 실패 시 data.js 기준으로 실시간 조회만 시도한다.
+    if (currentPricesFetchPromise) {
+      return currentPricesFetchPromise;
     }
 
-    await refreshLivePricesWithRetry(
-      baseSnapshot,
-      forceLiveRefresh ? LIVE_REFRESH_FORCE_ATTEMPTS : LIVE_REFRESH_RETRY_ATTEMPTS,
-      {
-      forceRefresh: forceLiveRefresh,
-      },
-    );
+    lastCurrentPricesFetchStartedAt = Date.now();
+    currentPricesFetchPromise = (async () => {
+      let baseSnapshot = {
+        source: 'data.js',
+        lastUpdated: STOCK_DATA.lastUpdated,
+      };
+
+      try {
+        const resp = await fetch('current.json?t=' + Date.now());
+        if (resp.ok) {
+          const cur = await resp.json();
+          applyCurrentSnapshot(cur, cur.source || '네이버 증권');
+          baseSnapshot = cur;
+        }
+      } catch (e) {
+        // current.json 로드 실패 시 data.js 기준으로 실시간 조회만 시도한다.
+      }
+
+      await refreshLivePricesWithRetry(
+        baseSnapshot,
+        forceLiveRefresh ? LIVE_REFRESH_FORCE_ATTEMPTS : LIVE_REFRESH_RETRY_ATTEMPTS,
+        {
+        forceRefresh: forceLiveRefresh,
+        },
+      );
+    })();
+
+    try {
+      return await currentPricesFetchPromise;
+    } finally {
+      currentPricesFetchPromise = null;
+    }
   }
 
   bindRefreshButton();
+  bindAutoRefresh();
   fetchCurrentPrices();
 })();
 </script>
