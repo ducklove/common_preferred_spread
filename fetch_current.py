@@ -56,6 +56,7 @@ DOMESTIC_CME_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_
 
 USER_AGENT = "Mozilla/5.0"
 REQUEST_TIMEOUT = 10
+ESIGNAL_NIGHT_FUTURES_WAIT_SECONDS = 16
 MAX_WORKERS = 3
 TOP_LEVEL_TASK_WORKERS = 3
 MARKET_FETCH_WORKERS = 4
@@ -73,7 +74,7 @@ KIS_NIGHT_FUTURES_TRADE_TR_ID = "H0MFCNT0"
 KIS_NIGHT_FUTURES_WS_URL = "ws://ops.koreainvestment.com:21000"
 KIS_NIGHT_FUTURES_WS_WAIT_SECONDS = 12
 KIS_NIGHT_FUTURES_WS_RETRIES = 2
-FUTURE_METRIC_MAX_AGE_SECONDS = 600
+FUTURE_METRIC_MAX_AGE_SECONDS = 2400
 
 AUTH_CACHE_LOCK = threading.Lock()
 
@@ -844,16 +845,16 @@ def build_esignal_night_futures_metric(payload):
     }
 
 
-def fetch_esignal_night_futures_metric():
+def fetch_esignal_night_futures_metric(wait_seconds=ESIGNAL_NIGHT_FUTURES_WAIT_SECONDS):
     if websocket is None:
         return None
 
     ws = None
-    deadline = time.monotonic() + REQUEST_TIMEOUT
+    deadline = time.monotonic() + wait_seconds
     try:
         ws = websocket.create_connection(
             ESIGNAL_NIGHT_FUTURES_WS_URL,
-            timeout=REQUEST_TIMEOUT,
+            timeout=wait_seconds,
             origin="https://esignal.co.kr",
         )
 
@@ -908,25 +909,18 @@ def fetch_esignal_night_futures_metric():
 def previous_night_future_is_reusable(metric, previous_snapshot=None, now=None):
     if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
         return False
-
-    snapshot_last_updated = (previous_snapshot or {}).get("lastUpdated")
-    if snapshot_last_updated:
-        snapshot_dt = parse_kis_datetime(snapshot_last_updated)
-        if snapshot_dt and (datetime.now(KST) - snapshot_dt).total_seconds() > FUTURE_METRIC_MAX_AGE_SECONDS:
-            return False
-
-    metric_session_date = metric.get("sessionTradeDate")
-    if not metric_session_date:
+    if not future_metric_matches_current_session(metric, now):
         return False
 
-    session_kind = get_future_session_kind(metric, now)
-    if is_kst_night_session(now):
-        return (
-            session_kind == "night"
-            and metric_session_date == get_kst_night_session_date(now)
-        )
+    snapshot_last_updated = (previous_snapshot or {}).get("lastUpdated")
+    if not snapshot_last_updated:
+        return True
 
-    return session_kind != "night" and metric_session_date == get_kst_date_string(now)
+    snapshot_dt = parse_kis_datetime(snapshot_last_updated)
+    if not snapshot_dt:
+        return True
+
+    return (datetime.now(KST) - snapshot_dt).total_seconds() <= FUTURE_METRIC_MAX_AGE_SECONDS
 
 
 def get_future_session_kind(metric, now=None):
@@ -948,6 +942,24 @@ def get_future_session_kind(metric, now=None):
         return "day"
 
     return "night" if is_kst_night_session(now) else "day"
+
+
+def future_metric_matches_current_session(metric, now=None):
+    if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
+        return False
+
+    metric_session_date = metric.get("sessionTradeDate")
+    if not metric_session_date:
+        return False
+
+    session_kind = get_future_session_kind(metric, now)
+    if is_kst_night_session(now):
+        return (
+            session_kind == "night"
+            and metric_session_date == get_kst_night_session_date(now)
+        )
+
+    return session_kind != "night" and metric_session_date == get_kst_date_string(now)
 
 
 def build_public_night_futures_metric_from_html(html):
@@ -1316,6 +1328,9 @@ def fetch_kospi200_metric(previous_snapshot):
         if previous_night_future_is_reusable(previous_metric, previous_snapshot)
         else None
     )
+    session_preserved_metric = (
+        previous_metric if future_metric_matches_current_session(previous_metric) else None
+    )
     provider = None
     is_night_session = is_kst_night_session()
 
@@ -1339,7 +1354,8 @@ def fetch_kospi200_metric(previous_snapshot):
             provider = provider or "public"
             return merge_metric(public_metric, reusable_previous_metric), provider
 
-        return merge_metric(None, reusable_previous_metric), provider
+        fallback_metric = session_preserved_metric or reusable_previous_metric
+        return merge_metric(None, fallback_metric), provider or ("previous" if fallback_metric else None)
 
     day_future_metric = None
     if has_kis_credentials():
@@ -1372,7 +1388,8 @@ def fetch_kospi200_metric(previous_snapshot):
         provider = provider or "public"
         return merge_metric(public_metric, reusable_previous_metric), provider
 
-    return merge_metric(None, reusable_previous_metric), provider
+    fallback_metric = session_preserved_metric or reusable_previous_metric
+    return merge_metric(None, fallback_metric), provider or ("previous" if fallback_metric else None)
 
 
 def build_market_summary(market_quote, extras=None, night_future=None):

@@ -309,6 +309,12 @@ body {
   border-color: rgba(56,201,106,0.28);
   color: var(--green);
 }
+.session-time {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
 .overview-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 170px;
@@ -881,7 +887,7 @@ td.numeric .bar-cell {
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const AUTO_REFRESH_INTERVAL_MS = 300 * 1000;
-  const NIGHT_FUTURE_MAX_AGE_MS = 10 * 60 * 1000;
+  const NIGHT_FUTURE_FRESH_AGE_MS = 10 * 60 * 1000;
   const LIVE_PROXY_URL = 'https://api.codetabs.com/v1/proxy?quest=';
   const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
@@ -1066,9 +1072,6 @@ td.numeric .bar-cell {
 
   function isNightFutureMetricCurrent(metric, now = new Date()) {
     if (!metric || !hasNightFutureMetricValue(metric)) return false;
-    if (metric._snapshotMs != null && Date.now() - metric._snapshotMs > NIGHT_FUTURE_MAX_AGE_MS) {
-      return false;
-    }
     const sessionKind = getFutureSessionKind(metric, now);
     if (!metric.sessionTradeDate) {
       return isCurrentKstNightSession(now) ? sessionKind === 'night' : sessionKind !== 'night';
@@ -1078,12 +1081,19 @@ td.numeric .bar-cell {
       : (sessionKind !== 'night' && metric.sessionTradeDate === getCurrentKstDateString(now));
   }
 
+  function isNightFutureMetricFresh(metric, now = new Date()) {
+    if (!isNightFutureMetricCurrent(metric, now)) return false;
+    if (metric?._snapshotMs == null || Number.isNaN(metric._snapshotMs)) return true;
+    return Date.now() - metric._snapshotMs <= NIGHT_FUTURE_FRESH_AGE_MS;
+  }
+
   function mergeNightFutureMetric(primaryMetric, fallbackMetric, preservedMetric = latestNightFutureMetric) {
     const primary = normalizeNightFutureMetric(primaryMetric);
     const fallback = normalizeNightFutureMetric(fallbackMetric);
     const preserved = normalizeNightFutureMetric(preservedMetric);
     const candidates = [primary, fallback, preserved];
-    return candidates.find(metric => isNightFutureMetricCurrent(metric))
+    return candidates.find(metric => isNightFutureMetricFresh(metric))
+      || candidates.find(metric => isNightFutureMetricCurrent(metric))
       || candidates.find(metric => metric && !metric.sessionTradeDate && hasNightFutureMetricValue(metric))
       || null;
   }
@@ -1383,11 +1393,19 @@ td.numeric .bar-cell {
     return `<span class="session-badge ${sessionClass}">${label}</span>`;
   }
 
+  function renderFutureTimeText(metric) {
+    const timeText = String(metric?.time || '').trim();
+    if (!timeText) return '';
+    if (timeText === String(metric?.marketStatus || '').trim()) return '';
+    return `<span class="session-time">${timeText}</span>`;
+  }
+
   function renderMarketExtraMetric(metric) {
     const sessionLabel = metric.id === 'KOSPI200_FUTURES' ? getFutureSessionLabel(metric) : null;
+    const timeText = metric.id === 'KOSPI200_FUTURES' ? renderFutureTimeText(metric) : '';
     return `
       <div class="overview-mini-item">
-        <div class="overview-mini-label">${metric.name}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}</div>
+        <div class="overview-mini-label">${metric.name}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}${timeText}</div>
         <div class="overview-mini-data">
           <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
           <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
@@ -1400,9 +1418,10 @@ td.numeric .bar-cell {
     if (!metric) return '';
     const label = metric.name || 'KOSPI200 선물';
     const sessionLabel = metric.id === 'KOSPI200_FUTURES' ? getFutureSessionLabel(metric) : null;
+    const timeText = metric.id === 'KOSPI200_FUTURES' ? renderFutureTimeText(metric) : '';
     return `
       <div class="overview-market-secondary">
-        <span class="overview-market-secondary-name">${label}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}</span>
+        <span class="overview-market-secondary-name">${label}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}${timeText}</span>
         <span class="overview-market-secondary-value ${getDirectionClass(metric.changePct)}">${formatMarketPrice(metric.price)} ${formatPercentChange(metric.changePct)}</span>
       </div>
     `;
