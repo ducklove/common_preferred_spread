@@ -1,6 +1,6 @@
 {
-  "source": "네이버 증권 + eSignal 선물 시세",
-  "lastUpdated": "2026-03-25 22:04:46",
+  "source": "네이버 증권",
+  "lastUpdated": "2026-03-25 22:17:28",
   "prices": {
     "samsung_elec": {
       "commonPrice": 189000,
@@ -354,9 +354,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1498.6,
-        "change": 1.6,
-        "changePct": 0.11,
+        "price": 1498.2,
+        "change": 1.2,
+        "changePct": 0.08,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -443,9 +443,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1498.6,
-          "change": 1.6,
-          "changePct": 0.11,
+          "price": 1498.2,
+          "change": 1.2,
+          "changePct": 0.08,
           "marketStatus": null,
           "unit": null,
           "code": null,
