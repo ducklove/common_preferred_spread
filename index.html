@@ -850,11 +850,12 @@ td.numeric .bar-cell {
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const AUTO_REFRESH_INTERVAL_MS = 300 * 1000;
-  const LIVE_PROXY_URL = 'https://api.allorigins.win/raw?url=';
+  const LIVE_PROXY_URL = 'https://api.codetabs.com/v1/proxy?quest=';
   const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
   const LIVE_ESIGNAL_NIGHT_SOCKET_URL = 'wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket';
-  const LIVE_FETCH_CONCURRENCY = 8;
+  const LIVE_FETCH_BATCH_SIZE = 20;
+  const LIVE_FETCH_BATCH_CONCURRENCY = 2;
   const EMA_ALPHA = 0.1;
   const TABLE_SORT_DEFAULT_DIRECTION = {
     name: 'asc',
@@ -2589,6 +2590,53 @@ td.numeric .bar-cell {
     return results;
   }
 
+  function chunkArray(items, size) {
+    const chunks = [];
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  async function fetchLiveStockQuoteMap(codes) {
+    if (!codes.length) return new Map();
+
+    async function fetchBatch(batchCodes) {
+      const payload = await fetchLiveJson(
+        `https://polling.finance.naver.com/api/realtime/domestic/stock/${batchCodes.join(',')}`,
+      );
+      return Array.isArray(payload?.datas) ? payload.datas : [];
+    }
+
+    try {
+      const quotes = await fetchBatch(codes);
+      if (quotes.length) {
+        return new Map(quotes.map(quote => [quote.itemCode, quote]));
+      }
+    } catch (e) {
+      // Fall through to smaller batch requests.
+    }
+
+    const batchResults = await mapWithConcurrency(
+      chunkArray(codes, LIVE_FETCH_BATCH_SIZE),
+      LIVE_FETCH_BATCH_CONCURRENCY,
+      async batchCodes => {
+        try {
+          return await fetchBatch(batchCodes);
+        } catch (e) {
+          return [];
+        }
+      },
+    );
+
+    return new Map(
+      batchResults
+        .flat()
+        .filter(quote => quote?.itemCode)
+        .map(quote => [quote.itemCode, quote]),
+    );
+  }
+
   function buildLiveMarketMetric(quote, defaults = {}) {
     if (!quote) return null;
     return {
@@ -2840,15 +2888,7 @@ td.numeric .bar-cell {
       ]).filter(Boolean)
     )];
 
-    const quoteEntries = await mapWithConcurrency(uniqueCodes, LIVE_FETCH_CONCURRENCY, async code => {
-      try {
-        const payload = await fetchLiveJson(`https://polling.finance.naver.com/api/realtime/domestic/stock/${code}`);
-        return [code, payload.datas?.[0] || null];
-      } catch (e) {
-        return [code, null];
-      }
-    });
-    const quoteMap = new Map(quoteEntries.filter(([, quote]) => quote));
+    const quoteMap = await fetchLiveStockQuoteMap(uniqueCodes);
 
     const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, hankyungFuturesHtml, esignalNightFuture, nightFuturesHtml] = await Promise.all([
       fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
