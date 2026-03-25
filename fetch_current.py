@@ -912,10 +912,35 @@ def previous_night_future_is_reusable(metric, now=None):
     if not metric_session_date:
         return False
 
+    session_kind = get_future_session_kind(metric, now)
     if is_kst_night_session(now):
-        return metric_session_date == get_kst_night_session_date(now)
+        return (
+            session_kind == "night"
+            and metric_session_date == get_kst_night_session_date(now)
+        )
 
-    return metric_session_date == get_kst_date_string(now)
+    return session_kind != "night" and metric_session_date == get_kst_date_string(now)
+
+
+def get_future_session_kind(metric, now=None):
+    if not metric:
+        return None
+
+    source = str(metric.get("source") or "").lower()
+    market_status = str(metric.get("marketStatus") or "")
+    time_text = str(metric.get("time") or "")
+
+    if source in {"esignal_socket", "investing_html", "kis_websocket_trade"}:
+        return "night"
+    if source in {"hankyung_html", "kis_future_quote"}:
+        return "day"
+
+    if "야간" in market_status or "야간" in time_text:
+        return "night"
+    if "장중" in market_status or "장마감" in market_status:
+        return "day"
+
+    return "night" if is_kst_night_session(now) else "day"
 
 
 def build_public_night_futures_metric_from_html(html):
@@ -1304,6 +1329,8 @@ def fetch_kospi200_metric(previous_snapshot):
         if public_metric:
             provider = provider or "public"
             return merge_metric(public_metric, reusable_previous_metric), provider
+
+        return merge_metric(None, reusable_previous_metric), provider
 
     day_future_metric = None
     if has_kis_credentials():

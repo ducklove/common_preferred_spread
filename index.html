@@ -272,6 +272,9 @@ body {
 .overview-market-secondary-name {
   min-width: 0;
   line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .overview-market-secondary-value {
   white-space: nowrap;
@@ -281,6 +284,31 @@ body {
 .overview-market-secondary-value.up { color: var(--up); }
 .overview-market-secondary-value.down { color: var(--down); }
 .overview-market-secondary-value.flat { color: var(--text-dim); }
+.session-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--soft-border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.session-badge.day {
+  background: rgba(108,140,255,0.12);
+  border-color: rgba(108,140,255,0.32);
+  color: var(--accent);
+}
+.session-badge.night {
+  background: rgba(56,201,106,0.12);
+  border-color: rgba(56,201,106,0.28);
+  color: var(--green);
+}
 .overview-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 170px;
@@ -324,6 +352,9 @@ body {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .overview-mini-data {
   min-width: 0;
@@ -984,12 +1015,36 @@ td.numeric .bar-cell {
     );
   }
 
+  function getFutureSessionKind(metric, now = new Date()) {
+    if (!metric) return null;
+    const source = String(metric.source || '').toLowerCase();
+    const marketStatus = String(metric.marketStatus || '');
+    const timeText = String(metric.time || '');
+
+    if (['esignal_socket', 'investing_html', 'kis_websocket_trade'].includes(source)) {
+      return 'night';
+    }
+    if (['hankyung_html', 'kis_future_quote'].includes(source)) {
+      return 'day';
+    }
+    if (marketStatus.includes('야간') || timeText.includes('야간')) {
+      return 'night';
+    }
+    if (marketStatus.includes('장중') || marketStatus.includes('장마감')) {
+      return 'day';
+    }
+    return isCurrentKstNightSession(now) ? 'night' : 'day';
+  }
+
   function isNightFutureMetricCurrent(metric, now = new Date()) {
     if (!metric || !hasNightFutureMetricValue(metric)) return false;
-    if (!metric.sessionTradeDate) return true;
+    const sessionKind = getFutureSessionKind(metric, now);
+    if (!metric.sessionTradeDate) {
+      return isCurrentKstNightSession(now) ? sessionKind === 'night' : sessionKind !== 'night';
+    }
     return isCurrentKstNightSession(now)
-      ? metric.sessionTradeDate === getCurrentKstNightSessionDateString(now)
-      : metric.sessionTradeDate === getCurrentKstDateString(now);
+      ? (sessionKind === 'night' && metric.sessionTradeDate === getCurrentKstNightSessionDateString(now))
+      : (sessionKind !== 'night' && metric.sessionTradeDate === getCurrentKstDateString(now));
   }
 
   function mergeNightFutureMetric(primaryMetric, fallbackMetric, preservedMetric = latestNightFutureMetric) {
@@ -1285,10 +1340,23 @@ td.numeric .bar-cell {
     `;
   }
 
+  function getFutureSessionLabel(metric) {
+    const sessionKind = getFutureSessionKind(metric);
+    if (sessionKind === 'night') return '야간';
+    if (sessionKind === 'day') return '주간';
+    return null;
+  }
+
+  function renderSessionBadge(label) {
+    const sessionClass = label === '야간' ? 'night' : 'day';
+    return `<span class="session-badge ${sessionClass}">${label}</span>`;
+  }
+
   function renderMarketExtraMetric(metric) {
+    const sessionLabel = metric.id === 'KOSPI200_FUTURES' ? getFutureSessionLabel(metric) : null;
     return `
       <div class="overview-mini-item">
-        <div class="overview-mini-label">${metric.name}</div>
+        <div class="overview-mini-label">${metric.name}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}</div>
         <div class="overview-mini-data">
           <div class="overview-mini-value">${formatCompactMetricValue(metric)}</div>
           <div class="overview-mini-change ${getDirectionClass(metric.changePct)}">${formatPercentChange(metric.changePct)}</div>
@@ -1300,9 +1368,10 @@ td.numeric .bar-cell {
   function renderMarketSecondaryMetric(metric) {
     if (!metric) return '';
     const label = metric.name || 'KOSPI200 선물';
+    const sessionLabel = metric.id === 'KOSPI200_FUTURES' ? getFutureSessionLabel(metric) : null;
     return `
       <div class="overview-market-secondary">
-        <span class="overview-market-secondary-name">${label}</span>
+        <span class="overview-market-secondary-name">${label}${sessionLabel ? renderSessionBadge(sessionLabel) : ''}</span>
         <span class="overview-market-secondary-value ${getDirectionClass(metric.changePct)}">${formatMarketPrice(metric.price)} ${formatPercentChange(metric.changePct)}</span>
       </div>
     `;
