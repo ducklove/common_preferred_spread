@@ -881,6 +881,7 @@ td.numeric .bar-cell {
   const LIVE_FETCH_TIMEOUT_MS = 2500;
   const LIVE_REFRESH_TIMEOUT_MS = 15000;
   const AUTO_REFRESH_INTERVAL_MS = 300 * 1000;
+  const NIGHT_FUTURE_MAX_AGE_MS = 10 * 60 * 1000;
   const LIVE_PROXY_URL = 'https://api.codetabs.com/v1/proxy?quest=';
   const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
   const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
@@ -918,9 +919,15 @@ td.numeric .bar-cell {
   let latestMarketExtras = [];
   let latestNightFutureMetric = null;
   let todayOverviewData = buildTodaySummaryFromPairs();
+  let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
+  if (todayOverviewData?.market) {
+    todayOverviewData = {
+      ...todayOverviewData,
+      market: stampMarketNightFutureMetric(todayOverviewData.market, latestAppliedSnapshotMs),
+    };
+  }
   latestMarketExtras = normalizeMarketExtras(todayOverviewData?.market?.extras || []);
   latestNightFutureMetric = todayOverviewData?.market?.nightFuture || todayOverviewData?.market?.future || null;
-  let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   let liveRefreshPromise = null;
   let currentPricesFetchPromise = null;
   let autoRefreshTimer = null;
@@ -1005,7 +1012,28 @@ td.numeric .bar-cell {
       price: metric.price != null ? Number(metric.price) : null,
       change: metric.change != null ? Number(metric.change) : null,
       changePct: metric.changePct != null ? Number(metric.changePct) : null,
+      _snapshotMs: metric._snapshotMs != null ? Number(metric._snapshotMs) : null,
     };
+  }
+
+  function stampNightFutureMetric(metric, snapshotMs = null) {
+    if (!metric) return null;
+    return {
+      ...metric,
+      _snapshotMs: snapshotMs != null ? snapshotMs : (metric._snapshotMs != null ? Number(metric._snapshotMs) : null),
+    };
+  }
+
+  function stampMarketNightFutureMetric(marketSummary, snapshotMs = null) {
+    if (!marketSummary) return marketSummary;
+    const stamped = { ...marketSummary };
+    if (marketSummary.nightFuture) {
+      stamped.nightFuture = stampNightFutureMetric(marketSummary.nightFuture, snapshotMs);
+    }
+    if (marketSummary.future) {
+      stamped.future = stampNightFutureMetric(marketSummary.future, snapshotMs);
+    }
+    return stamped;
   }
 
   function hasNightFutureMetricValue(metric) {
@@ -1038,6 +1066,9 @@ td.numeric .bar-cell {
 
   function isNightFutureMetricCurrent(metric, now = new Date()) {
     if (!metric || !hasNightFutureMetricValue(metric)) return false;
+    if (metric._snapshotMs != null && Date.now() - metric._snapshotMs > NIGHT_FUTURE_MAX_AGE_MS) {
+      return false;
+    }
     const sessionKind = getFutureSessionKind(metric, now);
     if (!metric.sessionTradeDate) {
       return isCurrentKstNightSession(now) ? sessionKind === 'night' : sessionKind !== 'night';
@@ -3034,9 +3065,13 @@ td.numeric .bar-cell {
       return false;
     }
 
+    const appliedSnapshotMs = incomingSnapshotMs || Date.now();
     const previousMarketSummary = todayOverviewData?.market || null;
     const incomingMarketSummary = mergeMarketSummary(cur.market || null, cur.summary?.market || null);
-    const marketSummary = mergeMarketSummary(incomingMarketSummary, previousMarketSummary);
+    const marketSummary = stampMarketNightFutureMetric(
+      mergeMarketSummary(incomingMarketSummary, previousMarketSummary),
+      appliedSnapshotMs,
+    );
     const effectiveLastUpdated = cur.lastUpdated || formatKstTimestamp(new Date());
     const today = effectiveLastUpdated.slice(0, 10);
 
@@ -3106,12 +3141,18 @@ td.numeric .bar-cell {
       ? {
           ...(nextSummary || {}),
           ...cur.summary,
-          market: mergeMarketSummary(cur.summary.market || nextSummary?.market || null, marketSummary),
+          market: stampMarketNightFutureMetric(
+            mergeMarketSummary(cur.summary.market || nextSummary?.market || null, marketSummary),
+            appliedSnapshotMs,
+          ),
           source: cur.source || fallbackSource,
         }
       : {
           ...(nextSummary || {}),
-          market: mergeMarketSummary(nextSummary?.market || null, marketSummary),
+          market: stampMarketNightFutureMetric(
+            mergeMarketSummary(nextSummary?.market || null, marketSummary),
+            appliedSnapshotMs,
+          ),
           source: cur.source || fallbackSource,
         };
 
@@ -3124,7 +3165,7 @@ td.numeric .bar-cell {
       latestNightFutureMetric,
     );
 
-    latestAppliedSnapshotMs = incomingSnapshotMs || Date.now();
+    latestAppliedSnapshotMs = appliedSnapshotMs;
     document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + effectiveLastUpdated;
     renderTodayOverview();
     renderCards();

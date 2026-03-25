@@ -73,6 +73,7 @@ KIS_NIGHT_FUTURES_TRADE_TR_ID = "H0MFCNT0"
 KIS_NIGHT_FUTURES_WS_URL = "ws://ops.koreainvestment.com:21000"
 KIS_NIGHT_FUTURES_WS_WAIT_SECONDS = 12
 KIS_NIGHT_FUTURES_WS_RETRIES = 2
+FUTURE_METRIC_MAX_AGE_SECONDS = 600
 
 AUTH_CACHE_LOCK = threading.Lock()
 
@@ -904,9 +905,15 @@ def fetch_esignal_night_futures_metric():
     return None
 
 
-def previous_night_future_is_reusable(metric, now=None):
+def previous_night_future_is_reusable(metric, previous_snapshot=None, now=None):
     if not metric or metric.get("id") not in {"KOSPI200_FUTURES", "KOSPI200_NIGHT_FUTURES"}:
         return False
+
+    snapshot_last_updated = (previous_snapshot or {}).get("lastUpdated")
+    if snapshot_last_updated:
+        snapshot_dt = parse_kis_datetime(snapshot_last_updated)
+        if snapshot_dt and (datetime.now(KST) - snapshot_dt).total_seconds() > FUTURE_METRIC_MAX_AGE_SECONDS:
+            return False
 
     metric_session_date = metric.get("sessionTradeDate")
     if not metric_session_date:
@@ -1305,7 +1312,9 @@ def find_nearest_kospi200_contract_code():
 def fetch_kospi200_metric(previous_snapshot):
     previous_metric = get_previous_night_future(previous_snapshot)
     reusable_previous_metric = (
-        previous_metric if previous_night_future_is_reusable(previous_metric) else None
+        previous_metric
+        if previous_night_future_is_reusable(previous_metric, previous_snapshot)
+        else None
     )
     provider = None
     is_night_session = is_kst_night_session()
