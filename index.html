@@ -2451,13 +2451,20 @@ td.numeric .bar-cell {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  function withCacheBustingParam(url) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}_ts=${Date.now()}`;
+  }
+
   async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const resp = await fetch(LIVE_PROXY_URL + encodeURIComponent(url), {
+      const proxiedUrl = LIVE_PROXY_URL + encodeURIComponent(withCacheBustingParam(url));
+      const resp = await fetch(proxiedUrl, {
         signal: controller.signal,
+        cache: 'no-store',
       });
       if (!resp.ok) {
         throw new Error(`실시간 조회 실패 (${resp.status})`);
@@ -2502,7 +2509,7 @@ td.numeric .bar-cell {
       if (refreshButtonBusy) return;
       setRefreshButtonState(true);
       try {
-        await fetchCurrentPrices();
+        await fetchCurrentPrices({ forceLiveRefresh: true });
       } finally {
         setRefreshButtonState(false);
       }
