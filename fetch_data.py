@@ -196,6 +196,13 @@ def main():
     args = parser.parse_args()
 
     existing_data = None if args.full else load_existing_data()
+    existing_pair_ids = set()
+    if existing_data:
+        existing_pair_ids = {
+            pair["id"]
+            for pair in existing_data.get("pairs", [])
+            if not pair.get("isAverage")
+        }
 
     # 모든 티커 수집 (중복 제거) + KOSPI 지수
     KOSPI_TICKER = "^KS11"
@@ -209,17 +216,27 @@ def main():
     all_tickers.append(KOSPI_TICKER)
 
     end_date = datetime.now()
+    configured_pair_ids = {pair["id"] for pair in PAIRS if not pair.get("isAverage")}
+    missing_pair_ids = sorted(configured_pair_ids - existing_pair_ids)
 
     if existing_data:
-        last_date_str = get_last_date(existing_data)
-        if last_date_str:
-            # 마지막 날짜에서 5일 전부터 가져와서 안전하게 겹침 처리
-            start_date = datetime.strptime(last_date_str, "%Y-%m-%d") - timedelta(days=5)
-            print(f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다")
-        else:
+        if missing_pair_ids:
             start_date = datetime(2000, 1, 1)
-            print("기존 히스토리 없음, 전체 다운로드")
+            print(
+                "신규 종목 감지, 전체 백필 모드: "
+                + ", ".join(missing_pair_ids)
+            )
             existing_data = None
+        else:
+            last_date_str = get_last_date(existing_data)
+            if last_date_str:
+                # 마지막 날짜에서 5일 전부터 가져와서 안전하게 겹침 처리
+                start_date = datetime.strptime(last_date_str, "%Y-%m-%d") - timedelta(days=5)
+                print(f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다")
+            else:
+                start_date = datetime(2000, 1, 1)
+                print("기존 히스토리 없음, 전체 다운로드")
+                existing_data = None
     else:
         start_date = datetime(2000, 1, 1)
         print("전체 다운로드 모드")
