@@ -830,7 +830,7 @@ td.numeric .bar-cell {
   <div class="today-overview" id="todayOverview"></div>
   <div class="cards" id="cards"></div>
 
-  <div class="chart-section">
+  <div class="chart-section" id="spreadChartSection">
     <div class="chart-header">
       <div class="chart-title" id="chartTitle">삼성전자 괴리율 추이</div>
       <div class="period-btns" id="periodBtns">
@@ -895,6 +895,7 @@ td.numeric .bar-cell {
   const LIVE_FETCH_BATCH_SIZE = 20;
   const LIVE_FETCH_BATCH_CONCURRENCY = 2;
   const EMA_ALPHA = 0.1;
+  const SELECTED_CODE_QUERY_KEY = 'code';
   const TABLE_SORT_DEFAULT_DIRECTION = {
     name: 'asc',
     commonMarketCap: 'desc',
@@ -1263,27 +1264,104 @@ td.numeric .bar-cell {
     return getCardGroups().find(items => items.some(item => item.pair.id === pairId)) || null;
   }
 
-  function selectPair(idx) {
+  function normalizeTickerCode(code) {
+    return String(code || '').trim().toUpperCase().replace(/\.KS$/i, '');
+  }
+
+  function getPreferredShareCodeByPairId(pairId) {
+    const config = pairConfigMap.get(pairId);
+    if (!config) return '';
+    return normalizeTickerCode(getTickerCode(config.preferredTicker || config.commonTicker));
+  }
+
+  function updateSelectedPairQueryParam() {
+    const pair = pairs[selectedIdx];
+    if (!pair || pair.isAverage) return;
+    const code = getPreferredShareCodeByPairId(pair.id);
+    if (!code) return;
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(SELECTED_CODE_QUERY_KEY) === code) return;
+    url.searchParams.set(SELECTED_CODE_QUERY_KEY, code);
+    window.history.replaceState(null, '', url.toString());
+  }
+
+  function resolveSelectedPairIndexFromQuery() {
+    const url = new URL(window.location.href);
+    const code = normalizeTickerCode(url.searchParams.get(SELECTED_CODE_QUERY_KEY));
+    if (!code) return { idx: 0, requested: false, matched: false };
+
+    let commonMatchIdx = -1;
+    for (let idx = 0; idx < pairs.length; idx++) {
+      const pair = pairs[idx];
+      if (!pair || pair.isAverage) continue;
+      const config = pairConfigMap.get(pair.id);
+      if (!config) continue;
+
+      const preferredCode = normalizeTickerCode(getTickerCode(config.preferredTicker));
+      if (preferredCode && preferredCode === code) {
+        return { idx, requested: true, matched: true };
+      }
+
+      const commonCode = normalizeTickerCode(getTickerCode(config.commonTicker));
+      if (commonMatchIdx < 0 && commonCode && commonCode === code) {
+        commonMatchIdx = idx;
+      }
+    }
+
+    return {
+      idx: commonMatchIdx >= 0 ? commonMatchIdx : 0,
+      requested: true,
+      matched: commonMatchIdx >= 0,
+    };
+  }
+
+  function scrollToSelectedSpreadSection() {
+    const section = document.getElementById('spreadChartSection');
+    if (!section) return;
+    requestAnimationFrame(() => {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function selectPair(idx, { updateUrl = true, scrollToChart = false } = {}) {
     if (Number.isNaN(idx) || idx < 0) return;
     selectedIdx = idx;
+    if (updateUrl) {
+      updateSelectedPairQueryParam();
+    }
     renderTodayOverview();
     renderCards();
     renderChart();
     renderPriceChart();
     renderStats();
+    if (scrollToChart) {
+      scrollToSelectedSpreadSection();
+    }
   }
 
   // --- Init ---
-  document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
-  bindThemeButton();
-  bindTableSortHeaders();
-  renderTodayOverview();
-  renderCards();
-  renderTable();
-  renderChart();
-  renderPriceChart();
-  renderStats();
-  bindPeriodBtns();
+  async function initializeDashboard() {
+    document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + STOCK_DATA.lastUpdated;
+    bindThemeButton();
+    bindTableSortHeaders();
+    await configLoadPromise;
+    const initialSelection = resolveSelectedPairIndexFromQuery();
+    selectedIdx = initialSelection.idx;
+    renderTodayOverview();
+    renderCards();
+    renderTable();
+    renderChart();
+    renderPriceChart();
+    renderStats();
+    bindPeriodBtns();
+    if (initialSelection.matched) {
+      updateSelectedPairQueryParam();
+      scrollToSelectedSpreadSection();
+    }
+  }
+
+  initializeDashboard();
 
   function renderTodayOverview() {
     const summary = todayOverviewData || buildTodaySummaryFromPairs();
