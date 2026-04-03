@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권 + 공개 선물 시세",
-  "lastUpdated": "2026-04-03 16:00:56",
+  "lastUpdated": "2026-04-03 17:03:12",
   "prices": {
     "samsung_elec": {
       "commonPrice": 186200,
@@ -354,9 +354,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1506.6,
-        "change": -5.9,
-        "changePct": -0.39,
+        "price": 1508.0,
+        "change": -4.5,
+        "changePct": -0.3,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -443,9 +443,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1506.6,
-          "change": -5.9,
-          "changePct": -0.39,
+          "price": 1508.0,
+          "change": -4.5,
+          "changePct": -0.3,
           "marketStatus": null,
           "unit": null,
           "code": null,
