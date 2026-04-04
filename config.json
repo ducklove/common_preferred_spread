@@ -318,5 +318,109 @@
     "preferredTicker": "00781K.KS",
     "commonName": "코리아써키트",
     "preferredName": "코리아써키트2우B"
+  },
+  {
+    "id": "samsung_ct",
+    "name": "삼성물산",
+    "commonTicker": "028260.KS",
+    "preferredTicker": "02826K.KS",
+    "commonName": "삼성물산",
+    "preferredName": "삼성물산우B"
+  },
+  {
+    "id": "bookook_sec",
+    "name": "부국증권",
+    "commonTicker": "001270.KS",
+    "preferredTicker": "001275.KS",
+    "commonName": "부국증권",
+    "preferredName": "부국증권우"
+  },
+  {
+    "id": "dl_enc_pref",
+    "name": "DL이앤씨/우",
+    "commonTicker": "375500.KS",
+    "preferredTicker": "37550K.KS",
+    "commonName": "DL이앤씨",
+    "preferredName": "DL이앤씨우"
+  },
+  {
+    "id": "dl_enc_2pref",
+    "name": "DL이앤씨/2우(전환)",
+    "commonTicker": "375500.KS",
+    "preferredTicker": "37550L.KS",
+    "commonName": "DL이앤씨",
+    "preferredName": "DL이앤씨2우(전환)"
+  },
+  {
+    "id": "yuhan",
+    "name": "유한양행",
+    "commonTicker": "000100.KS",
+    "preferredTicker": "000105.KS",
+    "commonName": "유한양행",
+    "preferredName": "유한양행우"
+  },
+  {
+    "id": "gs",
+    "name": "GS",
+    "commonTicker": "078930.KS",
+    "preferredTicker": "078935.KS",
+    "commonName": "GS",
+    "preferredName": "GS우"
+  },
+  {
+    "id": "sk_innovation",
+    "name": "SK이노베이션",
+    "commonTicker": "096770.KS",
+    "preferredTicker": "096775.KS",
+    "commonName": "SK이노베이션",
+    "preferredName": "SK이노베이션우"
+  },
+  {
+    "id": "kolon_industries",
+    "name": "코오롱인더",
+    "commonTicker": "120110.KS",
+    "preferredTicker": "120115.KS",
+    "commonName": "코오롱인더",
+    "preferredName": "코오롱인더우"
+  },
+  {
+    "id": "namyang_dairy",
+    "name": "남양유업",
+    "commonTicker": "003920.KS",
+    "preferredTicker": "003925.KS",
+    "commonName": "남양유업",
+    "preferredName": "남양유업우"
+  },
+  {
+    "id": "hyundai_eandc",
+    "name": "현대건설",
+    "commonTicker": "000720.KS",
+    "preferredTicker": "000725.KS",
+    "commonName": "현대건설",
+    "preferredName": "현대건설우"
+  },
+  {
+    "id": "hanwha_solutions",
+    "name": "한화솔루션",
+    "commonTicker": "009830.KS",
+    "preferredTicker": "009835.KS",
+    "commonName": "한화솔루션",
+    "preferredName": "한화솔루션우"
+  },
+  {
+    "id": "lotte_chilsung",
+    "name": "롯데칠성",
+    "commonTicker": "005300.KS",
+    "preferredTicker": "005305.KS",
+    "commonName": "롯데칠성",
+    "preferredName": "롯데칠성우"
+  },
+  {
+    "id": "yuhwa_sec",
+    "name": "유화증권",
+    "commonTicker": "003460.KS",
+    "preferredTicker": "003465.KS",
+    "commonName": "유화증권",
+    "preferredName": "유화증권우"
   }
 ]
