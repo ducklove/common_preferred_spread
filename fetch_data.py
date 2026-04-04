@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
@@ -23,6 +24,12 @@ KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
 DATA_PATH = Path(__file__).parent / "data.js"
 DEFAULT_NAVER_BACKFILL_PAIR_IDS = {"samsung_elec"}
+AUTO_NAVER_BACKFILL_START_DATE = pd.Timestamp("2005-09-29")
+AUTO_NAVER_BACKFILL_END_DATE = pd.Timestamp("2010-12-31")
+NAVER_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "naver_history"
+NAVER_BACKFILL_WORKERS = 6
+SAFE_ADJUSTMENT_RATIO_MIN = 0.01
+SAFE_ADJUSTMENT_RATIO_MAX = 10.0
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -204,6 +211,16 @@ def fetch_naver_daily_history(ticker):
         _naver_daily_history_cache[ticker] = empty
         return empty.copy()
 
+    cache_path = NAVER_HISTORY_CACHE_DIR / f"{code}.csv"
+    if cache_path.exists():
+        try:
+            cached = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+            if {"close", "volume"}.issubset(cached.columns):
+                _naver_daily_history_cache[ticker] = cached
+                return cached.copy()
+        except Exception:
+            pass
+
     def fetch_html(page):
         request = Request(
             f"https://finance.naver.com/item/sise_day.naver?code={code}&page={page}",
@@ -254,6 +271,8 @@ def fetch_naver_daily_history(ticker):
     if frames:
         history = pd.concat(frames).sort_index()
         history = history[~history.index.duplicated(keep="first")]
+        NAVER_HISTORY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        history.to_csv(cache_path, encoding="utf-8")
     else:
         history = pd.DataFrame(columns=["close", "volume"])
 
@@ -287,6 +306,19 @@ def merge_naver_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
     if earlier_history.empty:
         return yahoo_close, yahoo_vol, None
 
+    if (
+        adjustment_ratio < SAFE_ADJUSTMENT_RATIO_MIN
+        or adjustment_ratio > SAFE_ADJUSTMENT_RATIO_MAX
+    ):
+        info = {
+            "ticker": ticker,
+            "earliestYahoo": earliest_yahoo.strftime("%Y-%m-%d"),
+            "earliestNaver": earlier_history.index.min().strftime("%Y-%m-%d"),
+            "adjustmentRatio": adjustment_ratio,
+            "skipped": True,
+        }
+        return yahoo_close, yahoo_vol, info
+
     earlier_history["close"] = earlier_history["close"] * adjustment_ratio
     if adjustment_ratio != 0:
         earlier_history["volume"] = earlier_history["volume"] / adjustment_ratio
@@ -306,6 +338,56 @@ def merge_naver_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
     return merged_close, merged_vol, info
 
 
+def determine_naver_backfill_targets(close, explicit_pair_ids):
+    target_pair_ids = set(explicit_pair_ids)
+    target_tickers = set()
+    reasons = {}
+
+    for pair in PAIRS:
+        ct = pair["commonTicker"]
+        pt = pair["preferredTicker"]
+        common_close = close[ct].dropna()
+        preferred_close = close[pt].dropna()
+        if common_close.empty or preferred_close.empty:
+            continue
+
+        pair_first_yahoo = max(common_close.index.min(), preferred_close.index.min())
+        auto_target = (
+            AUTO_NAVER_BACKFILL_START_DATE
+            <= pair_first_yahoo
+            <= AUTO_NAVER_BACKFILL_END_DATE
+        )
+        if pair["id"] in explicit_pair_ids or auto_target:
+            target_pair_ids.add(pair["id"])
+            target_tickers.add(ct)
+            target_tickers.add(pt)
+            reasons[pair["id"]] = pair_first_yahoo.strftime("%Y-%m-%d")
+
+    return target_pair_ids, sorted(target_tickers), reasons
+
+
+def prefetch_naver_histories(tickers):
+    tickers = sorted(set(tickers))
+    if not tickers:
+        return
+
+    workers = min(NAVER_BACKFILL_WORKERS, len(tickers))
+    print(f"네이버 백필 병렬 수집: {len(tickers)}개 티커, {workers}개 워커")
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(fetch_naver_daily_history, ticker): ticker
+            for ticker in tickers
+        }
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                history = future.result()
+                print(f"  NAVER {ticker}: {len(history)}일")
+            except Exception as exc:
+                print(f"  WARNING: NAVER {ticker} 수집 실패 ({exc})")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--full", action="store_true", help="전체 데이터 다시 다운로드")
@@ -317,9 +399,9 @@ def main():
     )
     args = parser.parse_args()
 
-    naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
+    explicit_naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
     if args.naver_backfill is not None:
-        naver_backfill_pair_ids.update(args.naver_backfill)
+        explicit_naver_backfill_pair_ids.update(args.naver_backfill)
 
     existing_data = None if args.full else load_existing_data()
     existing_pair_ids = set()
@@ -382,6 +464,19 @@ def main():
     close = data["Close"]
     volume = data["Volume"]
 
+    naver_backfill_pair_ids, naver_backfill_tickers, naver_backfill_reasons = (
+        determine_naver_backfill_targets(close, explicit_naver_backfill_pair_ids)
+    )
+    if naver_backfill_pair_ids:
+        print(
+            "네이버 백필 대상 pair: "
+            + ", ".join(
+                f"{pair_id}({naver_backfill_reasons.get(pair_id, 'explicit')})"
+                for pair_id in sorted(naver_backfill_pair_ids)
+            )
+        )
+        prefetch_naver_histories(naver_backfill_tickers)
+
     # 기존 데이터 맵 (증분 모드용)
     existing_pairs_map = {}
     existing_kospi = {}
@@ -423,14 +518,24 @@ def main():
 
         if common_backfill or preferred_backfill:
             common_msg = (
-                f"보통주 {common_backfill['earliestYahoo']} -> {common_backfill['earliestNaver']} "
-                f"(x{common_backfill['adjustmentRatio']:.6f})"
+                (
+                    f"보통주 스킵 {common_backfill['earliestYahoo']} -> {common_backfill['earliestNaver']} "
+                    f"(x{common_backfill['adjustmentRatio']:.6f})"
+                    if common_backfill.get("skipped")
+                    else f"보통주 {common_backfill['earliestYahoo']} -> {common_backfill['earliestNaver']} "
+                    f"(x{common_backfill['adjustmentRatio']:.6f})"
+                )
                 if common_backfill
                 else "보통주 변화 없음"
             )
             preferred_msg = (
-                f"우선주 {preferred_backfill['earliestYahoo']} -> {preferred_backfill['earliestNaver']} "
-                f"(x{preferred_backfill['adjustmentRatio']:.6f})"
+                (
+                    f"우선주 스킵 {preferred_backfill['earliestYahoo']} -> {preferred_backfill['earliestNaver']} "
+                    f"(x{preferred_backfill['adjustmentRatio']:.6f})"
+                    if preferred_backfill.get("skipped")
+                    else f"우선주 {preferred_backfill['earliestYahoo']} -> {preferred_backfill['earliestNaver']} "
+                    f"(x{preferred_backfill['adjustmentRatio']:.6f})"
+                )
                 if preferred_backfill
                 else "우선주 변화 없음"
             )
