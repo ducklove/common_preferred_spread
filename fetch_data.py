@@ -9,8 +9,10 @@ Yahoo Finance에서 보통주/우선주 가격 데이터를 가져와 data.js를
 
 import argparse
 import json
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from io import StringIO
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -20,6 +22,7 @@ import pandas as pd
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
 DATA_PATH = Path(__file__).parent / "data.js"
+DEFAULT_NAVER_BACKFILL_PAIR_IDS = {"samsung_elec"}
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -62,6 +65,7 @@ def get_last_date(existing_data):
 _div_yield_cache = {}
 _ticker_meta_cache = {}
 _naver_meta_cache = {}
+_naver_daily_history_cache = {}
 
 
 def get_div_yield(ticker):
@@ -190,10 +194,132 @@ def get_ticker_meta(ticker):
     return meta
 
 
+def fetch_naver_daily_history(ticker):
+    if ticker in _naver_daily_history_cache:
+        return _naver_daily_history_cache[ticker].copy()
+
+    code = ticker.split(".")[0]
+    if not code:
+        empty = pd.DataFrame(columns=["close", "volume"])
+        _naver_daily_history_cache[ticker] = empty
+        return empty.copy()
+
+    def fetch_html(page):
+        request = Request(
+            f"https://finance.naver.com/item/sise_day.naver?code={code}&page={page}",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(request, timeout=10) as response:
+            return response.read().decode("euc-kr", errors="replace")
+
+    try:
+        first_html = fetch_html(1)
+    except Exception:
+        empty = pd.DataFrame(columns=["close", "volume"])
+        _naver_daily_history_cache[ticker] = empty
+        return empty.copy()
+
+    match = re.search(r'pgRR.*?page=(\d+)', first_html, re.S)
+    last_page = int(match.group(1)) if match else 1
+
+    frames = []
+    for page in range(1, last_page + 1):
+        html = first_html if page == 1 else fetch_html(page)
+        try:
+            table = pd.read_html(StringIO(html))[0]
+        except ValueError:
+            continue
+
+        if table.shape[1] < 7:
+            continue
+
+        table = table.iloc[:, [0, 1, 6]].copy()
+        table.columns = ["date", "close", "volume"]
+        table = table.dropna(subset=["date", "close", "volume"])
+        if table.empty:
+            continue
+
+        page_df = pd.DataFrame(
+            {
+                "close": pd.to_numeric(table["close"], errors="coerce").to_numpy(),
+                "volume": pd.to_numeric(table["volume"], errors="coerce").to_numpy(),
+            },
+            index=pd.to_datetime(table["date"], format="%Y.%m.%d", errors="coerce").to_numpy(),
+        ).dropna(subset=["close", "volume"])
+
+        if page_df.empty:
+            continue
+        frames.append(page_df)
+
+    if frames:
+        history = pd.concat(frames).sort_index()
+        history = history[~history.index.duplicated(keep="first")]
+    else:
+        history = pd.DataFrame(columns=["close", "volume"])
+
+    _naver_daily_history_cache[ticker] = history
+    return history.copy()
+
+
+def merge_naver_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
+    if not enabled or yahoo_close.empty:
+        return yahoo_close, yahoo_vol, None
+
+    naver_history = fetch_naver_daily_history(ticker)
+    if naver_history.empty:
+        return yahoo_close, yahoo_vol, None
+
+    overlap_dates = yahoo_close.index.intersection(naver_history.index)
+    if overlap_dates.empty:
+        return yahoo_close, yahoo_vol, None
+
+    overlap_dates = overlap_dates.sort_values()[:20]
+    overlap_ratios = (
+        yahoo_close.loc[overlap_dates] / naver_history.loc[overlap_dates, "close"]
+    ).replace([float("inf"), float("-inf")], pd.NA).dropna()
+
+    adjustment_ratio = float(overlap_ratios.median()) if not overlap_ratios.empty else 1.0
+    if adjustment_ratio <= 0:
+        adjustment_ratio = 1.0
+
+    earliest_yahoo = yahoo_close.index.min()
+    earlier_history = naver_history[naver_history.index < earliest_yahoo].copy()
+    if earlier_history.empty:
+        return yahoo_close, yahoo_vol, None
+
+    earlier_history["close"] = earlier_history["close"] * adjustment_ratio
+    if adjustment_ratio != 0:
+        earlier_history["volume"] = earlier_history["volume"] / adjustment_ratio
+
+    merged_close = pd.concat([earlier_history["close"], yahoo_close]).sort_index()
+    merged_close = merged_close[~merged_close.index.duplicated(keep="last")]
+
+    merged_vol = pd.concat([earlier_history["volume"], yahoo_vol]).sort_index()
+    merged_vol = merged_vol[~merged_vol.index.duplicated(keep="last")]
+
+    info = {
+        "ticker": ticker,
+        "earliestYahoo": earliest_yahoo.strftime("%Y-%m-%d"),
+        "earliestNaver": earlier_history.index.min().strftime("%Y-%m-%d"),
+        "adjustmentRatio": adjustment_ratio,
+    }
+    return merged_close, merged_vol, info
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--full", action="store_true", help="전체 데이터 다시 다운로드")
+    parser.add_argument(
+        "--naver-backfill",
+        nargs="*",
+        default=None,
+        help="네이버 일별 시세로 과거 구간을 백필할 pair id 목록",
+    )
     args = parser.parse_args()
+
+    naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
+    if args.naver_backfill is not None:
+        naver_backfill_pair_ids.update(args.naver_backfill)
 
     existing_data = None if args.full else load_existing_data()
     existing_pair_ids = set()
@@ -274,12 +400,41 @@ def main():
     for pair in PAIRS:
         ct = pair["commonTicker"]
         pt = pair["preferredTicker"]
+        apply_naver_backfill = pair["id"] in naver_backfill_pair_ids
 
         # 거래정지일(volume=0) 제외
         common_close = close[ct].dropna()
         preferred_close = close[pt].dropna()
         common_vol = volume[ct].fillna(0)
         preferred_vol = volume[pt].fillna(0)
+
+        common_close, common_vol, common_backfill = merge_naver_backfill(
+            common_close,
+            common_vol,
+            ct,
+            enabled=apply_naver_backfill,
+        )
+        preferred_close, preferred_vol, preferred_backfill = merge_naver_backfill(
+            preferred_close,
+            preferred_vol,
+            pt,
+            enabled=apply_naver_backfill,
+        )
+
+        if common_backfill or preferred_backfill:
+            common_msg = (
+                f"보통주 {common_backfill['earliestYahoo']} -> {common_backfill['earliestNaver']} "
+                f"(x{common_backfill['adjustmentRatio']:.6f})"
+                if common_backfill
+                else "보통주 변화 없음"
+            )
+            preferred_msg = (
+                f"우선주 {preferred_backfill['earliestYahoo']} -> {preferred_backfill['earliestNaver']} "
+                f"(x{preferred_backfill['adjustmentRatio']:.6f})"
+                if preferred_backfill
+                else "우선주 변화 없음"
+            )
+            print(f"  INFO: {pair['name']} 네이버 백필 {common_msg}, {preferred_msg}")
 
         # 두 시리즈의 공통 날짜만 사용
         common_dates = common_close.index.intersection(preferred_close.index)
