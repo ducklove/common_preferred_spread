@@ -34,6 +34,7 @@ PROXY_HISTORY_BASE_URL = "http://cantabile.tplinkdns.com:3288"
 PROXY_HISTORY_START_DATE = pd.Timestamp("1989-01-01")
 PROXY_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "proxy_history"
 PROXY_BACKFILL_WORKERS = 2
+DIVIDEND_HISTORY_WORKERS = 6
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
 SAFE_ADJUSTMENT_RATIO_MAX = 10.0
 
@@ -163,12 +164,66 @@ _naver_meta_cache = {}
 _naver_daily_history_cache = {}
 _proxy_daily_history_cache = {}
 _pair_yahoo_history_cache = {}
+_dividend_series_cache = {}
 
 
 def get_div_yield(ticker):
     if ticker not in _div_yield_cache:
         _div_yield_cache[ticker] = get_ticker_meta(ticker)["dividendYield"] or 0
     return _div_yield_cache[ticker]
+
+
+def get_dividend_series(ticker):
+    if ticker in _dividend_series_cache:
+        return _dividend_series_cache[ticker].copy()
+
+    empty = pd.Series(dtype="float64")
+
+    try:
+        dividends = yf.Ticker(ticker).dividends
+    except Exception:
+        _dividend_series_cache[ticker] = empty
+        return empty.copy()
+
+    if dividends is None or len(dividends) == 0:
+        _dividend_series_cache[ticker] = empty
+        return empty.copy()
+
+    series = pd.to_numeric(dividends, errors="coerce").dropna()
+    if series.empty:
+        _dividend_series_cache[ticker] = empty
+        return empty.copy()
+
+    index = pd.to_datetime(series.index, errors="coerce")
+    if getattr(index, "tz", None) is not None:
+        index = index.tz_localize(None)
+    series.index = index.normalize()
+    series = series[series.index.notna()]
+    series = series[series > 0]
+    if series.empty:
+        _dividend_series_cache[ticker] = empty
+        return empty.copy()
+
+    series = series.groupby(series.index).sum().sort_index()
+    _dividend_series_cache[ticker] = series
+    return series.copy()
+
+
+def build_dividend_history(series, start_date_text, end_date_text):
+    if series.empty:
+        return []
+
+    start_ts = pd.Timestamp(start_date_text)
+    end_ts = pd.Timestamp(end_date_text)
+    filtered = series[(series.index >= start_ts) & (series.index <= end_ts)]
+
+    return [
+        {
+            "date": date.strftime("%Y-%m-%d"),
+            "amount": round(float(amount), 4),
+        }
+        for date, amount in filtered.items()
+    ]
 
 
 def _read_fast_info_value(fast_info, *keys):
@@ -633,6 +688,28 @@ def prefetch_proxy_histories(tickers):
                 print(f"  WARNING: PROXY {ticker} 수집 실패 ({exc})")
 
 
+def prefetch_dividend_histories(tickers):
+    tickers = sorted(set(tickers))
+    if not tickers:
+        return
+
+    workers = min(DIVIDEND_HISTORY_WORKERS, len(tickers))
+    print(f"배당 히스토리 병렬 수집: {len(tickers)}개 티커, {workers}개 워커")
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {
+            executor.submit(get_dividend_series, ticker): ticker
+            for ticker in tickers
+        }
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                series = future.result()
+                print(f"  DIV {ticker}: {len(series)}건")
+            except Exception as exc:
+                print(f"  WARNING: DIV {ticker} 수집 실패 ({exc})")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--full", action="store_true", help="전체 데이터 다시 다운로드")
@@ -772,6 +849,14 @@ def main():
         prefetch_naver_histories(naver_backfill_tickers)
 
     # 기존 데이터 맵 (증분 모드용)
+    prefetch_dividend_histories(
+        [
+            ticker
+            for pair in PAIRS
+            for ticker in [pair["commonTicker"], pair["preferredTicker"]]
+        ]
+    )
+
     existing_pairs_map = {}
     existing_kospi = {}
     if existing_data:
@@ -785,6 +870,7 @@ def main():
 
     # 각 페어별로 괴리율 계산
     pairs_result = []
+    dividend_histories = {}
 
     for pair in PAIRS:
         ct = pair["commonTicker"]
@@ -931,6 +1017,27 @@ def main():
         c_dy = get_div_yield(ct)
         p_dy = get_div_yield(pt)
 
+        history_start_date = history[0]["date"]
+        history_end_date = history[-1]["date"]
+        dividend_histories[pair["id"]] = {
+            "startDate": history_start_date,
+            "endDate": history_end_date,
+            "commonTicker": ct,
+            "preferredTicker": pt,
+            "commonName": pair["commonName"],
+            "preferredName": pair["preferredName"],
+            "common": build_dividend_history(
+                get_dividend_series(ct),
+                history_start_date,
+                history_end_date,
+            ),
+            "preferred": build_dividend_history(
+                get_dividend_series(pt),
+                history_start_date,
+                history_end_date,
+            ),
+        }
+
         pair_data = {
             "id": pair["id"],
             "name": pair["name"],
@@ -1049,6 +1156,7 @@ def main():
     # data.js 출력
     stock_data = {
         "lastUpdated": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"),
+        "dividendHistories": dividend_histories,
         "pairs": pairs_result,
     }
 
