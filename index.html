@@ -2049,25 +2049,30 @@ td.numeric .bar-cell {
     const pad = { top: 20, right: 16, bottom: 36, left: 56 };
     const cW = W - pad.left - pad.right;
     const cH = H - pad.top - pad.bottom;
+    const scale = buildChartScale(hist, pad, cW);
+    const spreadSegments = getContinuousSegments(hist, scale);
 
     const drawTrendSeries = (series, color, dashPattern) => {
-      let started = false;
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.5;
       ctx.setLineDash(dashPattern);
-      ctx.beginPath();
-      series.forEach((value, i) => {
-        if (value == null || Number.isNaN(value)) return;
-        const x = pad.left + (i / (hist.length - 1)) * cW;
-        const y = pad.top + cH - ((value - minS) / rangeS * cH);
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else {
-          ctx.lineTo(x, y);
+      const segments = getContinuousSegments(hist, scale, series);
+      segments.forEach(([start, end]) => {
+        if (end <= start) return;
+        ctx.beginPath();
+        for (let i = start; i <= end; i++) {
+          const value = series[i];
+          if (value == null || Number.isNaN(value)) continue;
+          const x = scale.xPositions[i];
+          const y = pad.top + cH - ((value - minS) / rangeS * cH);
+          if (i === start) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
         }
+        ctx.stroke();
       });
-      if (started) ctx.stroke();
       ctx.setLineDash([]);
     };
 
@@ -2092,33 +2097,27 @@ td.numeric .bar-cell {
     }
 
     // X axis labels
-    ctx.fillStyle = theme.textDim;
-    ctx.textAlign = 'center';
-    const xLabelCount = Math.min(6, hist.length);
-    for (let i = 0; i < xLabelCount; i++) {
-      const idx = Math.floor(i * (hist.length - 1) / (xLabelCount - 1));
-      const x = pad.left + (idx / (hist.length - 1)) * cW;
-      ctx.fillText(hist[idx].date.slice(2), x, H - pad.bottom + 20);
-    }
+    drawXAxis(ctx, pad, cH, cW, H, hist, scale);
 
     // Gradient fill
     const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
     gradient.addColorStop(0, 'rgba(108,140,255,0.25)');
     gradient.addColorStop(1, 'rgba(108,140,255,0.0)');
-
-    ctx.beginPath();
-    for (let i = 0; i < hist.length; i++) {
-      const x = pad.left + (i / (hist.length - 1)) * cW;
-      const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    const lastX = pad.left + cW;
-    ctx.lineTo(lastX, pad.top + cH);
-    ctx.lineTo(pad.left, pad.top + cH);
-    ctx.closePath();
     ctx.fillStyle = gradient;
-    ctx.fill();
+    spreadSegments.forEach(([start, end]) => {
+      if (end <= start) return;
+      ctx.beginPath();
+      for (let i = start; i <= end; i++) {
+        const x = scale.xPositions[i];
+        const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+        if (i === start) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.lineTo(scale.xPositions[end], pad.top + cH);
+      ctx.lineTo(scale.xPositions[start], pad.top + cH);
+      ctx.closePath();
+      ctx.fill();
+    });
 
     // SMA / EMA trend lines
     drawTrendSeries(smaSeries, theme.avgLine, [6, 4]);
@@ -2134,16 +2133,19 @@ td.numeric .bar-cell {
     }
 
     // Line
-    ctx.beginPath();
-    for (let i = 0; i < hist.length; i++) {
-      const x = pad.left + (i / (hist.length - 1)) * cW;
-      const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
     ctx.strokeStyle = theme.accent;
     ctx.lineWidth = 2;
-    ctx.stroke();
+    spreadSegments.forEach(([start, end]) => {
+      if (end <= start) return;
+      ctx.beginPath();
+      for (let i = start; i <= end; i++) {
+        const x = scale.xPositions[i];
+        const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+        if (i === start) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
 
     // Tooltip interaction
     const tooltip = document.getElementById('tooltip');
@@ -2155,12 +2157,15 @@ td.numeric .bar-cell {
         tooltip.classList.remove('visible');
         return;
       }
-      const ratio = (mx - pad.left) / cW;
-      const idx = Math.round(ratio * (hist.length - 1));
+      const idx = findNearestIndexByX(scale.xPositions, mx);
       const d = hist[idx];
       if (!d) return;
 
-      const dotX = pad.left + (idx / (hist.length - 1)) * cW;
+      const dotX = scale.xPositions[idx];
+      if (Math.abs(dotX - mx) > 24) {
+        tooltip.classList.remove('visible');
+        return;
+      }
       const dotY = pad.top + cH - ((d.spread - minS) / rangeS * cH);
 
       // Draw dot
@@ -2239,13 +2244,14 @@ td.numeric .bar-cell {
       const minP = 0;
       const maxP = Math.max(...prices);
       const rangeP = maxP || 1;
+      const scale = buildChartScale(kospiHist, pad, cW);
 
       drawYAxis(ctx, pad, cW, cH, W, minP, maxP, rangeP, '', 'left');
-      drawXAxis(ctx, pad, cH, cW, H, kospiHist);
-      drawLine(ctx, pad, cW, cH, kospiHist, d => d.kospiPrice, minP, rangeP, theme.green, true);
+      drawXAxis(ctx, pad, cH, cW, H, kospiHist, scale);
+      drawLine(ctx, pad, cW, cH, kospiHist, scale, d => d.kospiPrice, minP, rangeP, theme.green, true);
 
       // Tooltip
-      setupPriceTooltip(canvas, pad, W, cW, cH, kospiHist, (d) => {
+      setupPriceTooltip(canvas, pad, W, cW, cH, kospiHist, scale, (d) => {
         return `<div class="tt-date">${d.date}</div>
           <div class="tt-row"><span>KOSPI</span><span>${d.kospiPrice.toLocaleString('ko-KR')}</span></div>`;
       }, d => d.kospiPrice, minP, rangeP);
@@ -2255,14 +2261,15 @@ td.numeric .bar-cell {
       const minP = 0;
       const maxP = Math.max(...allPrices);
       const rangeP = maxP || 1;
+      const scale = buildChartScale(hist, pad, cW);
 
       drawYAxis(ctx, pad, cW, cH, W, minP, maxP, rangeP, '', 'left');
-      drawXAxis(ctx, pad, cH, cW, H, hist);
-      drawLine(ctx, pad, cW, cH, hist, d => d.commonPrice, minP, rangeP, theme.accent, false);
-      drawLine(ctx, pad, cW, cH, hist, d => d.preferredPrice, minP, rangeP, theme.up, false);
+      drawXAxis(ctx, pad, cH, cW, H, hist, scale);
+      drawLine(ctx, pad, cW, cH, hist, scale, d => d.commonPrice, minP, rangeP, theme.accent, false);
+      drawLine(ctx, pad, cW, cH, hist, scale, d => d.preferredPrice, minP, rangeP, theme.up, false);
 
       // Tooltip
-      setupPriceTooltip(canvas, pad, W, cW, cH, hist, (d) => {
+      setupPriceTooltip(canvas, pad, W, cW, cH, hist, scale, (d) => {
         return `<div class="tt-date">${d.date}</div>
           <div class="tt-row"><span>${detailLabels.common}</span><span>${formatPrice(d.commonPrice)}</span></div>
           <div class="tt-row"><span>${detailLabels.preferred}</span><span>${formatPrice(d.preferredPrice)}</span></div>
@@ -2298,15 +2305,21 @@ td.numeric .bar-cell {
     }
   }
 
-  function drawXAxis(ctx, pad, cH, cW, H, hist) {
+  function drawXAxis(ctx, pad, cH, cW, H, hist, scale = buildChartScale(hist, pad, cW)) {
     ctx.fillStyle = getChartTheme().textDim;
     ctx.textAlign = 'center';
     ctx.font = '11px -apple-system, sans-serif';
     const xLabelCount = Math.min(6, hist.length);
+    if (xLabelCount <= 0) return;
+    if (xLabelCount === 1) {
+      ctx.fillText(formatChartDateLabel(scale.minTime), pad.left, pad.top + cH + 20);
+      return;
+    }
     for (let i = 0; i < xLabelCount; i++) {
-      const idx = Math.floor(i * (hist.length - 1) / (xLabelCount - 1));
-      const x = pad.left + (idx / (hist.length - 1)) * cW;
-      ctx.fillText(hist[idx].date.slice(2), x, pad.top + cH + 20);
+      const ratio = i / (xLabelCount - 1);
+      const x = pad.left + (ratio * cW);
+      const labelTime = scale.minTime + (scale.rangeTime * ratio);
+      ctx.fillText(formatChartDateLabel(labelTime), x, pad.top + cH + 20);
     }
   }
 
@@ -2317,35 +2330,44 @@ td.numeric .bar-cell {
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
-  function drawLine(ctx, pad, cW, cH, hist, getValue, minV, range, color, fill) {
+  function drawLine(ctx, pad, cW, cH, hist, scale, getValue, minV, range, color, fill) {
+    const segments = getContinuousSegments(hist, scale);
     if (fill) {
       const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
       gradient.addColorStop(0, hexToRgba(color, 0.18));
       gradient.addColorStop(1, hexToRgba(color, 0.0));
-      ctx.beginPath();
-      for (let i = 0; i < hist.length; i++) {
-        const x = pad.left + (i / (hist.length - 1)) * cW;
-        const y = pad.top + cH - ((getValue(hist[i]) - minV) / range * cH);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.lineTo(pad.left + cW, pad.top + cH);
-      ctx.lineTo(pad.left, pad.top + cH);
-      ctx.closePath();
       ctx.fillStyle = gradient;
-      ctx.fill();
-    }
-    ctx.beginPath();
-    for (let i = 0; i < hist.length; i++) {
-      const x = pad.left + (i / (hist.length - 1)) * cW;
-      const y = pad.top + cH - ((getValue(hist[i]) - minV) / range * cH);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      segments.forEach(([start, end]) => {
+        if (end <= start) return;
+        ctx.beginPath();
+        for (let i = start; i <= end; i++) {
+          const x = scale.xPositions[i];
+          const y = pad.top + cH - ((getValue(hist[i]) - minV) / range * cH);
+          if (i === start) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineTo(scale.xPositions[end], pad.top + cH);
+        ctx.lineTo(scale.xPositions[start], pad.top + cH);
+        ctx.closePath();
+        ctx.fill();
+      });
     }
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
-    ctx.stroke();
+    segments.forEach(([start, end]) => {
+      if (end <= start) return;
+      ctx.beginPath();
+      for (let i = start; i <= end; i++) {
+        const x = scale.xPositions[i];
+        const y = pad.top + cH - ((getValue(hist[i]) - minV) / range * cH);
+        if (i === start) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
   }
 
-  function setupPriceTooltip(canvas, pad, W, cW, cH, hist, htmlFn, getValue, minV, range) {
+  function setupPriceTooltip(canvas, pad, W, cW, cH, hist, scale, htmlFn, getValue, minV, range) {
     const tooltip = document.getElementById('priceTooltip');
     canvas.onmousemove = function(e) {
       const r = canvas.getBoundingClientRect();
@@ -2355,14 +2377,17 @@ td.numeric .bar-cell {
         tooltip.classList.remove('visible');
         return;
       }
-      const ratio = (mx - pad.left) / cW;
-      const idx = Math.round(ratio * (hist.length - 1));
+      const idx = findNearestIndexByX(scale.xPositions, mx);
       const d = hist[idx];
       if (!d) return;
 
       tooltip.innerHTML = htmlFn(d);
 
-      const dotX = pad.left + (idx / (hist.length - 1)) * cW;
+      const dotX = scale.xPositions[idx];
+      if (Math.abs(dotX - mx) > 24) {
+        tooltip.classList.remove('visible');
+        return;
+      }
       const dotY = pad.top + cH - ((getValue(d) - minV) / range * cH);
       let tx = dotX + 12;
       let ty = dotY - 60;
@@ -2381,6 +2406,104 @@ td.numeric .bar-cell {
     if (n >= 10000) return (n / 10000).toFixed(n >= 100000 ? 0 : 1) + '만';
     if (n >= 1000) return Math.round(n).toLocaleString('ko-KR');
     return n.toFixed(n < 10 ? 2 : 0);
+  }
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const MIN_CHART_GAP_DAYS = 7;
+  const CHART_DATE_LABEL_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  function getHistoryDateMs(dateText) {
+    const parsed = Date.parse(`${dateText}T00:00:00+09:00`);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  function buildChartScale(hist, pad, cW) {
+    const times = hist.map(entry => getHistoryDateMs(entry.date));
+    const validTimes = times.filter(time => time != null);
+    const minTime = validTimes[0] ?? 0;
+    const maxTime = validTimes[validTimes.length - 1] ?? (minTime + DAY_MS);
+    const rangeTime = Math.max(maxTime - minTime, DAY_MS);
+    const diffs = [];
+
+    for (let i = 1; i < times.length; i++) {
+      if (times[i] == null || times[i - 1] == null) continue;
+      const diff = times[i] - times[i - 1];
+      if (diff > 0) diffs.push(diff);
+    }
+
+    diffs.sort((a, b) => a - b);
+    const medianDiff = diffs.length ? diffs[Math.floor(diffs.length / 2)] : DAY_MS;
+    const gapThresholdMs = Math.max(MIN_CHART_GAP_DAYS * DAY_MS, medianDiff * 4);
+    const xPositions = times.map(time => (
+      time == null ? pad.left : pad.left + (((time - minTime) / rangeTime) * cW)
+    ));
+
+    return { times, xPositions, minTime, maxTime, rangeTime, gapThresholdMs };
+  }
+
+  function getContinuousSegments(hist, scale, series = null) {
+    const segments = [];
+    let start = null;
+
+    for (let i = 0; i < hist.length; i++) {
+      const time = scale.times[i];
+      const value = series ? series[i] : 0;
+      const hasValue = series == null || (value != null && !Number.isNaN(value));
+      const hasGap = (
+        i > 0
+        && scale.times[i] != null
+        && scale.times[i - 1] != null
+        && (scale.times[i] - scale.times[i - 1] > scale.gapThresholdMs)
+      );
+
+      if (time == null || !hasValue) {
+        if (start != null && i - 1 >= start) segments.push([start, i - 1]);
+        start = null;
+        continue;
+      }
+
+      if (hasGap) {
+        if (start != null && i - 1 >= start) segments.push([start, i - 1]);
+        start = i;
+        continue;
+      }
+
+      if (start == null) start = i;
+    }
+
+    if (start != null && hist.length - 1 >= start) {
+      segments.push([start, hist.length - 1]);
+    }
+
+    return segments;
+  }
+
+  function formatChartDateLabel(timestampMs) {
+    return CHART_DATE_LABEL_FORMATTER.format(new Date(timestampMs));
+  }
+
+  function findNearestIndexByX(xPositions, targetX) {
+    if (!xPositions.length) return -1;
+
+    let low = 0;
+    let high = xPositions.length - 1;
+
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (xPositions[mid] < targetX) low = mid + 1;
+      else high = mid;
+    }
+
+    if (low === 0) return 0;
+    const prev = low - 1;
+    return Math.abs(xPositions[low] - targetX) < Math.abs(xPositions[prev] - targetX)
+      ? low
+      : prev;
   }
 
   // --- Period buttons ---
