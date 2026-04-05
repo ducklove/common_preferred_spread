@@ -622,6 +622,111 @@ body {
   height: 380px;
 }
 canvas { display: block; }
+.zoom-panel {
+  margin-top: 14px;
+}
+.zoom-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.zoom-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.zoom-range-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+.zoom-reset-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+.zoom-reset-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.zoom-overview {
+  position: relative;
+  height: 74px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.zoom-overview canvas {
+  width: 100%;
+  height: 100%;
+}
+.zoom-selection {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.zoom-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+}
+.zoom-slider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 42px;
+  border-radius: 8px;
+  border: 2px solid #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  margin-top: 16px;
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+.zoom-slider.zoom-slider-end::-webkit-slider-thumb {
+  background: var(--up);
+}
+.zoom-slider::-moz-range-track {
+  height: 100%;
+  background: transparent;
+  border: none;
+}
+.zoom-slider::-moz-range-thumb {
+  width: 14px;
+  height: 42px;
+  border-radius: 8px;
+  border: 2px solid #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+.zoom-slider.zoom-slider-end::-moz-range-thumb {
+  background: var(--up);
+}
 
 /* Stats row */
 .stats-row {
@@ -845,6 +950,19 @@ td.numeric .bar-cell {
       <canvas id="chart"></canvas>
       <div class="tooltip" id="tooltip"></div>
     </div>
+    <div class="zoom-panel" id="zoomPanel">
+      <div class="zoom-head">
+        <div class="zoom-title">범위 확대</div>
+        <div class="zoom-range-label" id="zoomRangeLabel"></div>
+        <button type="button" class="zoom-reset-btn" id="zoomResetBtn">전체 보기</button>
+      </div>
+      <div class="zoom-overview">
+        <canvas id="zoomChart"></canvas>
+        <div class="zoom-selection" id="zoomSelection"></div>
+        <input type="range" min="0" max="1000" value="0" class="zoom-slider zoom-slider-start" id="zoomStart" aria-label="시작 범위">
+        <input type="range" min="0" max="1000" value="1000" class="zoom-slider zoom-slider-end" id="zoomEnd" aria-label="끝 범위">
+      </div>
+    </div>
     <div class="price-chart-container">
       <div class="price-chart-title" id="priceChartTitle">시세 추이</div>
       <div class="price-legend" id="priceLegend"></div>
@@ -923,6 +1041,9 @@ td.numeric .bar-cell {
   let currentTheme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
   let selectedIdx = 0;
   let periodDays = 0; // 0 = all
+  const ZOOM_RANGE_MAX = 1000;
+  const ZOOM_MIN_WINDOW = 30;
+  let zoomWindow = { start: 0, end: ZOOM_RANGE_MAX };
   let latestMarketExtras = [];
   let latestNightFutureMetric = null;
   let todayOverviewData = buildTodaySummaryFromPairs();
@@ -1165,6 +1286,7 @@ td.numeric .bar-cell {
     }
 
     if (rerender) {
+      renderZoomPanel();
       renderChart();
       renderPriceChart();
     }
@@ -1327,11 +1449,13 @@ td.numeric .bar-cell {
   function selectPair(idx, { updateUrl = true, scrollToChart = false } = {}) {
     if (Number.isNaN(idx) || idx < 0) return;
     selectedIdx = idx;
+    resetZoomWindow({ render: false });
     if (updateUrl) {
       updateSelectedPairQueryParam();
     }
     renderTodayOverview();
     renderCards();
+    renderZoomPanel();
     renderChart();
     renderPriceChart();
     renderStats();
@@ -1351,6 +1475,8 @@ td.numeric .bar-cell {
     renderTodayOverview();
     renderCards();
     renderTable();
+    bindZoomControls();
+    renderZoomPanel();
     renderChart();
     renderPriceChart();
     renderStats();
@@ -2513,6 +2639,8 @@ td.numeric .bar-cell {
       this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       periodDays = parseInt(e.target.dataset.days);
+      resetZoomWindow({ render: false });
+      renderZoomPanel();
       renderTable();
       renderChart();
       renderPriceChart();
@@ -2520,14 +2648,183 @@ td.numeric .bar-cell {
     });
   }
 
+  function bindZoomControls() {
+    const startInput = document.getElementById('zoomStart');
+    const endInput = document.getElementById('zoomEnd');
+    const resetBtn = document.getElementById('zoomResetBtn');
+    if (!startInput || !endInput || !resetBtn || bindZoomControls._bound) return;
+
+    const handleInput = (source) => {
+      const nextStart = source === 'start' ? Number(startInput.value) : zoomWindow.start;
+      const nextEnd = source === 'end' ? Number(endInput.value) : zoomWindow.end;
+      setZoomWindow(nextStart, nextEnd);
+    };
+
+    startInput.addEventListener('input', () => handleInput('start'));
+    endInput.addEventListener('input', () => handleInput('end'));
+    resetBtn.addEventListener('click', () => resetZoomWindow());
+    bindZoomControls._bound = true;
+  }
+
   // --- Helpers ---
-  function getFilteredHistory(pair) {
+  function getPeriodFilteredHistory(pair) {
     const hist = pair.history;
     if (periodDays === 0) return hist;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - periodDays);
     const cutStr = cutoff.toISOString().slice(0, 10);
     return hist.filter(h => h.date >= cutStr);
+  }
+
+  function clampZoomWindow(start, end) {
+    let nextStart = Math.max(0, Math.min(Number.isFinite(start) ? start : 0, ZOOM_RANGE_MAX));
+    let nextEnd = Math.max(0, Math.min(Number.isFinite(end) ? end : ZOOM_RANGE_MAX, ZOOM_RANGE_MAX));
+
+    if (nextEnd - nextStart < ZOOM_MIN_WINDOW) {
+      if (nextStart !== zoomWindow.start) {
+        nextStart = Math.max(0, nextEnd - ZOOM_MIN_WINDOW);
+      } else {
+        nextEnd = Math.min(ZOOM_RANGE_MAX, nextStart + ZOOM_MIN_WINDOW);
+      }
+    }
+
+    if (nextEnd - nextStart < ZOOM_MIN_WINDOW) {
+      nextStart = Math.max(0, Math.min(nextStart, ZOOM_RANGE_MAX - ZOOM_MIN_WINDOW));
+      nextEnd = Math.min(ZOOM_RANGE_MAX, nextStart + ZOOM_MIN_WINDOW);
+    }
+
+    return { start: nextStart, end: nextEnd };
+  }
+
+  function syncZoomInputs() {
+    const startInput = document.getElementById('zoomStart');
+    const endInput = document.getElementById('zoomEnd');
+    if (startInput) startInput.value = String(zoomWindow.start);
+    if (endInput) endInput.value = String(zoomWindow.end);
+  }
+
+  function setZoomWindow(start, end, { render = true } = {}) {
+    zoomWindow = clampZoomWindow(start, end);
+    syncZoomInputs();
+    if (render) {
+      renderZoomPanel();
+      renderChart();
+      renderPriceChart();
+    }
+  }
+
+  function resetZoomWindow({ render = true } = {}) {
+    zoomWindow = { start: 0, end: ZOOM_RANGE_MAX };
+    syncZoomInputs();
+    if (render) {
+      renderZoomPanel();
+      renderChart();
+      renderPriceChart();
+    }
+  }
+
+  function getFilteredHistory(pair) {
+    const hist = getPeriodFilteredHistory(pair);
+    if (!Array.isArray(hist) || hist.length <= 2) return hist;
+    if (zoomWindow.start <= 0 && zoomWindow.end >= ZOOM_RANGE_MAX) return hist;
+
+    const scale = buildChartScale(hist, { left: 0 }, ZOOM_RANGE_MAX);
+    const startTime = scale.minTime + (scale.rangeTime * (zoomWindow.start / ZOOM_RANGE_MAX));
+    const endTime = scale.minTime + (scale.rangeTime * (zoomWindow.end / ZOOM_RANGE_MAX));
+    const filtered = hist.filter((entry, idx) => {
+      const time = scale.times[idx];
+      return time != null && time >= startTime && time <= endTime;
+    });
+
+    if (filtered.length >= 2) return filtered;
+
+    const startIdx = Math.max(0, Math.floor((hist.length - 1) * (zoomWindow.start / ZOOM_RANGE_MAX)));
+    const endIdx = Math.min(hist.length - 1, Math.ceil((hist.length - 1) * (zoomWindow.end / ZOOM_RANGE_MAX)));
+    return hist.slice(startIdx, Math.max(startIdx + 2, endIdx + 1));
+  }
+
+  function renderZoomPanel() {
+    const panel = document.getElementById('zoomPanel');
+    const canvas = document.getElementById('zoomChart');
+    const selection = document.getElementById('zoomSelection');
+    const rangeLabel = document.getElementById('zoomRangeLabel');
+    if (!panel || !canvas || !selection || !rangeLabel) return;
+
+    const hist = getPeriodFilteredHistory(pairs[selectedIdx]);
+    if (!Array.isArray(hist) || hist.length < 2) {
+      panel.style.display = 'none';
+      return;
+    }
+
+    panel.style.display = '';
+    syncZoomInputs();
+
+    const zoomedHist = getFilteredHistory(pairs[selectedIdx]);
+    const startDate = zoomedHist[0]?.date || hist[0]?.date || '-';
+    const endDate = zoomedHist[zoomedHist.length - 1]?.date || hist[hist.length - 1]?.date || '-';
+    rangeLabel.textContent = `${startDate} ~ ${endDate} · ${zoomedHist.length}개`;
+
+    const leftPct = (zoomWindow.start / ZOOM_RANGE_MAX) * 100;
+    const widthPct = ((zoomWindow.end - zoomWindow.start) / ZOOM_RANGE_MAX) * 100;
+    selection.style.left = `${leftPct}%`;
+    selection.style.width = `${Math.max(widthPct, (ZOOM_MIN_WINDOW / ZOOM_RANGE_MAX) * 100)}%`;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = panel.querySelector('.zoom-overview').getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+
+    const theme = getChartTheme();
+    const pad = { top: 8, right: 8, bottom: 8, left: 8 };
+    const cW = rect.width - pad.left - pad.right;
+    const cH = rect.height - pad.top - pad.bottom;
+    const spreads = hist.map(item => item.spread).filter(value => value != null && !Number.isNaN(value));
+    if (!spreads.length) return;
+
+    const minS = Math.min(...spreads);
+    const maxS = Math.max(...spreads);
+    const rangeS = maxS - minS || 1;
+    const scale = buildChartScale(hist, pad, cW);
+    const segments = getContinuousSegments(hist, scale);
+
+    const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
+    gradient.addColorStop(0, hexToRgba(theme.accent, 0.24));
+    gradient.addColorStop(1, hexToRgba(theme.accent, 0.02));
+    ctx.fillStyle = gradient;
+    segments.forEach(([start, end]) => {
+      if (end <= start) return;
+      ctx.beginPath();
+      for (let i = start; i <= end; i++) {
+        const x = scale.xPositions[i];
+        const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+        if (i === start) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.lineTo(scale.xPositions[end], pad.top + cH);
+      ctx.lineTo(scale.xPositions[start], pad.top + cH);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    ctx.strokeStyle = theme.accent;
+    ctx.lineWidth = 1.25;
+    segments.forEach(([start, end]) => {
+      if (end <= start) return;
+      ctx.beginPath();
+      for (let i = start; i <= end; i++) {
+        const x = scale.xPositions[i];
+        const y = pad.top + cH - ((hist[i].spread - minS) / rangeS * cH);
+        if (i === start) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
   }
 
   function formatPrice(n) {
@@ -2693,6 +2990,7 @@ td.numeric .bar-cell {
   // Resize
   window.addEventListener('resize', () => {
     applyAutoFitText();
+    renderZoomPanel();
     renderChart();
     renderPriceChart();
   });
@@ -3390,6 +3688,7 @@ td.numeric .bar-cell {
     renderTodayOverview();
     renderCards();
     renderTable();
+    renderZoomPanel();
     renderChart();
     renderPriceChart();
     renderStats();
