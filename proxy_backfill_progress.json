@@ -1,0 +1,22 @@
+{
+  "completedPairIds": [
+    "dl_enc_2pref",
+    "samsung_elec"
+  ],
+  "history": [
+    {
+      "pairId": "samsung_elec",
+      "attemptedAt": "2026-04-05 17:55:00",
+      "beforeStart": "1989-09-25",
+      "afterStart": "1989-09-25",
+      "extended": false
+    },
+    {
+      "pairId": "dl_enc_2pref",
+      "attemptedAt": "2026-04-05 09:44:15",
+      "beforeStart": "2022-04-28",
+      "afterStart": "2022-04-28",
+      "extended": false
+    }
+  ]
+}

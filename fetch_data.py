@@ -23,8 +23,9 @@ import pandas as pd
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
 DATA_PATH = Path(__file__).parent / "data.js"
+PROXY_BACKFILL_PROGRESS_PATH = Path(__file__).parent / "proxy_backfill_progress.json"
 DEFAULT_NAVER_BACKFILL_PAIR_IDS = set()
-DEFAULT_PROXY_BACKFILL_PAIR_IDS = {"samsung_elec"}
+DEFAULT_PROXY_BACKFILL_PAIR_IDS = set()
 AUTO_NAVER_BACKFILL_START_DATE = pd.Timestamp("2005-09-29")
 AUTO_NAVER_BACKFILL_END_DATE = pd.Timestamp("2010-12-31")
 NAVER_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "naver_history"
@@ -73,12 +74,95 @@ def get_last_date(existing_data):
     return last_date
 
 
+def get_pair_start_dates(existing_data):
+    start_dates = {}
+    if not existing_data:
+        return start_dates
+    for pair in existing_data.get("pairs", []):
+        if pair.get("isAverage"):
+            continue
+        history = pair.get("history", [])
+        if history:
+            start_dates[pair["id"]] = history[0]["date"]
+    return start_dates
+
+
+def load_proxy_backfill_progress():
+    if PROXY_BACKFILL_PROGRESS_PATH.exists():
+        try:
+            with open(PROXY_BACKFILL_PROGRESS_PATH, encoding="utf-8") as f:
+                progress = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            progress = {}
+    else:
+        progress = {}
+
+    completed = set(progress.get("completedPairIds", []))
+    completed.update(DEFAULT_PROXY_BACKFILL_PAIR_IDS)
+    history = progress.get("history", [])
+    return {
+        "completedPairIds": sorted(completed),
+        "history": history if isinstance(history, list) else [],
+    }
+
+
+def save_proxy_backfill_progress(progress):
+    with open(PROXY_BACKFILL_PROGRESS_PATH, "w", encoding="utf-8") as f:
+        json.dump(progress, f, ensure_ascii=False, indent=2)
+
+
+def select_next_proxy_backfill_pairs(existing_data, completed_pair_ids, batch_size):
+    if batch_size <= 0:
+        return []
+
+    start_dates = get_pair_start_dates(existing_data)
+    candidates = [
+        pair
+        for pair in PAIRS
+        if pair["id"] not in completed_pair_ids
+    ]
+    candidates.sort(
+        key=lambda pair: (
+            start_dates.get(pair["id"], "9999-12-31"),
+            pair["name"],
+        ),
+        reverse=True,
+    )
+    return [pair["id"] for pair in candidates[:batch_size]]
+
+
+def update_proxy_backfill_progress(progress, selected_pair_ids, before_starts, after_starts):
+    completed = set(progress.get("completedPairIds", []))
+    history = list(progress.get("history", []))
+    attempted_at = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+
+    for pair_id in selected_pair_ids:
+        after_start = after_starts.get(pair_id)
+        if not after_start:
+            continue
+        completed.add(pair_id)
+        history.append(
+            {
+                "pairId": pair_id,
+                "attemptedAt": attempted_at,
+                "beforeStart": before_starts.get(pair_id),
+                "afterStart": after_start,
+                "extended": before_starts.get(pair_id) != after_start,
+            }
+        )
+
+    progress["completedPairIds"] = sorted(completed)
+    progress["history"] = history[-200:]
+    return progress
+
+
 # 배당수익률 캐시 (동일 보통주 공유 종목의 중복 요청 방지)
 _div_yield_cache = {}
 _ticker_meta_cache = {}
 _naver_meta_cache = {}
 _naver_daily_history_cache = {}
 _proxy_daily_history_cache = {}
+_pair_yahoo_history_cache = {}
 
 
 def get_div_yield(ticker):
@@ -459,6 +543,24 @@ def merge_proxy_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
     )
 
 
+def fetch_full_yahoo_pair_history(pair, end_date):
+    cache_key = (pair["id"], end_date.strftime("%Y-%m-%d"))
+    if cache_key in _pair_yahoo_history_cache:
+        return _pair_yahoo_history_cache[cache_key]
+
+    pair_data = yf.download(
+        [pair["commonTicker"], pair["preferredTicker"]],
+        start="2000-01-01",
+        end=end_date.strftime("%Y-%m-%d"),
+        auto_adjust=False,
+        progress=False,
+    )
+    close = pair_data["Close"]
+    volume = pair_data["Volume"]
+    _pair_yahoo_history_cache[cache_key] = (close, volume)
+    return close, volume
+
+
 def determine_naver_backfill_targets(close, explicit_pair_ids):
     target_pair_ids = set(explicit_pair_ids)
     target_tickers = set()
@@ -546,6 +648,12 @@ def main():
         default=None,
         help="프록시 API 일별 시세로 과거 구간을 백필할 pair id 목록",
     )
+    parser.add_argument(
+        "--auto-proxy-backfill-batch-size",
+        type=int,
+        default=0,
+        help="완료되지 않은 다음 pair를 자동 선택해 프록시 백필할 개수",
+    )
     args = parser.parse_args()
 
     explicit_naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
@@ -554,8 +662,16 @@ def main():
     explicit_proxy_backfill_pair_ids = set(DEFAULT_PROXY_BACKFILL_PAIR_IDS)
     if args.proxy_backfill is not None:
         explicit_proxy_backfill_pair_ids.update(args.proxy_backfill)
-
     existing_data = None if args.full else load_existing_data()
+    proxy_backfill_progress = load_proxy_backfill_progress()
+    if args.full:
+        explicit_proxy_backfill_pair_ids.update(proxy_backfill_progress["completedPairIds"])
+    auto_proxy_backfill_pair_ids = select_next_proxy_backfill_pairs(
+        existing_data,
+        set(proxy_backfill_progress["completedPairIds"]),
+        args.auto_proxy_backfill_batch_size,
+    )
+    explicit_proxy_backfill_pair_ids.update(auto_proxy_backfill_pair_ids)
     existing_pair_ids = set()
     if existing_data:
         existing_pair_ids = {
@@ -628,7 +744,10 @@ def main():
             for ticker in [pair["commonTicker"], pair["preferredTicker"]]
         }
     )
+    before_pair_start_dates = get_pair_start_dates(existing_data)
     if proxy_backfill_pair_ids:
+        if auto_proxy_backfill_pair_ids:
+            print("자동 프록시 백필 선택: " + ", ".join(auto_proxy_backfill_pair_ids))
         naver_backfill_pair_ids = {
             pair_id for pair_id in naver_backfill_pair_ids if pair_id not in proxy_backfill_pair_ids
         }
@@ -674,10 +793,17 @@ def main():
         apply_proxy_backfill = pair["id"] in proxy_backfill_pair_ids
 
         # 거래정지일(volume=0) 제외
-        common_close = close[ct].dropna()
-        preferred_close = close[pt].dropna()
-        common_vol = volume[ct].fillna(0)
-        preferred_vol = volume[pt].fillna(0)
+        if apply_proxy_backfill and not args.full:
+            pair_close, pair_volume = fetch_full_yahoo_pair_history(pair, end_date)
+            common_close = pair_close[ct].dropna()
+            preferred_close = pair_close[pt].dropna()
+            common_vol = pair_volume[ct].fillna(0)
+            preferred_vol = pair_volume[pt].fillna(0)
+        else:
+            common_close = close[ct].dropna()
+            preferred_close = close[pt].dropna()
+            common_vol = volume[ct].fillna(0)
+            preferred_vol = volume[pt].fillna(0)
 
         common_close, common_vol, common_backfill = merge_proxy_backfill(
             common_close,
@@ -905,6 +1031,20 @@ def main():
     if avg_history:
         pairs_result.append(avg_pair)
     pairs_result.sort(key=lambda p: p["current"]["spread"], reverse=True)
+
+    if auto_proxy_backfill_pair_ids:
+        after_pair_start_dates = {
+            pair["id"]: pair["history"][0]["date"]
+            for pair in pairs_result
+            if not pair.get("isAverage") and pair.get("history")
+        }
+        proxy_backfill_progress = update_proxy_backfill_progress(
+            proxy_backfill_progress,
+            auto_proxy_backfill_pair_ids,
+            before_pair_start_dates,
+            after_pair_start_dates,
+        )
+        save_proxy_backfill_progress(proxy_backfill_progress)
 
     # data.js 출력
     stock_data = {
