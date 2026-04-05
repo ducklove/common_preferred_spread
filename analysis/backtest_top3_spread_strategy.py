@@ -21,7 +21,8 @@ REPORT_PATH = ROOT / "analysis" / "top3_spread_strategy_report.md"
 
 START_SIGNAL_DATE = pd.Timestamp("1996-06-25")
 INITIAL_CAPITAL = 10_000_000.0
-BUY_FEE_RATE = 0.005
+BUY_FEE_RATE = 0.01
+SELL_FEE_RATE = 0.01
 REQUIRED_STREAK = 5
 PORTFOLIO_SIZE = 3
 KOSPI_CACHE_PATH = ROOT / ".cache" / "naver_index" / "KOSPI.csv"
@@ -258,15 +259,17 @@ def execute_sell(
         return 0.0, None
 
     price = float(quote["preferredPrice"])
-    proceeds = shares * price
-    return proceeds, {
+    gross_proceeds = shares * price
+    fee = gross_proceeds * SELL_FEE_RATE
+    net_proceeds = gross_proceeds - fee
+    return net_proceeds, {
         "date": date.strftime("%Y-%m-%d"),
         "pairId": pair_id,
         "action": "SELL",
         "price": price,
         "shares": shares,
-        "notional": proceeds,
-        "fee": 0.0,
+        "notional": gross_proceeds,
+        "fee": fee,
         "spread": float(quote["spread"]),
     }
 
@@ -499,7 +502,7 @@ def write_report(results: dict) -> None:
     lines.append("- 초기 매수: 1996-06-25 종가 기준 괴리율 상위 3종을 다음 거래일 종가에 균등 매수")
     lines.append("- 일별 리밸런싱: 포트폴리오 외 종목이 5거래일 연속 종가 기준 괴리율 상위 3위에 들어오면 다음 거래일 종가에 교체")
     lines.append("- 교체 규칙: 신호일 기준 포트폴리오 내 괴리율 최저 종목을 매도하고, `min(계좌총액/3, 예수금)` 한도로 신규 종목을 매수")
-    lines.append("- 매수 수수료: 매수 체결금액의 0.5%")
+    lines.append("- 매수/매도 수수료: 각 체결금액의 1.0%")
     lines.append("- 보유수량은 정수 주식 기준이며, 수수료 때문에 예수금이 부족하면 매수금액을 자동 축소")
     lines.append("- 데이터 공백 때문에 다음 거래일 체결가가 없으면, 해당 종목 두 개 모두 종가가 존재하는 가장 이른 다음 날짜로 실행")
     lines.append("- 동시에 여러 신규 후보가 조건을 만족하면, 신호일 기준 괴리율이 가장 높은 outsider 1종만 선택")
