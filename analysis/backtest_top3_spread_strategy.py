@@ -73,6 +73,25 @@ def load_pair_frames() -> dict[str, dict]:
     return out
 
 
+def load_preferred_dividend_histories() -> dict[str, pd.Series]:
+    stock_data = load_stock_data()
+    out: dict[str, pd.Series] = {}
+    for pair_id, item in stock_data.get("dividendHistories", {}).items():
+        rows = []
+        for entry in item.get("preferred", []):
+            date = pd.to_datetime(entry.get("date"), errors="coerce")
+            amount = pd.to_numeric(entry.get("amount"), errors="coerce")
+            if pd.isna(date) or pd.isna(amount) or float(amount) <= 0:
+                continue
+            rows.append((date.normalize(), float(amount)))
+        if not rows:
+            out[pair_id] = pd.Series(dtype="float64")
+            continue
+        frame = pd.DataFrame(rows, columns=["date", "amount"])
+        out[pair_id] = frame.groupby("date")["amount"].sum().sort_index()
+    return out
+
+
 def get_strategy_calendar(pair_frames: dict[str, dict]) -> list[pd.Timestamp]:
     all_dates = set()
     for item in pair_frames.values():
@@ -284,6 +303,7 @@ def max_drawdown(series: pd.Series) -> float:
 
 def run_backtest() -> dict:
     pair_frames = load_pair_frames()
+    dividend_histories = load_preferred_dividend_histories()
     calendar = get_strategy_calendar(pair_frames)
     quotes_by_date = get_daily_quotes(pair_frames, calendar)
 
@@ -304,13 +324,39 @@ def run_backtest() -> dict:
     consecutive_top3 = {pair_id: 0 for pair_id in pair_frames}
     pending_swap: PendingSwap | None = None
     trade_log: list[dict] = []
+    dividend_log: list[dict] = []
     daily_records: list[dict] = []
+    cumulative_dividends = 0.0
 
     for current_date in calendar:
         quotes = quotes_by_date.get(current_date, {})
         for pair_id, quote in quotes.items():
             latest_prices[pair_id] = float(quote["preferredPrice"])
             latest_spreads[pair_id] = float(quote["spread"])
+
+        dividend_cash_today = 0.0
+        for pair_id, shares in positions.items():
+            dividend_series = dividend_histories.get(pair_id)
+            if dividend_series is None or dividend_series.empty or current_date not in dividend_series.index:
+                continue
+            amount_per_share = float(dividend_series.loc[current_date])
+            cash_dividend = shares * amount_per_share
+            if cash_dividend <= 0:
+                continue
+            cash += cash_dividend
+            dividend_cash_today += cash_dividend
+            cumulative_dividends += cash_dividend
+            dividend_log.append(
+                {
+                    "date": current_date.strftime("%Y-%m-%d"),
+                    "pairId": pair_id,
+                    "pairName": pair_frames[pair_id]["name"],
+                    "shares": shares,
+                    "amountPerShare": amount_per_share,
+                    "cashDividend": cash_dividend,
+                    "cashAfter": cash,
+                }
+            )
 
         if current_date == initial_exec_date:
             initial_target_cash = INITIAL_CAPITAL / PORTFOLIO_SIZE
@@ -407,6 +453,8 @@ def run_backtest() -> dict:
                 "date": current_date.strftime("%Y-%m-%d"),
                 "cash": cash,
                 "equity": equity,
+                "dividendCash": dividend_cash_today,
+                "cumulativeDividends": cumulative_dividends,
                 "holdings": ",".join(sorted(positions)),
                 "top3": ",".join(top3_ids),
                 "pendingSwapBuy": pending_swap.buy_pair_id if pending_swap else "",
@@ -417,6 +465,7 @@ def run_backtest() -> dict:
 
     daily_df = pd.DataFrame(daily_records)
     trade_df = pd.DataFrame(trade_log)
+    dividend_df = pd.DataFrame(dividend_log)
 
     kospi_series = fetch_kospi_history()
     kospi_series = kospi_series[kospi_series.index >= initial_exec_date]
@@ -426,7 +475,20 @@ def run_backtest() -> dict:
 
     daily_df["date"] = pd.to_datetime(daily_df["date"])
     merged = (
-        daily_df[["date", "equity"]]
+        daily_df[
+            [
+                "date",
+                "cash",
+                "equity",
+                "dividendCash",
+                "cumulativeDividends",
+                "holdings",
+                "top3",
+                "pendingSwapBuy",
+                "pendingSwapSell",
+                "positionValue",
+            ]
+        ]
         .merge(kospi_df.reset_index().rename(columns={"index": "date"}), on="date", how="left")
         .sort_values("date")
     )
@@ -443,7 +505,18 @@ def run_backtest() -> dict:
     annual["strategyYoY"] = annual["strategyValue"].pct_change()
     annual["kospiYoY"] = annual["kospiValue"].pct_change()
     annual["excessYoY"] = annual["strategyYoY"] - annual["kospiYoY"]
-    annual = annual[["year", "yearEndDate", "strategyValue", "strategyYoY", "kospiValue", "kospiYoY", "excessYoY"]]
+    annual = annual[
+        [
+            "year",
+            "yearEndDate",
+            "strategyValue",
+            "strategyYoY",
+            "kospiValue",
+            "kospiYoY",
+            "excessYoY",
+            "cumulativeDividends",
+        ]
+    ]
 
     strategy_start = merged["date"].min()
     strategy_end = merged["date"].max()
@@ -464,6 +537,8 @@ def run_backtest() -> dict:
         "tradeCount": int(len(trade_df)),
         "rebalanceCount": int((trade_df["action"] == "BUY").sum()) if not trade_df.empty else 0,
         "finalCash": float(daily_df["cash"].iloc[-1]),
+        "totalDividendsReceived": float(cumulative_dividends),
+        "dividendEventCount": int(len(dividend_df)),
     }
 
     return {
@@ -471,6 +546,7 @@ def run_backtest() -> dict:
         "annual": annual,
         "daily": merged,
         "trades": trade_df,
+        "dividends": dividend_df,
         "pairFrames": pair_frames,
     }
 
@@ -489,6 +565,7 @@ def write_report(results: dict) -> None:
     summary = results["summary"]
     annual = results["annual"]
     trades = results["trades"]
+    dividends = results["dividends"]
     pair_frames = results["pairFrames"]
 
     initial_names = [pair_frames[pair_id]["name"] for pair_id in summary["initialTop3"]]
@@ -503,11 +580,12 @@ def write_report(results: dict) -> None:
     lines.append("- 일별 리밸런싱: 포트폴리오 외 종목이 5거래일 연속 종가 기준 괴리율 상위 3위에 들어오면 다음 거래일 종가에 교체")
     lines.append("- 교체 규칙: 신호일 기준 포트폴리오 내 괴리율 최저 종목을 매도하고, `min(계좌총액/3, 예수금)` 한도로 신규 종목을 매수")
     lines.append("- 매수/매도 수수료: 각 체결금액의 1.0%")
+    lines.append("- 보유 중인 우선주 현금배당은 배당일 기준으로 예수금에 적립하고, 이후 재매수 재원으로 사용")
     lines.append("- 보유수량은 정수 주식 기준이며, 수수료 때문에 예수금이 부족하면 매수금액을 자동 축소")
     lines.append("- 데이터 공백 때문에 다음 거래일 체결가가 없으면, 해당 종목 두 개 모두 종가가 존재하는 가장 이른 다음 날짜로 실행")
     lines.append("- 동시에 여러 신규 후보가 조건을 만족하면, 신호일 기준 괴리율이 가장 높은 outsider 1종만 선택")
     lines.append("- 일별 평가액은 보유 종목의 최신 이용가능 종가를 이용해 mark-to-market")
-    lines.append("- KOSPI 비교는 네이버 KOSPI 일별지수를 같은 초기 체결일에 1천만원 일시투자한 buy-and-hold로 계산")
+    lines.append("- KOSPI 비교는 네이버 KOSPI 일별지수를 같은 초기 체결일에 1천만원 일시투자한 price-only buy-and-hold로 계산")
     lines.append("")
     lines.append("## 핵심 결과")
     lines.append("")
@@ -519,19 +597,34 @@ def write_report(results: dict) -> None:
     lines.append(f"- KOSPI CAGR: {fmt_pct(summary['kospiCAGR'])}")
     lines.append(f"- 전략 최대낙폭: {fmt_pct(summary['strategyMaxDrawdown'])}")
     lines.append(f"- KOSPI 최대낙폭: {fmt_pct(summary['kospiMaxDrawdown'])}")
+    lines.append(f"- 누적 현금배당 수취: {fmt_money(summary['totalDividendsReceived'])}원")
+    lines.append(f"- 배당 이벤트 수: {summary['dividendEventCount']}회")
     lines.append(f"- 총 거래수: {summary['tradeCount']}건")
     lines.append(f"- 리밸런싱 매수 횟수: {summary['rebalanceCount']}회")
     lines.append("")
     lines.append("## 연도말 평가액")
     lines.append("")
-    lines.append("| 연도 | 기준일 | 전략 평가액 | 전략 YoY | KOSPI 비교값 | KOSPI YoY | 초과수익 |")
-    lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: |")
+    lines.append("| 연도 | 기준일 | 전략 평가액 | 전략 YoY | KOSPI 비교값 | KOSPI YoY | 초과수익 | 누적배당 |")
+    lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |")
     for _, row in annual.iterrows():
         lines.append(
             f"| {int(row['year'])} | {row['yearEndDate'].strftime('%Y-%m-%d')} | "
             f"{fmt_money(row['strategyValue'])} | {fmt_pct(row['strategyYoY'])} | "
-            f"{fmt_money(row['kospiValue'])} | {fmt_pct(row['kospiYoY'])} | {fmt_pct(row['excessYoY'])} |"
+            f"{fmt_money(row['kospiValue'])} | {fmt_pct(row['kospiYoY'])} | {fmt_pct(row['excessYoY'])} | {fmt_money(row['cumulativeDividends'])} |"
         )
+    lines.append("")
+    lines.append("## 최근 10건 배당")
+    lines.append("")
+    if dividends.empty:
+        lines.append("- 배당 수취 없음")
+    else:
+        tail_dividends = dividends.tail(10).copy()
+        for _, row in tail_dividends.iterrows():
+            lines.append(
+                "- "
+                + f"{row['date']} {row['pairName']} "
+                + f"{int(row['shares'])}주 x {row['amountPerShare']:.2f} = {fmt_money(row['cashDividend'])}원"
+            )
     lines.append("")
     lines.append("## 마지막 10건 거래")
     lines.append("")
@@ -556,6 +649,7 @@ def main() -> None:
     results["annual"].to_csv(OUTPUT_DIR / "top3_spread_strategy_annual.csv", index=False, encoding="utf-8-sig")
     results["trades"].to_csv(OUTPUT_DIR / "top3_spread_strategy_trades.csv", index=False, encoding="utf-8-sig")
     results["daily"].to_csv(OUTPUT_DIR / "top3_spread_strategy_daily.csv", index=False, encoding="utf-8-sig")
+    results["dividends"].to_csv(OUTPUT_DIR / "top3_spread_strategy_dividends.csv", index=False, encoding="utf-8-sig")
     write_report(results)
 
     print(f"report: {REPORT_PATH}")
