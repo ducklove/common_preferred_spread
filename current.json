@@ -1,22 +1,22 @@
 {
   "source": "네이버 증권 + 공개 선물 시세",
-  "lastUpdated": "2026-04-06 15:27:57",
+  "lastUpdated": "2026-04-06 17:10:01",
   "prices": {
     "samsung_elec": {
-      "commonPrice": 193250,
-      "preferredPrice": 129200,
+      "commonPrice": 193100,
+      "preferredPrice": 129100,
       "spread": 33.14,
       "spreadChange": -0.05,
-      "commonChange": 3.79,
-      "preferredChange": 3.86
+      "commonChange": 3.71,
+      "preferredChange": 3.78
     },
     "hyundai_motor": {
       "commonPrice": 469000,
-      "preferredPrice": 236000,
-      "spread": 49.68,
-      "spreadChange": 0.21,
+      "preferredPrice": 237000,
+      "spread": 49.47,
+      "spreadChange": 0.0,
       "commonChange": -0.42,
-      "preferredChange": -0.84
+      "preferredChange": -0.42
     },
     "hyundai_motor_pref": {
       "commonPrice": 469000,
@@ -35,20 +35,20 @@
       "preferredChange": -0.43
     },
     "lg_elec": {
-      "commonPrice": 110000,
+      "commonPrice": 109400,
       "preferredPrice": 48400,
-      "spread": 56.0,
-      "spreadChange": 0.55,
-      "commonChange": 1.57,
+      "spread": 55.76,
+      "spreadChange": 0.31,
+      "commonChange": 1.02,
       "preferredChange": 0.31
     },
     "lg_chem": {
-      "commonPrice": 318000,
-      "preferredPrice": 155200,
-      "spread": 51.19,
-      "spreadChange": 0.45,
-      "commonChange": 4.43,
-      "preferredChange": 3.47
+      "commonPrice": 317000,
+      "preferredPrice": 155000,
+      "spread": 51.1,
+      "spreadChange": 0.36,
+      "commonChange": 4.11,
+      "preferredChange": 3.33
     },
     "samsung_sdi": {
       "commonPrice": 453500,
@@ -59,52 +59,52 @@
       "preferredChange": 1.82
     },
     "amorepacific": {
-      "commonPrice": 131000,
-      "preferredPrice": 44800,
-      "spread": 65.8,
-      "spreadChange": -0.06,
-      "commonChange": -0.38,
-      "preferredChange": -0.22
+      "commonPrice": 131200,
+      "preferredPrice": 44900,
+      "spread": 65.78,
+      "spreadChange": -0.08,
+      "commonChange": -0.23,
+      "preferredChange": 0.0
     },
     "samsung_fire": {
       "commonPrice": 444500,
-      "preferredPrice": 364000,
-      "spread": 18.11,
-      "spreadChange": 0.33,
+      "preferredPrice": 363000,
+      "spread": 18.34,
+      "spreadChange": 0.56,
       "commonChange": 0.68,
-      "preferredChange": 0.28
+      "preferredChange": 0.0
     },
     "daishin_sec": {
-      "commonPrice": 35900,
+      "commonPrice": 35950,
       "preferredPrice": 23100,
-      "spread": 35.65,
-      "spreadChange": -0.08,
-      "commonChange": -0.55,
+      "spread": 35.74,
+      "spreadChange": 0.01,
+      "commonChange": -0.42,
       "preferredChange": -0.43
     },
     "daishin_sec_2pref": {
-      "commonPrice": 35900,
-      "preferredPrice": 21950,
-      "spread": 38.86,
-      "spreadChange": 0.22,
-      "commonChange": -0.55,
-      "preferredChange": -0.9
+      "commonPrice": 35950,
+      "preferredPrice": 22050,
+      "spread": 38.66,
+      "spreadChange": 0.02,
+      "commonChange": -0.42,
+      "preferredChange": -0.45
     },
     "lg_household": {
-      "commonPrice": 240000,
-      "preferredPrice": 105200,
-      "spread": 56.17,
-      "spreadChange": -0.79,
-      "commonChange": -2.83,
-      "preferredChange": -1.03
+      "commonPrice": 239000,
+      "preferredPrice": 105800,
+      "spread": 55.73,
+      "spreadChange": -1.23,
+      "commonChange": -3.24,
+      "preferredChange": -0.47
     },
     "doosan": {
       "commonPrice": 1078000,
-      "preferredPrice": 459000,
-      "spread": 57.42,
-      "spreadChange": 0.84,
+      "preferredPrice": 462000,
+      "spread": 57.14,
+      "spreadChange": 0.56,
       "commonChange": 0.65,
-      "preferredChange": -1.29
+      "preferredChange": -0.65
     },
     "doosan_2pref": {
       "commonPrice": 1078000,
@@ -115,76 +115,76 @@
       "preferredChange": -1.42
     },
     "korea_investment": {
-      "commonPrice": 214500,
-      "preferredPrice": 150000,
-      "spread": 30.07,
-      "spreadChange": 0.92,
-      "commonChange": 1.18,
-      "preferredChange": -0.13
+      "commonPrice": 215000,
+      "preferredPrice": 150500,
+      "spread": 30.0,
+      "spreadChange": 0.85,
+      "commonChange": 1.42,
+      "preferredChange": 0.2
     },
     "samsung_electro": {
-      "commonPrice": 462500,
+      "commonPrice": 462000,
       "preferredPrice": 175300,
-      "spread": 62.1,
-      "spreadChange": -0.25,
-      "commonChange": 1.43,
+      "spread": 62.06,
+      "spreadChange": -0.29,
+      "commonChange": 1.32,
       "preferredChange": 2.1
     },
     "nh_investment": {
-      "commonPrice": 30400,
+      "commonPrice": 30450,
       "preferredPrice": 24000,
-      "spread": 21.05,
-      "spreadChange": 1.18,
-      "commonChange": 1.5,
+      "spread": 21.18,
+      "spreadChange": 1.31,
+      "commonChange": 1.67,
       "preferredChange": 0.0
     },
     "kumho_petro": {
       "commonPrice": 120900,
-      "preferredPrice": 56400,
-      "spread": 53.35,
-      "spreadChange": 0.81,
+      "preferredPrice": 56600,
+      "spread": 53.18,
+      "spreadChange": 0.64,
       "commonChange": 2.46,
-      "preferredChange": 0.71
+      "preferredChange": 1.07
     },
     "cj_cheiljedang": {
       "commonPrice": 233000,
-      "preferredPrice": 132400,
-      "spread": 43.18,
-      "spreadChange": 1.14,
+      "preferredPrice": 132700,
+      "spread": 43.05,
+      "spreadChange": 1.01,
       "commonChange": 3.1,
-      "preferredChange": 1.07
+      "preferredChange": 1.3
     },
     "s_oil": {
       "commonPrice": 118100,
-      "preferredPrice": 54200,
-      "spread": 54.11,
-      "spreadChange": 1.06,
+      "preferredPrice": 54400,
+      "spread": 53.94,
+      "spreadChange": 0.89,
       "commonChange": 6.01,
-      "preferredChange": 3.63
+      "preferredChange": 4.02
     },
     "lg": {
-      "commonPrice": 87900,
-      "preferredPrice": 65900,
-      "spread": 25.03,
-      "spreadChange": 1.56,
-      "commonChange": 1.62,
-      "preferredChange": -0.45
+      "commonPrice": 88400,
+      "preferredPrice": 66200,
+      "spread": 25.11,
+      "spreadChange": 1.64,
+      "commonChange": 2.2,
+      "preferredChange": 0.0
     },
     "cj": {
-      "commonPrice": 187100,
-      "preferredPrice": 83100,
-      "spread": 55.59,
-      "spreadChange": -0.57,
-      "commonChange": -1.89,
-      "preferredChange": -0.6
+      "commonPrice": 186600,
+      "preferredPrice": 83000,
+      "spread": 55.52,
+      "spreadChange": -0.64,
+      "commonChange": -2.15,
+      "preferredChange": -0.72
     },
     "cj_4pref": {
-      "commonPrice": 187100,
-      "preferredPrice": 165600,
-      "spread": 11.49,
-      "spreadChange": 0.53,
-      "commonChange": -1.89,
-      "preferredChange": -2.47
+      "commonPrice": 186600,
+      "preferredPrice": 166200,
+      "spread": 10.93,
+      "spreadChange": -0.03,
+      "commonChange": -2.15,
+      "preferredChange": -2.12
     },
     "doosan_fuelcell": {
       "commonPrice": 35750,
@@ -196,51 +196,51 @@
     },
     "doosan_fuelcell_2pref": {
       "commonPrice": 35750,
-      "preferredPrice": 9490,
-      "spread": 73.45,
-      "spreadChange": -1.68,
+      "preferredPrice": 9600,
+      "spread": 73.15,
+      "spreadChange": -1.98,
       "commonChange": -6.9,
-      "preferredChange": -0.63
+      "preferredChange": 0.52
     },
     "byc": {
       "commonPrice": 46700,
-      "preferredPrice": 29300,
-      "spread": 37.26,
-      "spreadChange": -0.53,
+      "preferredPrice": 29350,
+      "spread": 37.15,
+      "spreadChange": -0.64,
       "commonChange": 0.0,
-      "preferredChange": 0.86
+      "preferredChange": 1.03
     },
     "solus": {
-      "commonPrice": 9150,
-      "preferredPrice": 2065,
-      "spread": 77.43,
-      "spreadChange": 0.3,
-      "commonChange": 0.11,
-      "preferredChange": -1.2
+      "commonPrice": 9160,
+      "preferredPrice": 2075,
+      "spread": 77.35,
+      "spreadChange": 0.22,
+      "commonChange": 0.22,
+      "preferredChange": -0.72
     },
     "solus_2pref": {
-      "commonPrice": 9150,
+      "commonPrice": 9160,
       "preferredPrice": 3385,
-      "spread": 63.01,
-      "spreadChange": 0.05,
-      "commonChange": 0.11,
+      "spread": 63.05,
+      "spreadChange": 0.09,
+      "commonChange": 0.22,
       "preferredChange": 0.0
     },
     "nexen_tire": {
       "commonPrice": 7000,
-      "preferredPrice": 4170,
-      "spread": 40.43,
-      "spreadChange": 0.25,
+      "preferredPrice": 4220,
+      "spread": 39.71,
+      "spreadChange": -0.47,
       "commonChange": -1.13,
-      "preferredChange": -1.53
+      "preferredChange": -0.35
     },
     "sebang": {
-      "commonPrice": 14840,
-      "preferredPrice": 9190,
-      "spread": 38.07,
-      "spreadChange": -0.55,
-      "commonChange": -1.53,
-      "preferredChange": -0.65
+      "commonPrice": 14800,
+      "preferredPrice": 9250,
+      "spread": 37.5,
+      "spreadChange": -1.12,
+      "commonChange": -1.79,
+      "preferredChange": 0.0
     },
     "hanjinkal": {
       "commonPrice": 107800,
@@ -251,68 +251,68 @@
       "preferredChange": 0.81
     },
     "amore_holdings": {
-      "commonPrice": 27300,
+      "commonPrice": 27150,
       "preferredPrice": 11510,
-      "spread": 57.84,
-      "spreadChange": 0.56,
-      "commonChange": 0.18,
+      "spread": 57.61,
+      "spreadChange": 0.33,
+      "commonChange": -0.37,
       "preferredChange": -1.12
     },
     "sk_chemicals": {
-      "commonPrice": 51500,
-      "preferredPrice": 25500,
-      "spread": 50.49,
-      "spreadChange": -0.58,
-      "commonChange": 0.39,
-      "preferredChange": 1.59
+      "commonPrice": 51600,
+      "preferredPrice": 25250,
+      "spread": 51.07,
+      "spreadChange": 0.0,
+      "commonChange": 0.58,
+      "preferredChange": 0.6
     },
     "sk": {
-      "commonPrice": 313500,
-      "preferredPrice": 237500,
-      "spread": 24.24,
-      "spreadChange": 1.2,
-      "commonChange": 0.32,
-      "preferredChange": -1.25
+      "commonPrice": 314000,
+      "preferredPrice": 239000,
+      "spread": 23.89,
+      "spreadChange": 0.85,
+      "commonChange": 0.48,
+      "preferredChange": -0.62
     },
     "hanwha": {
       "commonPrice": 115100,
-      "preferredPrice": 45000,
-      "spread": 60.9,
-      "spreadChange": 0.48,
+      "preferredPrice": 45350,
+      "spread": 60.6,
+      "spreadChange": 0.18,
       "commonChange": 1.23,
-      "preferredChange": 0.0
+      "preferredChange": 0.78
     },
     "mirae_asset": {
-      "commonPrice": 63000,
-      "preferredPrice": 19360,
-      "spread": 69.27,
-      "spreadChange": 0.28,
-      "commonChange": -0.16,
-      "preferredChange": -1.07
+      "commonPrice": 63200,
+      "preferredPrice": 19350,
+      "spread": 69.38,
+      "spreadChange": 0.39,
+      "commonChange": 0.16,
+      "preferredChange": -1.12
     },
     "mirae_asset_pref": {
-      "commonPrice": 63000,
-      "preferredPrice": 20700,
-      "spread": 67.14,
-      "spreadChange": 0.34,
-      "commonChange": -0.16,
-      "preferredChange": -1.19
+      "commonPrice": 63200,
+      "preferredPrice": 20600,
+      "spread": 67.41,
+      "spreadChange": 0.61,
+      "commonChange": 0.16,
+      "preferredChange": -1.67
     },
     "amore_holdings_3pref": {
-      "commonPrice": 27300,
-      "preferredPrice": 23050,
-      "spread": 15.57,
-      "spreadChange": 1.26,
-      "commonChange": 0.18,
-      "preferredChange": -1.28
+      "commonPrice": 27150,
+      "preferredPrice": 23300,
+      "spread": 14.18,
+      "spreadChange": -0.13,
+      "commonChange": -0.37,
+      "preferredChange": -0.21
     },
     "korea_circuit": {
       "commonPrice": 67200,
-      "preferredPrice": 16930,
-      "spread": 74.81,
-      "spreadChange": 0.03,
+      "preferredPrice": 16780,
+      "spread": 75.03,
+      "spreadChange": 0.25,
       "commonChange": -1.18,
-      "preferredChange": -1.28
+      "preferredChange": -2.16
     },
     "korea_circuit_2pref": {
       "commonPrice": 67200,
@@ -323,19 +323,19 @@
       "preferredChange": -0.15
     },
     "samsung_ct": {
-      "commonPrice": 269000,
-      "preferredPrice": 172400,
-      "spread": 35.91,
-      "spreadChange": 0.55,
-      "commonChange": 2.28,
-      "preferredChange": 1.41
+      "commonPrice": 269500,
+      "preferredPrice": 171700,
+      "spread": 36.29,
+      "spreadChange": 0.93,
+      "commonChange": 2.47,
+      "preferredChange": 1.0
     },
     "bookook_sec": {
-      "commonPrice": 71700,
+      "commonPrice": 71100,
       "preferredPrice": 35350,
-      "spread": 50.7,
-      "spreadChange": 0.01,
-      "commonChange": -0.55,
+      "spread": 50.28,
+      "spreadChange": -0.41,
+      "commonChange": -1.39,
       "preferredChange": -0.56
     },
     "dl_enc_pref": {
@@ -348,92 +348,92 @@
     },
     "dl_enc_2pref": {
       "commonPrice": 77200,
-      "preferredPrice": 49800,
-      "spread": 35.49,
-      "spreadChange": 0.89,
+      "preferredPrice": 50100,
+      "spread": 35.1,
+      "spreadChange": 0.5,
       "commonChange": 2.93,
-      "preferredChange": 1.53
+      "preferredChange": 2.14
     },
     "yuhan": {
-      "commonPrice": 92400,
+      "commonPrice": 91800,
       "preferredPrice": 84400,
-      "spread": 8.66,
-      "spreadChange": 0.15,
-      "commonChange": -0.43,
+      "spread": 8.06,
+      "spreadChange": -0.45,
+      "commonChange": -1.08,
       "preferredChange": -0.59
     },
     "gs": {
-      "commonPrice": 65200,
+      "commonPrice": 65600,
       "preferredPrice": 53500,
-      "spread": 17.94,
-      "spreadChange": 1.98,
-      "commonChange": 3.0,
+      "spread": 18.45,
+      "spreadChange": 2.49,
+      "commonChange": 3.63,
       "preferredChange": 0.56
     },
     "sk_innovation": {
       "commonPrice": 123200,
-      "preferredPrice": 71000,
-      "spread": 42.37,
-      "spreadChange": 1.51,
+      "preferredPrice": 70700,
+      "spread": 42.61,
+      "spreadChange": 1.75,
       "commonChange": 4.23,
-      "preferredChange": 1.57
+      "preferredChange": 1.14
     },
     "kolon_industries": {
-      "commonPrice": 83100,
+      "commonPrice": 83000,
       "preferredPrice": 28800,
-      "spread": 65.34,
-      "spreadChange": 0.54,
-      "commonChange": 2.09,
+      "spread": 65.3,
+      "spreadChange": 0.5,
+      "commonChange": 1.97,
       "preferredChange": 0.52
     },
     "namyang_dairy": {
-      "commonPrice": 50400,
-      "preferredPrice": 38600,
-      "spread": 23.41,
-      "spreadChange": 0.24,
-      "commonChange": -0.2,
-      "preferredChange": -0.52
+      "commonPrice": 50500,
+      "preferredPrice": 38550,
+      "spread": 23.66,
+      "spreadChange": 0.49,
+      "commonChange": 0.0,
+      "preferredChange": -0.64
     },
     "hyundai_eandc": {
       "commonPrice": 151900,
-      "preferredPrice": 69500,
-      "spread": 54.25,
-      "spreadChange": -0.42,
+      "preferredPrice": 69800,
+      "spread": 54.05,
+      "spreadChange": -0.62,
       "commonChange": 0.53,
-      "preferredChange": 1.46
+      "preferredChange": 1.9
     },
     "hanwha_solutions": {
-      "commonPrice": 38100,
-      "preferredPrice": 23700,
-      "spread": 37.8,
-      "spreadChange": -0.61,
-      "commonChange": -2.43,
-      "preferredChange": -1.46
+      "commonPrice": 38150,
+      "preferredPrice": 23600,
+      "spread": 38.14,
+      "spreadChange": -0.27,
+      "commonChange": -2.3,
+      "preferredChange": -1.87
     },
     "lotte_chilsung": {
-      "commonPrice": 113400,
-      "preferredPrice": 79200,
-      "spread": 30.16,
-      "spreadChange": -0.77,
-      "commonChange": -0.09,
-      "preferredChange": 1.02
+      "commonPrice": 114000,
+      "preferredPrice": 79900,
+      "spread": 29.91,
+      "spreadChange": -1.02,
+      "commonChange": 0.44,
+      "preferredChange": 1.91
     },
     "yuhwa_sec": {
-      "commonPrice": 3280,
+      "commonPrice": 3300,
       "preferredPrice": 3230,
-      "spread": 1.52,
-      "spreadChange": -0.59,
-      "commonChange": -0.91,
+      "spread": 2.12,
+      "spreadChange": 0.01,
+      "commonChange": -0.3,
       "preferredChange": -0.31
     }
   },
   "market": {
     "id": "KOSPI",
     "name": "코스피",
-    "price": 5450.79,
-    "change": 73.49,
-    "changePct": 1.37,
-    "marketStatus": "OPEN",
+    "price": 5450.33,
+    "change": 73.03,
+    "changePct": 1.36,
+    "marketStatus": "CLOSE",
     "unit": null,
     "code": null,
     "time": null,
@@ -444,10 +444,10 @@
       {
         "id": "KOSDAQ",
         "name": "KOSDAQ",
-        "price": 1048.62,
-        "change": -15.13,
-        "changePct": -1.42,
-        "marketStatus": "OPEN",
+        "price": 1047.37,
+        "change": -16.38,
+        "changePct": -1.54,
+        "marketStatus": "CLOSE",
         "unit": null,
         "code": null,
         "time": null,
@@ -458,9 +458,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1506.0,
-        "change": -4.1,
-        "changePct": -0.27,
+        "price": 1502.0,
+        "change": -8.1,
+        "changePct": -0.54,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -504,25 +504,25 @@
       "price": 812.2,
       "change": 8.75,
       "changePct": 1.09,
-      "marketStatus": "장중 실시간",
+      "marketStatus": "장마감",
       "unit": null,
       "code": null,
-      "time": "장중 실시간",
+      "time": "장마감",
       "contractName": null,
       "source": "hankyung_html",
       "sessionTradeDate": "2026-04-06"
     }
   },
-  "averageSpread": 46.3,
-  "averageSpreadChange": 0.26,
+  "averageSpread": 46.25,
+  "averageSpreadChange": 0.21,
   "summary": {
     "market": {
       "id": "KOSPI",
       "name": "코스피",
-      "price": 5450.79,
-      "change": 73.49,
-      "changePct": 1.37,
-      "marketStatus": "OPEN",
+      "price": 5450.33,
+      "change": 73.03,
+      "changePct": 1.36,
+      "marketStatus": "CLOSE",
       "unit": null,
       "code": null,
       "time": null,
@@ -533,10 +533,10 @@
         {
           "id": "KOSDAQ",
           "name": "KOSDAQ",
-          "price": 1048.62,
-          "change": -15.13,
-          "changePct": -1.42,
-          "marketStatus": "OPEN",
+          "price": 1047.37,
+          "change": -16.38,
+          "changePct": -1.54,
+          "marketStatus": "CLOSE",
           "unit": null,
           "code": null,
           "time": null,
@@ -547,9 +547,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1506.0,
-          "change": -4.1,
-          "changePct": -0.27,
+          "price": 1502.0,
+          "change": -8.1,
+          "changePct": -0.54,
           "marketStatus": null,
           "unit": null,
           "code": null,
@@ -593,102 +593,102 @@
         "price": 812.2,
         "change": 8.75,
         "changePct": 1.09,
-        "marketStatus": "장중 실시간",
+        "marketStatus": "장마감",
         "unit": null,
         "code": null,
-        "time": "장중 실시간",
+        "time": "장마감",
         "contractName": null,
         "source": "hankyung_html",
         "sessionTradeDate": "2026-04-06"
       }
     },
-    "averageSpread": 46.3,
-    "averageSpreadChange": 0.26,
-    "averageCommonChange": 0.63,
-    "averagePreferredChange": 0.26,
+    "averageSpread": 46.25,
+    "averageSpreadChange": 0.21,
+    "averageCommonChange": 0.64,
+    "averagePreferredChange": 0.38,
     "representativeCount": 42,
     "topWidening": {
       "id": "gs",
       "name": "GS",
       "commonName": "GS",
       "preferredName": "GS우",
-      "spread": 17.94,
-      "spreadChange": 1.98
+      "spread": 18.45,
+      "spreadChange": 2.49
     },
     "topWideningRunners": [
-      {
-        "id": "lg",
-        "name": "LG",
-        "commonName": "LG",
-        "preferredName": "LG우",
-        "spread": 25.03,
-        "spreadChange": 1.56
-      },
       {
         "id": "sk_innovation",
         "name": "SK이노베이션",
         "commonName": "SK이노베이션",
         "preferredName": "SK이노베이션우",
-        "spread": 42.37,
-        "spreadChange": 1.51
+        "spread": 42.61,
+        "spreadChange": 1.75
       },
       {
-        "id": "sk",
-        "name": "SK",
-        "commonName": "SK",
-        "preferredName": "SK우",
-        "spread": 24.24,
-        "spreadChange": 1.2
+        "id": "lg",
+        "name": "LG",
+        "commonName": "LG",
+        "preferredName": "LG우",
+        "spread": 25.11,
+        "spreadChange": 1.64
       },
       {
         "id": "nh_investment",
         "name": "NH투자증권",
         "commonName": "NH투자증권",
         "preferredName": "NH투자증권우",
-        "spread": 21.05,
-        "spreadChange": 1.18
+        "spread": 21.18,
+        "spreadChange": 1.31
+      },
+      {
+        "id": "cj_cheiljedang",
+        "name": "CJ제일제당",
+        "commonName": "CJ제일제당",
+        "preferredName": "CJ제일제당우",
+        "spread": 43.05,
+        "spreadChange": 1.01
       }
     ],
     "topNarrowing": {
-      "id": "doosan_fuelcell",
-      "name": "두산퓨얼셀/1우",
-      "commonName": "두산퓨얼셀",
-      "preferredName": "두산퓨얼셀1우",
-      "spread": 79.64,
-      "spreadChange": -1.12
+      "id": "lg_household",
+      "name": "LG생활건강",
+      "commonName": "LG생활건강",
+      "preferredName": "LG생활건강우",
+      "spread": 55.73,
+      "spreadChange": -1.23
     },
     "topNarrowingRunners": [
       {
-        "id": "lg_household",
-        "name": "LG생활건강",
-        "commonName": "LG생활건강",
-        "preferredName": "LG생활건강우",
-        "spread": 56.17,
-        "spreadChange": -0.79
+        "id": "doosan_fuelcell",
+        "name": "두산퓨얼셀/1우",
+        "commonName": "두산퓨얼셀",
+        "preferredName": "두산퓨얼셀1우",
+        "spread": 79.64,
+        "spreadChange": -1.12
+      },
+      {
+        "id": "sebang",
+        "name": "세방",
+        "commonName": "세방",
+        "preferredName": "세방우",
+        "spread": 37.5,
+        "spreadChange": -1.12
       },
       {
         "id": "lotte_chilsung",
         "name": "롯데칠성",
         "commonName": "롯데칠성",
         "preferredName": "롯데칠성우",
-        "spread": 30.16,
-        "spreadChange": -0.77
+        "spread": 29.91,
+        "spreadChange": -1.02
       },
       {
-        "id": "hanwha_solutions",
-        "name": "한화솔루션",
-        "commonName": "한화솔루션",
-        "preferredName": "한화솔루션우",
-        "spread": 37.8,
-        "spreadChange": -0.61
-      },
-      {
-        "id": "yuhwa_sec",
-        "name": "유화증권",
-        "commonName": "유화증권",
-        "preferredName": "유화증권우",
-        "spread": 1.52,
-        "spreadChange": -0.59
+        "id": "cj",
+        "name": "CJ/우",
+        "commonName": "CJ",
+        "preferredName": "CJ우",
+        "spread": 55.52,
+        "spreadChange": -0.64
       }
     ]
   }
