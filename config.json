@@ -422,5 +422,13 @@
     "preferredTicker": "003465.KS",
     "commonName": "유화증권",
     "preferredName": "유화증권우"
+  },
+  {
+    "id": "lx_hausys",
+    "name": "LX하우시스",
+    "commonTicker": "108670.KS",
+    "preferredTicker": "108675.KS",
+    "commonName": "LX하우시스",
+    "preferredName": "LX하우시스우"
   }
 ]
