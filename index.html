@@ -2091,7 +2091,6 @@ td.numeric .bar-cell {
     const spreads = hist.map(h => h.spread).filter(value => value != null && !Number.isNaN(value));
     const current = p.current.spread;
     const beta = calculatePairBeta(hist);
-    const startDate = hist[0]?.date || "-";
     const overallAverage = spreads.length
       ? spreads.reduce((sum, value) => sum + value, 0) / spreads.length
       : null;
@@ -2122,7 +2121,6 @@ td.numeric .bar-cell {
       { label: commonLabel, value: formatStatPrice(p.current.commonPrice) },
       { label: "전일비", value: renderChangeHtml(p.current.commonChange) },
       { label: "베타", value: beta == null ? "-" : beta.toFixed(2) },
-      { label: "데이터 시작일", value: startDate },
       { label: "괴리율 평균", value: overallAverage == null ? "-" : `${overallAverage.toFixed(2)}%` },
       { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
       { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
