@@ -2127,6 +2127,7 @@ td.numeric .bar-cell {
       { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
       { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
       { label: "우선주 시가총액", value: formatMarketCap(preferredMarketCap) },
+      { label: "우선주 20일 평균 거래대금", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
       { label: "우선주 배당수익률", value: formatYield(p.current.preferredDivYield) },
       { label: "보통주 시가총액", value: formatMarketCap(commonMarketCap) },
       { label: "보통주 배당수익률", value: formatYield(p.current.commonDivYield) },
@@ -2959,6 +2960,12 @@ td.numeric .bar-cell {
     if (value == null || Number.isNaN(value) || value <= 0) return '-';
     if (value >= 1e12) return `${(value / 1e12).toFixed(2)}조`;
     return `${(value / 1e8).toFixed(0)}억`;
+  }
+
+  function formatTradedValue(value) {
+    if (value == null || Number.isNaN(value) || value <= 0) return '-';
+    if (value >= 1e12) return `${(value / 1e12).toFixed(2)}조`;
+    return `${(value / 1e8).toFixed(value >= 1e10 ? 0 : 1)}억`;
   }
 
   function formatRatioPercent(value) {

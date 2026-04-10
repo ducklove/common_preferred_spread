@@ -37,6 +37,7 @@ PROXY_BACKFILL_WORKERS = 2
 DIVIDEND_HISTORY_WORKERS = 6
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
 SAFE_ADJUSTMENT_RATIO_MAX = 10.0
+AVG_TRADED_VALUE_WINDOW = 20
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -224,6 +225,20 @@ def build_dividend_history(series, start_date_text, end_date_text):
         }
         for date, amount in filtered.items()
     ]
+
+
+def calculate_average_traded_value(price_series, volume_series, window=AVG_TRADED_VALUE_WINDOW):
+    if price_series is None or volume_series is None:
+        return None
+
+    traded_value = (
+        pd.to_numeric(price_series, errors="coerce")
+        * pd.to_numeric(volume_series, errors="coerce")
+    ).dropna()
+    if traded_value.empty:
+        return None
+
+    return round(float(traded_value.tail(window).mean()), 0)
 
 
 def _read_fast_info_value(fast_info, *keys):
@@ -958,6 +973,8 @@ def main():
 
         c = common_close.loc[common_dates]
         p = preferred_close.loc[common_dates]
+        cv = common_vol.loc[common_dates]
+        pv = preferred_vol.loc[common_dates]
 
         # 괴리율: (보통주 - 우선주) / 보통주 * 100
         spread = (c - p) / c * 100
@@ -970,6 +987,8 @@ def main():
             common_dates = common_dates[valid]
             c = c.loc[common_dates]
             p = p.loc[common_dates]
+            cv = cv.loc[common_dates]
+            pv = pv.loc[common_dates]
             spread = spread.loc[common_dates]
 
         # 새로 다운로드한 히스토리
@@ -1016,6 +1035,8 @@ def main():
         preferred_meta = get_ticker_meta(pt)
         c_dy = get_div_yield(ct)
         p_dy = get_div_yield(pt)
+        common_avg_traded_value_20 = calculate_average_traded_value(c, cv)
+        preferred_avg_traded_value_20 = calculate_average_traded_value(p, pv)
 
         history_start_date = history[0]["date"]
         history_end_date = history[-1]["date"]
@@ -1056,6 +1077,8 @@ def main():
                 "preferredMarketCap": preferred_meta["marketCap"],
                 "commonSharesOutstanding": common_meta["sharesOutstanding"],
                 "preferredSharesOutstanding": preferred_meta["sharesOutstanding"],
+                "commonAvgTradedValue20": common_avg_traded_value_20,
+                "preferredAvgTradedValue20": preferred_avg_traded_value_20,
             },
             "history": history,
         }
