@@ -38,6 +38,11 @@ DIVIDEND_HISTORY_WORKERS = 6
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
 SAFE_ADJUSTMENT_RATIO_MAX = 10.0
 AVG_TRADED_VALUE_WINDOW = 20
+GOOGLE_SHEET_DIVIDEND_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1RKLAARnfVNsLKBxyXfdjHhw7AUE1Wv91OrEm868Q3Z8/gviz/tq?tqx=out:csv&sheet=Data"
+)
+GOOGLE_SHEET_DIVIDEND_CACHE_PATH = Path(__file__).parent / ".cache" / "google_sheet" / "dividend_data.csv"
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -166,6 +171,7 @@ _naver_daily_history_cache = {}
 _proxy_daily_history_cache = {}
 _pair_yahoo_history_cache = {}
 _dividend_series_cache = {}
+_sheet_dividend_amount_cache = None
 
 
 def get_div_yield(ticker):
@@ -225,6 +231,129 @@ def build_dividend_history(series, start_date_text, end_date_text):
         }
         for date, amount in filtered.items()
     ]
+
+
+def normalize_sheet_code(value):
+    if value is None or pd.isna(value):
+        return None
+    digits = re.sub(r"\D", "", str(value))
+    if not digits:
+        return None
+    return digits[-6:].zfill(6)
+
+
+def parse_sheet_dividend_amount(value):
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return None
+    text = text.replace(",", "")
+    try:
+        return round(float(text), 4)
+    except ValueError:
+        return None
+
+
+def fetch_sheet_dividend_amounts():
+    global _sheet_dividend_amount_cache
+
+    if _sheet_dividend_amount_cache is not None:
+        return _sheet_dividend_amount_cache
+
+    csv_text = None
+    try:
+        request = Request(
+            GOOGLE_SHEET_DIVIDEND_URL,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(request, timeout=15) as response:
+            csv_text = response.read().decode("utf-8")
+        GOOGLE_SHEET_DIVIDEND_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        GOOGLE_SHEET_DIVIDEND_CACHE_PATH.write_text(csv_text, encoding="utf-8")
+    except Exception:
+        if GOOGLE_SHEET_DIVIDEND_CACHE_PATH.exists():
+            csv_text = GOOGLE_SHEET_DIVIDEND_CACHE_PATH.read_text(encoding="utf-8")
+
+    if not csv_text:
+        _sheet_dividend_amount_cache = {
+            "byPair": {},
+            "byPreferred": {},
+            "byCommon": {},
+        }
+        return _sheet_dividend_amount_cache
+
+    try:
+        sheet_df = pd.read_csv(StringIO(csv_text), dtype=str)
+    except Exception:
+        _sheet_dividend_amount_cache = {
+            "byPair": {},
+            "byPreferred": {},
+            "byCommon": {},
+        }
+        return _sheet_dividend_amount_cache
+
+    by_pair = {}
+    by_preferred = {}
+    by_common = {}
+
+    for _, row in sheet_df.iterrows():
+        preferred_code = normalize_sheet_code(row.iloc[1] if len(row) > 1 else None)
+        common_code = normalize_sheet_code(row.iloc[2] if len(row) > 2 else None)
+        common_dividend = parse_sheet_dividend_amount(row.iloc[14] if len(row) > 14 else None)
+        preferred_dividend = parse_sheet_dividend_amount(row.iloc[34] if len(row) > 34 else None)
+
+        if not preferred_code and not common_code:
+            continue
+
+        dividend_data = {
+            "commonDividendPerShare": common_dividend,
+            "preferredDividendPerShare": preferred_dividend,
+        }
+
+        if common_code and preferred_code:
+            by_pair[(common_code, preferred_code)] = dividend_data
+        if preferred_code:
+            by_preferred[preferred_code] = dividend_data
+        if common_code:
+            by_common[common_code] = dividend_data
+
+    _sheet_dividend_amount_cache = {
+        "byPair": by_pair,
+        "byPreferred": by_preferred,
+        "byCommon": by_common,
+    }
+    return _sheet_dividend_amount_cache
+
+
+def get_sheet_dividend_amounts(common_ticker, preferred_ticker):
+    dividend_data = fetch_sheet_dividend_amounts()
+    common_code = normalize_sheet_code(common_ticker.split(".")[0] if common_ticker else None)
+    preferred_code = normalize_sheet_code(preferred_ticker.split(".")[0] if preferred_ticker else None)
+
+    if common_code and preferred_code:
+        pair_match = dividend_data["byPair"].get((common_code, preferred_code))
+        if pair_match:
+            return pair_match
+
+    preferred_match = dividend_data["byPreferred"].get(preferred_code) if preferred_code else None
+    common_match = dividend_data["byCommon"].get(common_code) if common_code else None
+
+    if preferred_match and common_match:
+        return {
+            "commonDividendPerShare": (
+                preferred_match.get("commonDividendPerShare")
+                if preferred_match.get("commonDividendPerShare") is not None
+                else common_match.get("commonDividendPerShare")
+            ),
+            "preferredDividendPerShare": (
+                preferred_match.get("preferredDividendPerShare")
+                if preferred_match.get("preferredDividendPerShare") is not None
+                else common_match.get("preferredDividendPerShare")
+            ),
+        }
+
+    return preferred_match or common_match
 
 
 def calculate_average_traded_value(price_series, volume_series, window=AVG_TRADED_VALUE_WINDOW):
@@ -1033,8 +1162,19 @@ def main():
         # 배당수익률 조회
         common_meta = get_ticker_meta(ct)
         preferred_meta = get_ticker_meta(pt)
-        c_dy = get_div_yield(ct)
-        p_dy = get_div_yield(pt)
+        sheet_dividend_amounts = get_sheet_dividend_amounts(ct, pt) or {}
+        common_dividend_per_share = sheet_dividend_amounts.get("commonDividendPerShare")
+        preferred_dividend_per_share = sheet_dividend_amounts.get("preferredDividendPerShare")
+        c_dy = (
+            common_dividend_per_share / latest["commonPrice"] * 100
+            if common_dividend_per_share is not None and latest["commonPrice"]
+            else get_div_yield(ct)
+        )
+        p_dy = (
+            preferred_dividend_per_share / latest["preferredPrice"] * 100
+            if preferred_dividend_per_share is not None and latest["preferredPrice"]
+            else get_div_yield(pt)
+        )
         common_avg_traded_value_20 = calculate_average_traded_value(c, cv)
         preferred_avg_traded_value_20 = calculate_average_traded_value(p, pv)
 
@@ -1073,6 +1213,8 @@ def main():
                 "preferredChange": preferred_change,
                 "commonDivYield": round(c_dy, 2),
                 "preferredDivYield": round(p_dy, 2),
+                "commonDividendPerShare": common_dividend_per_share,
+                "preferredDividendPerShare": preferred_dividend_per_share,
                 "commonMarketCap": common_meta["marketCap"],
                 "preferredMarketCap": preferred_meta["marketCap"],
                 "commonSharesOutstanding": common_meta["sharesOutstanding"],
