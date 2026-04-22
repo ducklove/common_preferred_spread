@@ -1,6 +1,6 @@
 {
-  "source": "네이버 증권 + 공개 선물 시세",
-  "lastUpdated": "2026-04-22 17:49:19",
+  "source": "네이버 증권",
+  "lastUpdated": "2026-04-22 22:47:31",
   "prices": {
     "samsung_elec": {
       "commonPrice": 217500,
@@ -506,9 +506,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1478.0,
-        "change": -4.0,
-        "changePct": -0.27,
+        "price": 1477.2,
+        "change": -4.8,
+        "changePct": -0.32,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -534,10 +534,10 @@
       {
         "id": "SP500",
         "name": "S&P500",
-        "price": 7064.01,
-        "change": -45.13,
-        "changePct": -0.63,
-        "marketStatus": "CLOSE",
+        "price": 7117.93,
+        "change": 53.92,
+        "changePct": 0.76,
+        "marketStatus": "OPEN",
         "unit": null,
         "code": null,
         "time": null,
@@ -545,21 +545,7 @@
         "source": null,
         "sessionTradeDate": null
       }
-    ],
-    "nightFuture": {
-      "id": "KOSPI200_FUTURES",
-      "name": "KOSPI200 선물",
-      "price": 967.65,
-      "change": 2.55,
-      "changePct": 0.26,
-      "marketStatus": "장마감",
-      "unit": null,
-      "code": null,
-      "time": "장마감",
-      "contractName": null,
-      "source": "hankyung_html",
-      "sessionTradeDate": "2026-04-22"
-    }
+    ]
   },
   "averageSpread": 46.61,
   "averageSpreadChange": -0.07,
@@ -595,9 +581,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1478.0,
-          "change": -4.0,
-          "changePct": -0.27,
+          "price": 1477.2,
+          "change": -4.8,
+          "changePct": -0.32,
           "marketStatus": null,
           "unit": null,
           "code": null,
@@ -623,10 +609,10 @@
         {
           "id": "SP500",
           "name": "S&P500",
-          "price": 7064.01,
-          "change": -45.13,
-          "changePct": -0.63,
-          "marketStatus": "CLOSE",
+          "price": 7117.93,
+          "change": 53.92,
+          "changePct": 0.76,
+          "marketStatus": "OPEN",
           "unit": null,
           "code": null,
           "time": null,
@@ -634,21 +620,7 @@
           "source": null,
           "sessionTradeDate": null
         }
-      ],
-      "nightFuture": {
-        "id": "KOSPI200_FUTURES",
-        "name": "KOSPI200 선물",
-        "price": 967.65,
-        "change": 2.55,
-        "changePct": 0.26,
-        "marketStatus": "장마감",
-        "unit": null,
-        "code": null,
-        "time": "장마감",
-        "contractName": null,
-        "source": "hankyung_html",
-        "sessionTradeDate": "2026-04-22"
-      }
+      ]
     },
     "averageSpread": 46.61,
     "averageSpreadChange": -0.07,
