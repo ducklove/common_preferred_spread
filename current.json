@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-05-01 05:40:50",
+  "lastUpdated": "2026-05-01 06:50:01",
   "prices": {
     "samsung_elec": {
       "commonPrice": 220500,
@@ -506,9 +506,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1474.5,
-        "change": -13.5,
-        "changePct": -0.91,
+        "price": 1476.0,
+        "change": -12.0,
+        "changePct": -0.81,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -581,9 +581,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1474.5,
-          "change": -13.5,
-          "changePct": -0.91,
+          "price": 1476.0,
+          "change": -12.0,
+          "changePct": -0.81,
           "marketStatus": null,
           "unit": null,
           "code": null,
