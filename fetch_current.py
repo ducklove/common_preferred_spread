@@ -47,6 +47,28 @@ NAVER_STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/s
 NAVER_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
 NAVER_WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worldstock/index/{code}"
 NAVER_MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
+INTERNAL_CLOSE_API_URL = os.environ.get(
+    "INTERNAL_CLOSE_API_URL",
+    "http://192.168.68.84:8400/api/prices/close",
+).strip()
+INTERNAL_DAILY_API_URL = os.environ.get(
+    "INTERNAL_DAILY_API_URL",
+    "http://192.168.68.84:8400/api/prices/daily",
+).strip()
+INTERNAL_INDICES_API_URL = os.environ.get(
+    "INTERNAL_INDICES_API_URL",
+    "http://192.168.68.84:8400/api/macro/indices",
+).strip()
+INTERNAL_FX_API_URL = os.environ.get(
+    "INTERNAL_FX_API_URL",
+    "http://192.168.68.84:8400/api/macro/fx",
+).strip()
+INTERNAL_COMMODITIES_API_URL = os.environ.get(
+    "INTERNAL_COMMODITIES_API_URL",
+    "http://192.168.68.84:8400/api/macro/commodities",
+).strip()
+INTERNAL_CLOSE_LOOKBACK_DAYS = int(os.environ.get("INTERNAL_CLOSE_LOOKBACK_DAYS", "14"))
+INTERNAL_DAILY_LOOKBACK_DAYS = int(os.environ.get("INTERNAL_DAILY_LOOKBACK_DAYS", "14"))
 HANKYUNG_KOSPI200_FUTURES_URL = "https://markets.hankyung.com/indices/kospi-future"
 INVESTING_KOSPI200_FUTURES_URL = "https://kr.investing.com/indices/korea-200-futures"
 ESIGNAL_NIGHT_FUTURES_WS_URL = (
@@ -77,6 +99,8 @@ KIS_NIGHT_FUTURES_WS_RETRIES = 2
 FUTURE_METRIC_MAX_AGE_SECONDS = 2400
 
 AUTH_CACHE_LOCK = threading.Lock()
+INTERNAL_CLOSE_QUOTE_CACHE = {}
+INTERNAL_INDEX_ROWS_CACHE = {}
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -495,6 +519,112 @@ def build_kis_stock_quote(stock_output):
         ),
         "marketStatus": None,
     }
+
+
+def build_quote_from_daily_rows(rows, market_status="내부 가격 API"):
+    normalized = []
+    for row in rows or []:
+        close = parse_int(row.get("close"))
+        date_text = row.get("date")
+        if close is None or not date_text:
+            continue
+        normalized.append({"date": str(date_text), "close": close})
+
+    normalized.sort(key=lambda item: item["date"])
+    if not normalized:
+        return None
+
+    latest = normalized[-1]
+    previous = normalized[-2] if len(normalized) >= 2 else None
+    delta = latest["close"] - previous["close"] if previous else None
+    change_pct = (
+        round_or_none(delta / previous["close"] * 100)
+        if previous and previous["close"] not in (None, 0) and delta is not None
+        else None
+    )
+    return {
+        "closePriceRaw": latest["close"],
+        "compareToPreviousClosePriceRaw": delta,
+        "fluctuationsRatioRaw": change_pct,
+        "marketStatus": market_status,
+        "tradeDate": latest["date"],
+    }
+
+
+def fetch_internal_daily_quotes(codes):
+    if not INTERNAL_DAILY_API_URL or not codes:
+        return {}
+
+    until = datetime.now(KST).date()
+    since = until - timedelta(days=INTERNAL_DAILY_LOOKBACK_DAYS)
+    params = {
+        "tickers": ",".join(codes),
+        "since": since.isoformat(),
+        "until": until.isoformat(),
+        "fields": "close",
+    }
+    payload = http_json(
+        INTERNAL_DAILY_API_URL,
+        headers={"User-Agent": USER_AGENT},
+        params=params,
+    )
+    prices = payload.get("prices") or {}
+    quotes = {}
+    for code in codes:
+        quote = build_quote_from_daily_rows(prices.get(code), "내부 가격 API")
+        if quote:
+            quotes[code] = quote
+    return quotes
+
+
+def fetch_internal_close_quote(code):
+    if not INTERNAL_CLOSE_API_URL:
+        return None
+    if code in INTERNAL_CLOSE_QUOTE_CACHE:
+        return INTERNAL_CLOSE_QUOTE_CACHE[code]
+
+    until = datetime.now(KST).date()
+    since = until - timedelta(days=INTERNAL_CLOSE_LOOKBACK_DAYS)
+    params = {
+        "ticker": code,
+        "since": since.isoformat(),
+        "until": until.isoformat(),
+    }
+    url = f"{INTERNAL_CLOSE_API_URL}?{urlencode(params)}"
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+
+    rows = []
+    for item in payload.get("prices", []) or []:
+        date_text = item.get("date")
+        close = parse_int(item.get("close"))
+        if not date_text or close is None:
+            continue
+        rows.append({"date": str(date_text), "close": close})
+
+    rows.sort(key=lambda item: item["date"])
+    if not rows:
+        raise RuntimeError("internal close API returned no prices")
+
+    latest = rows[-1]
+    previous = rows[-2] if len(rows) >= 2 else None
+    delta = latest["close"] - previous["close"] if previous else None
+    change_pct = (
+        round_or_none(delta / previous["close"] * 100)
+        if previous and previous["close"] not in (None, 0) and delta is not None
+        else None
+    )
+
+    quote = {
+        "closePriceRaw": latest["close"],
+        "compareToPreviousClosePriceRaw": delta,
+        "fluctuationsRatioRaw": change_pct,
+        "marketStatus": "종가 백업",
+        "tradeDate": latest["date"],
+    }
+    INTERNAL_CLOSE_QUOTE_CACHE[code] = quote
+    return quote
 
 
 def build_kis_index_metric(index_output, metric_id, name):
@@ -1113,6 +1243,13 @@ def fetch_combined_stock_quote(code):
     except Exception as exc:  # noqa: BLE001
         errors.append(f"NAVER {exc}")
 
+    try:
+        internal_quote = fetch_internal_close_quote(code)
+        if internal_quote:
+            return internal_quote, "internal_close"
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"INTERNAL_CLOSE {exc}")
+
     raise RuntimeError(" / ".join(errors))
 
 
@@ -1123,9 +1260,25 @@ def fetch_all_quotes(codes):
     quotes = {}
     errors = {}
     providers = set()
+    missing_codes = list(codes)
 
-    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(codes))) as executor:
-        future_map = {executor.submit(fetch_combined_stock_quote, code): code for code in codes}
+    try:
+        internal_quotes = fetch_internal_daily_quotes(codes)
+        if internal_quotes:
+            quotes.update(internal_quotes)
+            providers.add("internal_daily")
+            missing_codes = [code for code in codes if code not in quotes]
+    except Exception as exc:  # noqa: BLE001
+        print(f"  WARNING: 내부 가격 API 현재가 조회 실패: {exc}")
+
+    if not missing_codes:
+        return quotes, errors, providers
+
+    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(missing_codes))) as executor:
+        future_map = {
+            executor.submit(fetch_combined_stock_quote, code): code
+            for code in missing_codes
+        }
         for future in as_completed(future_map):
             code = future_map[future]
             try:
@@ -1169,6 +1322,131 @@ def get_previous_night_future(previous_snapshot):
     )
 
 
+def compute_change_from_return(price, return_pct):
+    price = parse_float(price)
+    return_pct = parse_float(return_pct)
+    if price is None or return_pct is None or abs(100 + return_pct) < 1e-12:
+        return None
+    previous = price / (1 + return_pct / 100)
+    return price - previous
+
+
+def build_metric_from_observations(rows, metric_id, name, value_key="value", unit=None, price_digits=2):
+    normalized = []
+    for row in rows or []:
+        date_text = row.get("date")
+        value = parse_float(row.get(value_key))
+        if not date_text or value is None:
+            continue
+        normalized.append({"date": str(date_text), "value": value, "row": row})
+
+    normalized.sort(key=lambda item: item["date"])
+    if not normalized:
+        return None
+
+    latest = normalized[-1]
+    previous = normalized[-2] if len(normalized) >= 2 else None
+    return_pct = parse_float(latest["row"].get("return_1d"))
+    change = compute_change_from_return(latest["value"], return_pct)
+    if change is None and previous:
+        change = latest["value"] - previous["value"]
+        return_pct = (
+            change / previous["value"] * 100
+            if previous["value"] not in (None, 0)
+            else None
+        )
+
+    return {
+        "id": metric_id,
+        "name": name,
+        "price": round_or_none(latest["value"], price_digits),
+        "change": round_or_none(change),
+        "changePct": round_or_none(return_pct),
+        "marketStatus": "내부 지표 API",
+        "unit": unit,
+        "source": latest["row"].get("source") or "internal",
+        "time": latest["date"],
+    }
+
+
+def fetch_internal_index_rows(series_id):
+    if not INTERNAL_INDICES_API_URL or not series_id:
+        return []
+    if series_id in INTERNAL_INDEX_ROWS_CACHE:
+        return INTERNAL_INDEX_ROWS_CACHE[series_id]
+
+    try:
+        payload = http_json(
+            INTERNAL_INDICES_API_URL,
+            headers={"User-Agent": USER_AGENT},
+            params={"series_id": series_id},
+        )
+        rows = payload.get("indices") or []
+    except Exception:
+        payload = http_json(INTERNAL_INDICES_API_URL, headers={"User-Agent": USER_AGENT})
+        rows = [
+            row for row in payload.get("indices") or []
+            if row.get("series_id") == series_id
+        ]
+
+    INTERNAL_INDEX_ROWS_CACHE[series_id] = rows
+    return rows
+
+
+def fetch_internal_index_metric(series_id, metric_id, name):
+    rows = [
+        row for row in fetch_internal_index_rows(series_id)
+        if row.get("series_id") == series_id
+    ]
+    return build_metric_from_observations(rows, metric_id, name)
+
+
+def fetch_internal_fx_metric(base_currency, quote_currency, metric_id, name):
+    if not INTERNAL_FX_API_URL:
+        return None
+    until = datetime.now(KST).date()
+    since = until - timedelta(days=INTERNAL_DAILY_LOOKBACK_DAYS)
+    payload = http_json(
+        INTERNAL_FX_API_URL,
+        headers={"User-Agent": USER_AGENT},
+        params={
+            "base_currency": base_currency,
+            "quote_currency": quote_currency,
+            "since": since.isoformat(),
+            "until": until.isoformat(),
+        },
+    )
+    return build_metric_from_observations(
+        payload.get("fx") or [],
+        metric_id,
+        name,
+        unit="원",
+        price_digits=2,
+    )
+
+
+def fetch_internal_commodity_metric(commodity, metric_id, name):
+    if not INTERNAL_COMMODITIES_API_URL:
+        return None
+    until = datetime.now(KST).date()
+    since = until - timedelta(days=INTERNAL_DAILY_LOOKBACK_DAYS)
+    payload = http_json(
+        INTERNAL_COMMODITIES_API_URL,
+        headers={"User-Agent": USER_AGENT},
+        params={
+            "commodity": commodity,
+            "since": since.isoformat(),
+            "until": until.isoformat(),
+        },
+    )
+    return build_metric_from_observations(
+        payload.get("commodities") or [],
+        metric_id,
+        name,
+        price_digits=2,
+    )
+
+
 def fetch_market_metrics(previous_snapshot):
     market_extras = []
     providers = set()
@@ -1176,10 +1454,16 @@ def fetch_market_metrics(previous_snapshot):
     kospi_metric = None
     kosdaq_metric = None
     sp500_metric = None
+    usdkrw_metric = None
+    gold_metric = None
     marketindex_html = None
 
     tasks = {}
     with ThreadPoolExecutor(max_workers=MARKET_FETCH_WORKERS) as executor:
+        tasks["kospi_internal"] = executor.submit(fetch_internal_index_metric, "KOSPI", "KOSPI", "코스피")
+        tasks["sp500_internal"] = executor.submit(fetch_internal_index_metric, "SNP500", "SP500", "S&P500")
+        tasks["usdkrw_internal"] = executor.submit(fetch_internal_fx_metric, "USD", "KRW", "USDKRW", "환율")
+        tasks["gold_internal"] = executor.submit(fetch_internal_commodity_metric, "gold", "GOLD", "금가격 (COMEX)")
         if has_kis_credentials():
             tasks["kospi_kis"] = executor.submit(fetch_kis_index_quote, "0001")
             tasks["kosdaq_kis"] = executor.submit(fetch_kis_index_quote, "1001")
@@ -1192,15 +1476,39 @@ def fetch_market_metrics(previous_snapshot):
             except Exception as exc:  # noqa: BLE001
                 if task_name == "kospi_kis":
                     print(f"  WARNING: KOSPI 현재가 조회 실패: {exc}")
+                elif task_name == "kospi_internal":
+                    print(f"  WARNING: KOSPI 내부 지표 조회 실패: {exc}")
                 elif task_name == "kosdaq_kis":
                     print(f"  WARNING: KOSDAQ 현재가 조회 실패: {exc}")
                 elif task_name == "sp500_kis":
                     print(f"  WARNING: S&P500 현재가 조회 실패: {exc}")
+                elif task_name == "sp500_internal":
+                    print(f"  WARNING: S&P500 내부 지표 조회 실패: {exc}")
+                elif task_name == "usdkrw_internal":
+                    print(f"  WARNING: USD/KRW 내부 지표 조회 실패: {exc}")
+                elif task_name == "gold_internal":
+                    print(f"  WARNING: 금가격 내부 지표 조회 실패: {exc}")
                 elif task_name == "marketindex_html":
                     print(f"  WARNING: 시장지표 HTML 조회 실패: {exc}")
                 continue
 
-            if task_name == "kospi_kis":
+            if task_name == "kospi_internal":
+                kospi_metric = payload
+                if kospi_metric:
+                    providers.add("internal_macro")
+            elif task_name == "sp500_internal":
+                sp500_metric = payload
+                if sp500_metric:
+                    providers.add("internal_macro")
+            elif task_name == "usdkrw_internal":
+                usdkrw_metric = payload
+                if usdkrw_metric:
+                    providers.add("internal_macro")
+            elif task_name == "gold_internal":
+                gold_metric = payload
+                if gold_metric:
+                    providers.add("internal_macro")
+            elif task_name == "kospi_kis" and kospi_metric is None:
                 kospi_metric = build_kis_index_metric(payload, "KOSPI", "코스피")
                 if kospi_metric:
                     providers.add("kis")
@@ -1208,7 +1516,7 @@ def fetch_market_metrics(previous_snapshot):
                 kosdaq_metric = build_kis_index_metric(payload, "KOSDAQ", "KOSDAQ")
                 if kosdaq_metric:
                     providers.add("kis")
-            elif task_name == "sp500_kis":
+            elif task_name == "sp500_kis" and sp500_metric is None:
                 sp500_metric = build_kis_overseas_index_metric(payload, "SP500", "S&P500")
                 if sp500_metric:
                     providers.add("kis")
@@ -1242,28 +1550,22 @@ def fetch_market_metrics(previous_snapshot):
         except Exception as exc:  # noqa: BLE001
             print(f"  WARNING: S&P500 네이버 fallback 실패: {exc}")
 
-    usdkrw_metric = (
-        build_marketindex_metric(
+    if usdkrw_metric is None and marketindex_html:
+        usdkrw_metric = build_marketindex_metric(
             marketindex_html,
             "usd",
             "USDKRW",
             "환율",
             price_digits=2,
         )
-        if marketindex_html
-        else None
-    )
-    gold_metric = (
-        build_marketindex_metric(
+    if gold_metric is None and marketindex_html:
+        gold_metric = build_marketindex_metric(
             marketindex_html,
             "gold_inter",
             "GOLD",
             "금가격 (COMEX)",
             price_digits=2,
         )
-        if marketindex_html
-        else None
-    )
 
     for metric_id, metric in (
         ("KOSDAQ", kosdaq_metric),
@@ -1662,20 +1964,22 @@ def main():
     avg_spread_change = summary["averageSpreadChange"] if summary else None
 
     providers = quote_providers | market_providers
-    if "kis" in providers and "naver" in providers:
-        source = "한국투자증권 오픈 API + 네이버 보조지표"
-    elif "kis" in providers:
-        source = "한국투자증권 오픈 API"
-    elif "esignal" in providers and "naver" in providers:
-        source = "네이버 증권 + eSignal 선물 시세"
-    elif "esignal" in providers:
-        source = "eSignal 선물 시세"
-    elif "public" in providers and "naver" in providers:
-        source = "네이버 증권 + 공개 선물 시세"
-    elif "public" in providers:
-        source = "공개 선물 시세"
-    else:
-        source = "네이버 증권"
+    source_parts = []
+    if "internal_daily" in providers:
+        source_parts.append("내부 가격 API")
+    if "internal_macro" in providers:
+        source_parts.append("내부 지표 API")
+    if "kis" in providers:
+        source_parts.append("한국투자증권 오픈 API")
+    if "naver" in providers:
+        source_parts.append("네이버 증권")
+    if "esignal" in providers:
+        source_parts.append("eSignal 선물 시세")
+    if "public" in providers:
+        source_parts.append("공개 선물 시세")
+    if "internal_close" in providers:
+        source_parts.append("내부 종가 백업")
+    source = " + ".join(dict.fromkeys(source_parts)) or "네이버 증권"
 
     result = {
         "source": source,

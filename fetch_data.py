@@ -9,12 +9,14 @@ Yahoo Finance에서 보통주/우선주 가격 데이터를 가져와 data.js를
 
 import argparse
 import json
+import os
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import yfinance as yf
@@ -34,6 +36,25 @@ PROXY_HISTORY_BASE_URL = "http://cantabile.tplinkdns.com:3288"
 PROXY_HISTORY_START_DATE = pd.Timestamp("1989-01-01")
 PROXY_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "proxy_history"
 PROXY_BACKFILL_WORKERS = 2
+INTERNAL_CLOSE_API_URL = os.environ.get(
+    "INTERNAL_CLOSE_API_URL",
+    "http://192.168.68.84:8400/api/prices/close",
+).strip()
+INTERNAL_DAILY_API_URL = os.environ.get(
+    "INTERNAL_DAILY_API_URL",
+    "http://192.168.68.84:8400/api/prices/daily",
+).strip()
+INTERNAL_INDICES_API_URL = os.environ.get(
+    "INTERNAL_INDICES_API_URL",
+    "http://192.168.68.84:8400/api/macro/indices",
+).strip()
+INTERNAL_DIVIDENDS_API_URL = os.environ.get(
+    "INTERNAL_DIVIDENDS_API_URL",
+    "http://192.168.68.84:8400/api/fundamentals/dividends",
+).strip()
+INTERNAL_CLOSE_TIMEOUT_SECONDS = 10
+INTERNAL_PRICE_TIMEOUT_SECONDS = 30
+INTERNAL_PRICE_MAX_DAYS = 3650
 DIVIDEND_HISTORY_WORKERS = 6
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
 SAFE_ADJUSTMENT_RATIO_MAX = 10.0
@@ -169,6 +190,10 @@ _ticker_meta_cache = {}
 _naver_meta_cache = {}
 _naver_daily_history_cache = {}
 _proxy_daily_history_cache = {}
+_internal_close_history_cache = {}
+_internal_ticker_meta_cache = {}
+_internal_index_history_cache = {}
+_internal_dividend_rows_cache = {}
 _pair_yahoo_history_cache = {}
 _dividend_series_cache = {}
 _sheet_dividend_amount_cache = None
@@ -178,6 +203,84 @@ def get_div_yield(ticker):
     if ticker not in _div_yield_cache:
         _div_yield_cache[ticker] = get_ticker_meta(ticker)["dividendYield"] or 0
     return _div_yield_cache[ticker]
+
+
+def normalize_ticker_code(ticker):
+    if not ticker:
+        return None
+    code = str(ticker).split(".")[0]
+    digits = re.sub(r"\D", "", code)
+    if not digits:
+        return None
+    return digits[-6:].zfill(6)
+
+
+def fetch_internal_dividend_rows(tickers):
+    ticker_codes = {
+        ticker: normalize_ticker_code(ticker)
+        for ticker in tickers
+    }
+    missing_codes = sorted(
+        {
+            code for code in ticker_codes.values()
+            if code and code not in _internal_dividend_rows_cache
+        }
+    )
+
+    if INTERNAL_DIVIDENDS_API_URL and missing_codes:
+        params = {"tickers": ",".join(missing_codes)}
+        request = Request(
+            f"{INTERNAL_DIVIDENDS_API_URL}?{urlencode(params)}",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        try:
+            with urlopen(request, timeout=INTERNAL_PRICE_TIMEOUT_SECONDS) as response:
+                payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            dividends = payload.get("dividends") or {}
+            for code in missing_codes:
+                _internal_dividend_rows_cache[code] = dividends.get(code) or []
+        except Exception as exc:
+            print(f"  WARNING: 내부 배당 API 수집 실패 ({exc})")
+            for code in missing_codes:
+                _internal_dividend_rows_cache.setdefault(code, [])
+    else:
+        for code in missing_codes:
+            _internal_dividend_rows_cache.setdefault(code, [])
+
+    return {
+        ticker: _internal_dividend_rows_cache.get(code, [])
+        for ticker, code in ticker_codes.items()
+        if code
+    }
+
+
+def latest_internal_dividend_per_share(ticker):
+    rows = fetch_internal_dividend_rows([ticker]).get(ticker, [])
+    normalized = []
+    for row in rows:
+        amount = pd.to_numeric(row.get("cash_dividend_per_share"), errors="coerce")
+        if pd.isna(amount):
+            continue
+        fiscal_year = pd.to_numeric(row.get("fiscal_year"), errors="coerce")
+        normalized.append(
+            {
+                "fiscalYear": int(fiscal_year) if not pd.isna(fiscal_year) else 0,
+                "date": str(row.get("fiscal_period_end") or row.get("available_date") or ""),
+                "amount": float(amount),
+            }
+        )
+    if not normalized:
+        return None
+
+    normalized.sort(key=lambda item: (item["fiscalYear"], item["date"]))
+    return round(normalized[-1]["amount"], 4)
+
+
+def get_internal_dividend_amounts(common_ticker, preferred_ticker):
+    return {
+        "commonDividendPerShare": latest_internal_dividend_per_share(common_ticker),
+        "preferredDividendPerShare": latest_internal_dividend_per_share(preferred_ticker),
+    }
 
 
 def get_dividend_series(ticker):
@@ -457,6 +560,7 @@ def get_ticker_meta(ticker):
         "marketCap": None,
         "sharesOutstanding": None,
     }
+    internal_meta = _internal_ticker_meta_cache.get(ticker, {})
 
     try:
         yf_ticker = yf.Ticker(ticker)
@@ -476,12 +580,14 @@ def get_ticker_meta(ticker):
 
     meta["dividendYield"] = info.get("dividendYield") or 0
     meta["marketCap"] = (
-        naver_meta["marketCap"]
+        internal_meta.get("marketCap")
+        or naver_meta["marketCap"]
         or info.get("marketCap")
         or _read_fast_info_value(fast_info, "marketCap", "market_cap")
     )
     meta["sharesOutstanding"] = (
-        naver_meta["sharesOutstanding"]
+        internal_meta.get("sharesOutstanding")
+        or naver_meta["sharesOutstanding"]
         or info.get("sharesOutstanding")
         or _read_fast_info_value(fast_info, "sharesOutstanding", "shares", "shares_outstanding")
     )
@@ -661,6 +767,220 @@ def fetch_proxy_daily_history(ticker):
     return history.copy()
 
 
+def iter_date_windows(start_date, end_date, max_days=INTERNAL_PRICE_MAX_DAYS):
+    cursor = pd.Timestamp(start_date).normalize()
+    final = pd.Timestamp(end_date).normalize()
+    while cursor <= final:
+        window_end = min(cursor + pd.Timedelta(days=max_days - 1), final)
+        yield cursor, window_end
+        cursor = window_end + pd.Timedelta(days=1)
+
+
+def fetch_internal_daily_history(tickers, start_date, end_date):
+    tickers = sorted({ticker for ticker in tickers if ticker and ticker != "^KS11"})
+    close = pd.DataFrame(columns=tickers)
+    volume = pd.DataFrame(columns=tickers)
+    if not INTERNAL_DAILY_API_URL or not tickers:
+        return close, volume
+
+    frames_close = []
+    frames_volume = []
+    for window_start, window_end in iter_date_windows(start_date, end_date):
+        params = {
+            "tickers": ",".join(ticker.split(".")[0] for ticker in tickers),
+            "since": window_start.strftime("%Y-%m-%d"),
+            "until": window_end.strftime("%Y-%m-%d"),
+            "fields": "close,volume,market_cap,listed_shares",
+        }
+        request = Request(
+            f"{INTERNAL_DAILY_API_URL}?{urlencode(params)}",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        try:
+            with urlopen(request, timeout=INTERNAL_PRICE_TIMEOUT_SECONDS) as response:
+                payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        except Exception as exc:
+            print(
+                "  WARNING: 내부 가격 API 일봉 수집 실패 "
+                f"({window_start:%Y-%m-%d}~{window_end:%Y-%m-%d}, {exc})"
+            )
+            continue
+
+        close_rows = {}
+        volume_rows = {}
+        prices = payload.get("prices") or {}
+        for ticker in tickers:
+            code = ticker.split(".")[0]
+            for item in prices.get(code, []) or []:
+                date = pd.to_datetime(item.get("date"), errors="coerce")
+                close_value = pd.to_numeric(item.get("close"), errors="coerce")
+                volume_value = pd.to_numeric(item.get("volume"), errors="coerce")
+                if pd.isna(date):
+                    continue
+                if not pd.isna(close_value):
+                    close_rows.setdefault(date, {})[ticker] = close_value
+                if not pd.isna(volume_value):
+                    volume_rows.setdefault(date, {})[ticker] = volume_value
+
+                meta = _internal_ticker_meta_cache.setdefault(
+                    ticker,
+                    {"marketCap": None, "sharesOutstanding": None},
+                )
+                market_cap = pd.to_numeric(item.get("market_cap"), errors="coerce")
+                listed_shares = pd.to_numeric(item.get("listed_shares"), errors="coerce")
+                if not pd.isna(market_cap):
+                    meta["marketCap"] = int(market_cap)
+                if not pd.isna(listed_shares):
+                    meta["sharesOutstanding"] = int(listed_shares)
+
+        if close_rows:
+            frames_close.append(pd.DataFrame.from_dict(close_rows, orient="index"))
+        if volume_rows:
+            frames_volume.append(pd.DataFrame.from_dict(volume_rows, orient="index"))
+
+    if frames_close:
+        close = pd.concat(frames_close).sort_index()
+        close = close[~close.index.duplicated(keep="last")]
+    if frames_volume:
+        volume = pd.concat(frames_volume).sort_index()
+        volume = volume[~volume.index.duplicated(keep="last")]
+
+    return close, volume
+
+
+def fetch_internal_index_history(series_id):
+    if series_id not in _internal_index_history_cache:
+        rows = []
+        if INTERNAL_INDICES_API_URL:
+            params = {"series_id": series_id}
+            request = Request(
+                f"{INTERNAL_INDICES_API_URL}?{urlencode(params)}",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            try:
+                with urlopen(request, timeout=INTERNAL_PRICE_TIMEOUT_SECONDS) as response:
+                    payload = json.loads(response.read().decode("utf-8", errors="replace"))
+                rows = payload.get("indices") or []
+            except Exception as exc:
+                print(f"  WARNING: 내부 지수 API 수집 실패 ({series_id}, {exc})")
+                try:
+                    request = Request(INTERNAL_INDICES_API_URL, headers={"User-Agent": "Mozilla/5.0"})
+                    with urlopen(request, timeout=INTERNAL_PRICE_TIMEOUT_SECONDS) as response:
+                        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+                    rows = [
+                        item for item in payload.get("indices") or []
+                        if item.get("series_id") == series_id
+                    ]
+                except Exception as fallback_exc:
+                    print(f"  WARNING: 내부 지수 API 전체 fallback 실패 ({fallback_exc})")
+        _internal_index_history_cache[series_id] = rows
+
+    rows = []
+    for item in _internal_index_history_cache[series_id]:
+        if item.get("series_id") != series_id:
+            continue
+        rows.append(
+            {
+                "date": pd.to_datetime(item.get("date"), errors="coerce"),
+                "close": pd.to_numeric(item.get("value"), errors="coerce"),
+            }
+        )
+    if not rows:
+        return pd.Series(dtype="float64")
+
+    history = pd.DataFrame(rows).dropna(subset=["date", "close"])
+    history = history.set_index("date").sort_index()
+    history = history[~history.index.duplicated(keep="last")]
+    return history["close"]
+
+
+def fetch_internal_close_history(ticker, since_date, until_date):
+    code = ticker.split(".")[0]
+    empty = pd.DataFrame(columns=["close"])
+    if not INTERNAL_CLOSE_API_URL or not code:
+        return empty.copy()
+
+    since_text = pd.Timestamp(since_date).strftime("%Y-%m-%d")
+    until_text = pd.Timestamp(until_date).strftime("%Y-%m-%d")
+    cache_key = (code, since_text, until_text)
+    if cache_key in _internal_close_history_cache:
+        return _internal_close_history_cache[cache_key].copy()
+
+    params = {
+        "ticker": code,
+        "since": since_text,
+        "until": until_text,
+    }
+    url = f"{INTERNAL_CLOSE_API_URL}?{urlencode(params)}"
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+
+    try:
+        with urlopen(request, timeout=INTERNAL_CLOSE_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    except Exception as exc:
+        print(f"  WARNING: INTERNAL_CLOSE {ticker} 수집 실패 ({exc})")
+        _internal_close_history_cache[cache_key] = empty
+        return empty.copy()
+
+    rows = []
+    for item in payload.get("prices", []) or []:
+        rows.append(
+            {
+                "date": pd.to_datetime(item.get("date"), errors="coerce"),
+                "close": pd.to_numeric(item.get("close"), errors="coerce"),
+            }
+        )
+
+    if rows:
+        history = pd.DataFrame(rows).dropna(subset=["date", "close"])
+        history = history.set_index("date").sort_index()
+        history = history[~history.index.duplicated(keep="last")]
+    else:
+        history = empty
+
+    _internal_close_history_cache[cache_key] = history
+    return history.copy()
+
+
+def merge_internal_close_fallback(close_series, volume_series, ticker, start_date, end_date, enabled=True):
+    if not enabled or close_series is None or volume_series is None:
+        return close_series, None
+
+    volume_numeric = pd.to_numeric(volume_series, errors="coerce")
+    traded_dates = pd.DatetimeIndex(pd.to_datetime(volume_numeric[volume_numeric > 0].index)).normalize()
+    if traded_dates.empty:
+        return close_series, None
+
+    close_dates = pd.DatetimeIndex(pd.to_datetime(close_series.index)).normalize()
+    missing_dates = traded_dates.difference(close_dates)
+    if missing_dates.empty:
+        return close_series, None
+
+    fallback = fetch_internal_close_history(
+        ticker,
+        max(pd.Timestamp(start_date).normalize(), missing_dates.min()),
+        min(pd.Timestamp(end_date).normalize(), missing_dates.max()),
+    )
+    if fallback.empty:
+        return close_series, None
+
+    fallback.index = pd.DatetimeIndex(pd.to_datetime(fallback.index)).normalize()
+    fill_dates = missing_dates.intersection(fallback.index)
+    if fill_dates.empty:
+        return close_series, None
+
+    merged_close = pd.concat([close_series, fallback.loc[fill_dates, "close"]]).sort_index()
+    merged_close = merged_close[~merged_close.index.duplicated(keep="last")]
+    info = {
+        "source": "internal_close",
+        "ticker": ticker,
+        "filledDays": int(len(fill_dates)),
+        "since": fill_dates.min().strftime("%Y-%m-%d"),
+        "until": fill_dates.max().strftime("%Y-%m-%d"),
+    }
+    return merged_close, info
+
+
 def merge_external_backfill(yahoo_close, yahoo_vol, external_history, ticker, source_name, enabled=False):
     if not enabled or yahoo_close.empty:
         return yahoo_close, yahoo_vol, None
@@ -837,6 +1157,11 @@ def prefetch_dividend_histories(tickers):
     if not tickers:
         return
 
+    internal_rows = fetch_internal_dividend_rows(tickers)
+    internal_count = sum(len(rows) for rows in internal_rows.values())
+    if internal_count:
+        print(f"내부 배당 API 수집: {internal_count}건")
+
     workers = min(DIVIDEND_HISTORY_WORKERS, len(tickers))
     print(f"배당 히스토리 병렬 수집: {len(tickers)}개 티커, {workers}개 워커")
 
@@ -875,11 +1200,17 @@ def main():
         default=0,
         help="완료되지 않은 다음 pair를 자동 선택해 프록시 백필할 개수",
     )
+    parser.add_argument(
+        "--disable-internal-close-fallback",
+        action="store_true",
+        help="Yahoo/Naver/프록시 종가 누락 시 내부 종가 API 백업 사용을 끕니다",
+    )
     args = parser.parse_args()
 
     explicit_naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
     if args.naver_backfill is not None:
         explicit_naver_backfill_pair_ids.update(args.naver_backfill)
+    use_internal_close_fallback = not args.disable_internal_close_fallback
     explicit_proxy_backfill_pair_ids = set(DEFAULT_PROXY_BACKFILL_PAIR_IDS)
     if args.proxy_backfill is not None:
         explicit_proxy_backfill_pair_ids.update(args.proxy_backfill)
@@ -901,16 +1232,15 @@ def main():
             if not pair.get("isAverage")
         }
 
-    # 모든 티커 수집 (중복 제거) + KOSPI 지수
+    # 모든 주식 티커 수집 (중복 제거) + KOSPI 지수
     KOSPI_TICKER = "^KS11"
-    all_tickers = list(
+    stock_tickers = list(
         dict.fromkeys(
             ticker
             for pair in PAIRS
             for ticker in [pair["commonTicker"], pair["preferredTicker"]]
         )
     )
-    all_tickers.append(KOSPI_TICKER)
 
     end_date = datetime.now()
     configured_pair_ids = {pair["id"] for pair in PAIRS if not pair.get("isAverage")}
@@ -938,20 +1268,54 @@ def main():
         start_date = datetime(2000, 1, 1)
         print("전체 다운로드 모드")
 
-    print(f"{len(all_tickers)}개 티커 다운로드 중...")
+    print(f"{len(stock_tickers)}개 주식 티커 다운로드 중...")
     print(f"기간: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
 
-    # 일괄 다운로드 (비조정 종가 사용)
-    data = yf.download(
-        all_tickers,
-        start=start_date.strftime("%Y-%m-%d"),
-        end=end_date.strftime("%Y-%m-%d"),
-        auto_adjust=False,
-        progress=True,
-    )
+    close, volume = fetch_internal_daily_history(stock_tickers, start_date, end_date)
+    if not close.empty:
+        print(f"내부 가격 API 수집: {len(close)}일 x {len(close.columns)}개 티커")
 
-    close = data["Close"]
-    volume = data["Volume"]
+    for ticker in stock_tickers:
+        if ticker not in close.columns:
+            close[ticker] = pd.NA
+        if ticker not in volume.columns:
+            volume[ticker] = 0
+
+    kospi_internal = fetch_internal_index_history("KOSPI")
+    if not kospi_internal.empty:
+        close[KOSPI_TICKER] = kospi_internal
+
+    missing_tickers = [
+        ticker for ticker in stock_tickers
+        if close[ticker].dropna().empty
+    ]
+    yahoo_tickers = list(missing_tickers)
+    if KOSPI_TICKER not in close.columns or close[KOSPI_TICKER].dropna().empty:
+        yahoo_tickers.insert(0, KOSPI_TICKER)
+    yahoo_tickers = list(dict.fromkeys(yahoo_tickers))
+    if yahoo_tickers:
+        print("Yahoo fallback 대상: " + ", ".join(yahoo_tickers))
+        yahoo_data = yf.download(
+            yahoo_tickers,
+            start=start_date.strftime("%Y-%m-%d"),
+            end=end_date.strftime("%Y-%m-%d"),
+            auto_adjust=False,
+            progress=True,
+        )
+        yahoo_close = yahoo_data["Close"]
+        yahoo_volume = yahoo_data["Volume"]
+        if isinstance(yahoo_close, pd.Series):
+            yahoo_close = yahoo_close.to_frame(yahoo_tickers[0])
+        if isinstance(yahoo_volume, pd.Series):
+            yahoo_volume = yahoo_volume.to_frame(yahoo_tickers[0])
+
+        for ticker in yahoo_tickers:
+            if ticker in yahoo_close.columns:
+                close[ticker] = close[ticker].combine_first(yahoo_close[ticker])
+            if ticker in yahoo_volume.columns:
+                volume[ticker] = volume[ticker].combine_first(yahoo_volume[ticker])
+    if KOSPI_TICKER not in close.columns:
+        close[KOSPI_TICKER] = pd.NA
 
     naver_backfill_pair_ids, naver_backfill_tickers, naver_backfill_reasons = (
         determine_naver_backfill_targets(close, explicit_naver_backfill_pair_ids)
@@ -1062,6 +1426,23 @@ def main():
                 enabled=True,
             )
 
+        common_close, common_internal_fallback = merge_internal_close_fallback(
+            common_close,
+            common_vol,
+            ct,
+            start_date,
+            end_date,
+            enabled=use_internal_close_fallback,
+        )
+        preferred_close, preferred_internal_fallback = merge_internal_close_fallback(
+            preferred_close,
+            preferred_vol,
+            pt,
+            start_date,
+            end_date,
+            enabled=use_internal_close_fallback,
+        )
+
         if common_backfill or preferred_backfill:
             common_msg = (
                 (
@@ -1086,6 +1467,21 @@ def main():
                 else "우선주 변화 없음"
             )
             print(f"  INFO: {pair['name']} 네이버 백필 {common_msg}, {preferred_msg}")
+
+        if common_internal_fallback or preferred_internal_fallback:
+            common_msg = (
+                f"보통주 {common_internal_fallback['filledDays']}일 "
+                f"({common_internal_fallback['since']}~{common_internal_fallback['until']})"
+                if common_internal_fallback
+                else "보통주 변화 없음"
+            )
+            preferred_msg = (
+                f"우선주 {preferred_internal_fallback['filledDays']}일 "
+                f"({preferred_internal_fallback['since']}~{preferred_internal_fallback['until']})"
+                if preferred_internal_fallback
+                else "우선주 변화 없음"
+            )
+            print(f"  INFO: {pair['name']} 내부 종가 백업 {common_msg}, {preferred_msg}")
 
         # 두 시리즈의 공통 날짜만 사용
         common_dates = common_close.index.intersection(preferred_close.index)
@@ -1162,9 +1558,15 @@ def main():
         # 배당수익률 조회
         common_meta = get_ticker_meta(ct)
         preferred_meta = get_ticker_meta(pt)
-        sheet_dividend_amounts = get_sheet_dividend_amounts(ct, pt) or {}
-        common_dividend_per_share = sheet_dividend_amounts.get("commonDividendPerShare")
-        preferred_dividend_per_share = sheet_dividend_amounts.get("preferredDividendPerShare")
+        internal_dividend_amounts = get_internal_dividend_amounts(ct, pt)
+        common_dividend_per_share = internal_dividend_amounts.get("commonDividendPerShare")
+        preferred_dividend_per_share = internal_dividend_amounts.get("preferredDividendPerShare")
+        if common_dividend_per_share is None or preferred_dividend_per_share is None:
+            sheet_dividend_amounts = get_sheet_dividend_amounts(ct, pt) or {}
+            if common_dividend_per_share is None:
+                common_dividend_per_share = sheet_dividend_amounts.get("commonDividendPerShare")
+            if preferred_dividend_per_share is None:
+                preferred_dividend_per_share = sheet_dividend_amounts.get("preferredDividendPerShare")
         c_dy = (
             common_dividend_per_share / latest["commonPrice"] * 100
             if common_dividend_per_share is not None and latest["commonPrice"]

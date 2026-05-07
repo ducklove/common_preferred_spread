@@ -223,8 +223,8 @@ body {
   border-color: var(--overview-primary-border);
 }
 .overview-card.average-card {
-  align-items: center;
-  text-align: center;
+  align-items: stretch;
+  text-align: left;
 }
 .overview-card.average-card .overview-label,
 .overview-card.average-card .overview-detail {
@@ -236,6 +236,59 @@ body {
 .overview-card.average-card .overview-value {
   font-size: 42px;
   line-height: 1;
+}
+.overview-card.average-card .overview-change {
+  display: block;
+  margin-top: 6px;
+}
+.average-card-body {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, 128px);
+  align-items: center;
+  gap: 14px;
+}
+.average-main-metric {
+  min-width: 0;
+}
+.average-sparkline {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.average-sparkline-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  margin-bottom: 5px;
+  text-align: right;
+}
+.average-sparkline svg {
+  display: block;
+  width: 100%;
+  height: 54px;
+}
+.average-sparkline-fill {
+  fill: var(--accent);
+  opacity: 0.1;
+}
+.average-sparkline-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+.average-sparkline.up .average-sparkline-fill { fill: var(--up); }
+.average-sparkline.up .average-sparkline-line { stroke: var(--up); }
+.average-sparkline.down .average-sparkline-fill { fill: var(--down); }
+.average-sparkline.down .average-sparkline-line { stroke: var(--down); }
+.average-sparkline.empty {
+  min-height: 54px;
+  align-items: flex-end;
+  color: var(--text-dim);
+  font-size: 11px;
 }
 .overview-card.average-card .overview-summary-grid {
   width: 100%;
@@ -262,6 +315,9 @@ body {
   font-size: 21px;
   line-height: 1.25;
   letter-spacing: -0.4px;
+}
+.overview-card.leader-card .spread-val {
+  font-weight: 400;
 }
 .overview-card.leader-card .name {
   font-size: 16px;
@@ -1595,15 +1651,85 @@ td.numeric .bar-cell {
     return `
       <div class="overview-card average-card">
         <div class="overview-label">평균 괴리율</div>
-        <div class="spread-line">
-          <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
-          <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
+        <div class="average-card-body">
+          <div class="average-main-metric">
+            <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
+            <div class="overview-change ${getDirectionClass(summary.averageSpreadChange)}">전일비 ${formatPointChange(summary.averageSpreadChange)}</div>
+          </div>
+          ${renderAverageSpreadSparkline(summary.averageSpread)}
         </div>
         <div class="overview-summary-grid">
           ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
           ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
         </div>
         <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
+      </div>
+    `;
+  }
+
+  function getAverageSpreadTrend(currentAverageSpread = null) {
+    const averagePair = getAveragePair();
+    const entries = (averagePair?.history || [])
+      .filter(entry => entry?.date && entry.spread != null && !Number.isNaN(Number(entry.spread)))
+      .map(entry => ({ date: entry.date, spread: Number(entry.spread) }));
+
+    if (!entries.length) return [];
+
+    const latestMs = getHistoryDateMs(entries[entries.length - 1].date);
+    const cutoffMs = latestMs == null ? null : latestMs - (30 * 24 * 60 * 60 * 1000);
+    let recent = cutoffMs == null
+      ? entries.slice(-30)
+      : entries.filter(entry => {
+          const entryMs = getHistoryDateMs(entry.date);
+          return entryMs != null && entryMs >= cutoffMs;
+        });
+    if (recent.length < 2) recent = entries.slice(-30);
+
+    if (currentAverageSpread != null && !Number.isNaN(Number(currentAverageSpread)) && recent.length) {
+      recent = recent.slice();
+      recent[recent.length - 1] = {
+        ...recent[recent.length - 1],
+        spread: Number(currentAverageSpread),
+      };
+    }
+
+    return recent;
+  }
+
+  function renderAverageSpreadSparkline(currentAverageSpread) {
+    const trend = getAverageSpreadTrend(currentAverageSpread);
+    if (trend.length < 2) {
+      return `
+        <div class="average-sparkline empty">
+          <div class="average-sparkline-label">최근 1개월</div>
+          <div>추이 없음</div>
+        </div>
+      `;
+    }
+
+    const width = 128;
+    const height = 54;
+    const pad = 4;
+    const values = trend.map(point => point.spread);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const points = trend.map((point, index) => {
+      const x = pad + (index / (trend.length - 1)) * (width - pad * 2);
+      const y = height - pad - ((point.spread - min) / range) * (height - pad * 2);
+      return [x.toFixed(1), y.toFixed(1)];
+    });
+    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point[0]} ${point[1]}`).join(' ');
+    const fillPath = `${linePath} L ${points[points.length - 1][0]} ${height - pad} L ${points[0][0]} ${height - pad} Z`;
+    const directionClass = getDirectionClass(values[values.length - 1] - values[0]);
+
+    return `
+      <div class="average-sparkline ${directionClass}">
+        <div class="average-sparkline-label">최근 1개월</div>
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="최근 한달간 평균 괴리율 추이">
+          <path class="average-sparkline-fill" d="${fillPath}"></path>
+          <path class="average-sparkline-line" d="${linePath}"></path>
+        </svg>
       </div>
     `;
   }
