@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-05-08 22:55:52",
+  "lastUpdated": "2026-05-09 00:26:14",
   "prices": {
     "samsung_elec": {
       "commonPrice": 268500,
@@ -506,9 +506,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1463.0,
-        "change": 5.0,
-        "changePct": 0.34,
+        "price": 1462.6,
+        "change": 4.6,
+        "changePct": 0.32,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -534,9 +534,9 @@
       {
         "id": "SP500",
         "name": "S&P500",
-        "price": 7384.64,
-        "change": 47.53,
-        "changePct": 0.65,
+        "price": 7389.77,
+        "change": 52.66,
+        "changePct": 0.72,
         "marketStatus": "OPEN",
         "unit": null,
         "code": null,
@@ -581,9 +581,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1463.0,
-          "change": 5.0,
-          "changePct": 0.34,
+          "price": 1462.6,
+          "change": 4.6,
+          "changePct": 0.32,
           "marketStatus": null,
           "unit": null,
           "code": null,
@@ -609,9 +609,9 @@
         {
           "id": "SP500",
           "name": "S&P500",
-          "price": 7384.64,
-          "change": 47.53,
-          "changePct": 0.65,
+          "price": 7389.77,
+          "change": 52.66,
+          "changePct": 0.72,
           "marketStatus": "OPEN",
           "unit": null,
           "code": null,
