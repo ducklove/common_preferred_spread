@@ -38,6 +38,11 @@
   --overview-card-border: rgba(255,255,255,0.08);
   --overview-primary-bg: rgba(15,17,23,0.26);
   --overview-primary-border: rgba(56,201,106,0.28);
+  --overview-weight-heading: 700;
+  --overview-weight-name: 600;
+  --overview-weight-value: 700;
+  --overview-weight-change: 600;
+  --overview-weight-normal: 400;
   --soft-border: rgba(255,255,255,0.08);
   --avg-card-bg: rgba(56,201,106,0.06);
   --avg-card-bg-active: rgba(56,201,106,0.12);
@@ -68,6 +73,11 @@
   --overview-card-border: rgba(23,32,51,0.1);
   --overview-primary-bg: rgba(255,255,255,0.9);
   --overview-primary-border: rgba(31,154,84,0.28);
+  --overview-weight-heading: 700;
+  --overview-weight-name: 600;
+  --overview-weight-value: 700;
+  --overview-weight-change: 600;
+  --overview-weight-normal: 400;
   --soft-border: rgba(23,32,51,0.1);
   --avg-card-bg: rgba(31,154,84,0.07);
   --avg-card-bg-active: rgba(31,154,84,0.14);
@@ -178,14 +188,14 @@ body {
 .today-overview-kicker {
   color: var(--accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-heading);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
 .today-overview-title {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-heading);
   letter-spacing: -0.5px;
 }
 .today-overview-grid {
@@ -308,7 +318,7 @@ body {
 }
 .overview-value {
   font-size: 28px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-value);
   letter-spacing: -0.8px;
 }
 .overview-card.leader-card .overview-value {
@@ -317,15 +327,15 @@ body {
   letter-spacing: -0.4px;
 }
 .overview-card.leader-card .spread-val {
-  font-weight: 400;
+  font-weight: var(--overview-weight-normal);
 }
 .overview-card.leader-card .name {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-name);
 }
 .overview-change {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--overview-weight-change);
 }
 .overview-change.up { color: var(--up); }
 .overview-change.down { color: var(--down); }
@@ -358,7 +368,7 @@ body {
 }
 .overview-market-secondary-value {
   white-space: nowrap;
-  font-weight: 700;
+  font-weight: var(--overview-weight-value);
   font-variant-numeric: tabular-nums;
 }
 .overview-market-secondary-value.up { color: var(--up); }
@@ -451,7 +461,7 @@ body {
 }
 .overview-mini-value {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-value);
   letter-spacing: -0.2px;
   line-height: 1.2;
 }
@@ -480,7 +490,7 @@ body {
 }
 .overview-stat-value {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-value);
 }
 
 /* Summary cards */
@@ -508,7 +518,7 @@ body {
 .card .name,
 .overview-card .name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--overview-weight-name);
   margin-bottom: 8px;
   line-height: 1.2;
   white-space: nowrap;
@@ -518,7 +528,7 @@ body {
 .card .spread-val,
 .overview-card .spread-val {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: var(--overview-weight-value);
   letter-spacing: -1px;
 }
 .spread-line {
@@ -552,7 +562,7 @@ body {
   gap: 12px;
 }
 .overview-card .spread-change.emphasis {
-  font-weight: 800;
+  font-weight: var(--overview-weight-change);
 }
 .card .spread-change.up { color: var(--up); }
 .card .spread-change.down { color: var(--down); }
@@ -627,7 +637,7 @@ body {
 }
 .overview-rank-name {
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: var(--overview-weight-name);
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
