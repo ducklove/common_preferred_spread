@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-05-19 06:47:21",
+  "lastUpdated": "2026-05-19 06:59:07",
   "prices": {
     "samsung_elec": {
       "commonPrice": 281000,
@@ -520,9 +520,9 @@
       {
         "id": "GOLD",
         "name": "금가격 (COMEX)",
-        "price": 4561.9,
-        "change": -123.4,
-        "changePct": -2.63,
+        "price": 4558.0,
+        "change": -3.9,
+        "changePct": -0.09,
         "marketStatus": null,
         "unit": null,
         "code": null,
@@ -595,9 +595,9 @@
         {
           "id": "GOLD",
           "name": "금가격 (COMEX)",
-          "price": 4561.9,
-          "change": -123.4,
-          "changePct": -2.63,
+          "price": 4558.0,
+          "change": -3.9,
+          "changePct": -0.09,
           "marketStatus": null,
           "unit": null,
           "code": null,
