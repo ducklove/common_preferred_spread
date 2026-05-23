@@ -506,6 +506,9 @@ def build_marketindex_metric(
 def build_kis_stock_quote(stock_output):
     if not stock_output:
         return None
+    trade_date = stock_output.get("stck_bsop_date")
+    if trade_date and re.fullmatch(r"\d{8}", str(trade_date)):
+        trade_date = f"{str(trade_date)[:4]}-{str(trade_date)[4:6]}-{str(trade_date)[6:8]}"
     sign_code = stock_output.get("prdy_vrss_sign")
     return {
         "closePriceRaw": parse_int(stock_output.get("stck_prpr")),
@@ -518,7 +521,29 @@ def build_kis_stock_quote(stock_output):
             sign_code,
         ),
         "marketStatus": None,
+        "tradeDate": trade_date,
     }
+
+
+def extract_quote_trade_date(quote):
+    if not quote:
+        return None
+    for key in ("tradeDate", "date", "priceDate"):
+        value = quote.get(key)
+        if not value:
+            continue
+        text = str(value)
+        if re.match(r"^\d{4}-\d{2}-\d{2}", text):
+            return text[:10]
+        if re.fullmatch(r"\d{8}", text):
+            return f"{text[:4]}-{text[4:6]}-{text[6:8]}"
+
+    traded_at = quote.get("localTradedAt")
+    if traded_at:
+        text = str(traded_at)
+        if re.match(r"^\d{4}-\d{2}-\d{2}", text):
+            return text[:10]
+    return None
 
 
 def build_quote_from_daily_rows(rows, market_status="내부 가격 API"):
@@ -1925,8 +1950,15 @@ def main():
                     if spread is not None and previous_spread is not None
                     else None
                 )
+                common_trade_date = extract_quote_trade_date(common_quote)
+                preferred_trade_date = extract_quote_trade_date(preferred_quote)
 
                 prices[pair["id"]] = {
+                    "date": common_trade_date
+                    if common_trade_date == preferred_trade_date
+                    else None,
+                    "commonTradeDate": common_trade_date,
+                    "preferredTradeDate": preferred_trade_date,
                     "commonPrice": common_price,
                     "preferredPrice": preferred_price,
                     "spread": spread,

@@ -838,6 +838,9 @@ canvas { display: block; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+.stat-label-normal {
+  text-transform: none;
+}
 .stat-box .value {
   font-size: 20px;
   font-weight: 700;
@@ -1089,7 +1092,9 @@ td.numeric .bar-cell {
   </div>
 </div>
 
-<script src="data.js"></script>
+<script>
+document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
+</script>
 <script>
 (function() {
   const pairs = STOCK_DATA.pairs;
@@ -2259,9 +2264,7 @@ td.numeric .bar-cell {
     const spreads = hist.map(h => h.spread).filter(value => value != null && !Number.isNaN(value));
     const current = p.current.spread;
     const beta = calculatePairBeta(hist);
-    const overallAverage = spreads.length
-      ? spreads.reduce((sum, value) => sum + value, 0) / spreads.length
-      : null;
+    const correlation = calculatePairCorrelation(hist);
     const sma250 = calculateSma(spreads, 250);
     const ema = calculateLatestEma(spreads) ?? p.current.spread;
     const preferredLabel = formatPairName(p.preferredName || "우선주");
@@ -2289,7 +2292,7 @@ td.numeric .bar-cell {
       { label: commonLabel, value: formatStatPrice(p.current.commonPrice) },
       { label: "전일비", value: renderChangeHtml(p.current.commonChange) },
       { label: "베타", value: beta == null ? "-" : beta.toFixed(2) },
-      { label: "괴리율 평균", value: overallAverage == null ? "-" : `${overallAverage.toFixed(2)}%` },
+      { label: '본주 상관계수 <span class="stat-label-normal">r</span>', value: correlation == null ? "-" : correlation.toFixed(2) },
       { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
       { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
       { label: "우선주 시가총액", value: formatMarketCap(preferredMarketCap) },
@@ -2702,7 +2705,7 @@ td.numeric .bar-cell {
   }
 
   const DAY_MS = 24 * 60 * 60 * 1000;
-  const MIN_CHART_GAP_DAYS = 7;
+  const MIN_CHART_GAP_DAYS = 10;
   const CHART_DATE_LABEL_FORMATTER = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Seoul',
     year: '2-digit',
@@ -2998,7 +3001,7 @@ td.numeric .bar-cell {
     return n.toLocaleString('ko-KR');
   }
 
-  function calculatePairBeta(hist) {
+  function calculatePairReturns(hist) {
     if (!Array.isArray(hist) || hist.length < 2) return null;
 
     const commonReturns = [];
@@ -3025,6 +3028,14 @@ td.numeric .bar-cell {
 
     if (commonReturns.length < 2) return null;
 
+    return { commonReturns, preferredReturns };
+  }
+
+  function calculatePairBeta(hist) {
+    const returns = calculatePairReturns(hist);
+    if (!returns) return null;
+
+    const { commonReturns, preferredReturns } = returns;
     const commonMean = commonReturns.reduce((sum, value) => sum + value, 0) / commonReturns.length;
     const preferredMean = preferredReturns.reduce((sum, value) => sum + value, 0) / preferredReturns.length;
 
@@ -3040,6 +3051,31 @@ td.numeric .bar-cell {
     if (variance === 0) return null;
 
     return covariance / variance;
+  }
+
+  function calculatePairCorrelation(hist) {
+    const returns = calculatePairReturns(hist);
+    if (!returns) return null;
+
+    const { commonReturns, preferredReturns } = returns;
+    const commonMean = commonReturns.reduce((sum, value) => sum + value, 0) / commonReturns.length;
+    const preferredMean = preferredReturns.reduce((sum, value) => sum + value, 0) / preferredReturns.length;
+
+    let covariance = 0;
+    let commonVariance = 0;
+    let preferredVariance = 0;
+
+    for (let i = 0; i < commonReturns.length; i++) {
+      const commonDelta = commonReturns[i] - commonMean;
+      const preferredDelta = preferredReturns[i] - preferredMean;
+      covariance += commonDelta * preferredDelta;
+      commonVariance += commonDelta * commonDelta;
+      preferredVariance += preferredDelta * preferredDelta;
+    }
+
+    if (commonVariance === 0 || preferredVariance === 0) return null;
+
+    return covariance / Math.sqrt(commonVariance * preferredVariance);
   }
 
   function calculateEmaSeries(values, alpha = EMA_ALPHA) {
@@ -3170,10 +3206,28 @@ td.numeric .bar-cell {
 
   // --- Live price updates from current.json ---
   function getPrevDaySpread(pair, today) {
-    for (let i = pair.history.length - 1; i >= 0; i--) {
-      if (pair.history[i].date < today) return pair.history[i].spread;
+    const history = Array.isArray(pair.history) ? pair.history : [];
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].date < today) return history[i].spread;
     }
     return null;
+  }
+
+  function upsertHistoryPoint(pair, date, point) {
+    const historyDate = normalizeDateText(date);
+    if (!historyDate || !Array.isArray(pair.history)) return false;
+    const existing = pair.history.find(entry => entry.date === historyDate);
+    if (existing) {
+      Object.assign(existing, point, { date: historyDate });
+      return true;
+    }
+
+    const last = pair.history[pair.history.length - 1];
+    if (!last || historyDate > last.date) {
+      pair.history.push({ date: historyDate, ...point });
+      return true;
+    }
+    return false;
   }
 
   function parseSnapshotTimestamp(timestamp) {
@@ -3208,6 +3262,54 @@ td.numeric .bar-cell {
 
   function getCurrentKstDateString(now = new Date()) {
     return formatKstTimestamp(now).slice(0, 10);
+  }
+
+  function normalizeDateText(value) {
+    if (!value) return null;
+    const text = String(value).trim();
+    let match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+    match = text.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+    return null;
+  }
+
+  function isWeekendDateText(dateText) {
+    const normalized = normalizeDateText(dateText);
+    if (!normalized) return false;
+    const [year, month, day] = normalized.split('-').map(Number);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    return weekday === 0 || weekday === 6;
+  }
+
+  function extractQuoteTradeDate(quote) {
+    if (!quote) return null;
+    const candidates = [
+      quote.date,
+      quote.tradeDate,
+      quote.priceDate,
+      quote.localTradedAt,
+      quote.overMarketPriceInfo?.localTradedAt,
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeDateText(candidate);
+      if (normalized) return normalized;
+    }
+    return null;
+  }
+
+  function getSnapshotPriceDate(snapshotPrice, fallbackDate) {
+    const explicitDate = normalizeDateText(snapshotPrice?.date || snapshotPrice?.tradeDate || snapshotPrice?.priceDate);
+    if (explicitDate) return explicitDate;
+
+    const commonDate = normalizeDateText(snapshotPrice?.commonTradeDate);
+    const preferredDate = normalizeDateText(snapshotPrice?.preferredTradeDate);
+    if (commonDate && preferredDate && commonDate === preferredDate) return commonDate;
+    if (commonDate && !preferredDate) return commonDate;
+    if (preferredDate && !commonDate) return preferredDate;
+
+    const normalizedFallback = normalizeDateText(fallbackDate);
+    return normalizedFallback && !isWeekendDateText(normalizedFallback) ? normalizedFallback : null;
   }
 
   function getCurrentKstDayMonth(now = new Date()) {
@@ -3719,8 +3821,16 @@ td.numeric .bar-cell {
       const previousSpread = previousCommonPrice != null && previousCommonPrice !== 0 && previousPreferredPrice != null
         ? +(((previousCommonPrice - previousPreferredPrice) / previousCommonPrice) * 100).toFixed(2)
         : null;
+      const commonTradeDate = extractQuoteTradeDate(commonQuote);
+      const preferredTradeDate = extractQuoteTradeDate(preferredQuote);
+      const priceDate = commonTradeDate && preferredTradeDate && commonTradeDate === preferredTradeDate
+        ? commonTradeDate
+        : null;
 
       prices[pair.id] = {
+        date: priceDate,
+        commonTradeDate,
+        preferredTradeDate,
         commonPrice,
         preferredPrice,
         spread,
@@ -3764,12 +3874,14 @@ td.numeric .bar-cell {
       appliedSnapshotMs,
     );
     const effectiveLastUpdated = cur.lastUpdated || formatKstTimestamp(new Date());
-    const today = effectiveLastUpdated.slice(0, 10);
+    const snapshotDate = effectiveLastUpdated.slice(0, 10);
+    const appliedHistoryDates = [];
 
     pairs.forEach(p => {
       if (p.isAverage) return;
       const cp = cur.prices?.[p.id];
       if (!cp) return;
+      const priceDate = getSnapshotPriceDate(cp, snapshotDate);
 
       p.current.commonPrice = cp.commonPrice;
       p.current.preferredPrice = cp.preferredPrice;
@@ -3780,23 +3892,21 @@ td.numeric .bar-cell {
         p.current.spreadChange = cp.spreadChange;
       }
 
-      const prev = getPrevDaySpread(p, today);
+      const prev = priceDate ? getPrevDaySpread(p, priceDate) : null;
       if (cp.spreadChange == null && prev !== null) {
         p.current.spreadChange = +(cp.spread - prev).toFixed(2);
       }
 
-      const last = p.history[p.history.length - 1];
-      if (last && last.date === today) {
-        last.commonPrice = cp.commonPrice;
-        last.preferredPrice = cp.preferredPrice;
-        last.spread = cp.spread;
-      } else {
-        p.history.push({
-          date: today,
+      if (priceDate && upsertHistoryPoint(
+        p,
+        priceDate,
+        {
           commonPrice: cp.commonPrice,
           preferredPrice: cp.preferredPrice,
           spread: cp.spread,
-        });
+        },
+      )) {
+        appliedHistoryDates.push(priceDate);
       }
     });
 
@@ -3804,7 +3914,13 @@ td.numeric .bar-cell {
 
     const avgPair = getAveragePair();
     if (avgPair && (cur.averageSpread != null || nextSummary?.averageSpread != null)) {
-      const prev = getPrevDaySpread(avgPair, today);
+      const uniqueHistoryDates = [...new Set(appliedHistoryDates)].sort();
+      const averageHistoryDate = (
+        normalizeDateText(cur.date || cur.tradeDate || cur.priceDate)
+        || uniqueHistoryDates[uniqueHistoryDates.length - 1]
+        || (!isWeekendDateText(snapshotDate) ? snapshotDate : null)
+      );
+      const prev = averageHistoryDate ? getPrevDaySpread(avgPair, averageHistoryDate) : null;
       const averageSpread = cur.averageSpread != null ? cur.averageSpread : nextSummary?.averageSpread;
       const averageSpreadChange = cur.averageSpreadChange != null
         ? cur.averageSpreadChange
@@ -3817,14 +3933,10 @@ td.numeric .bar-cell {
         avgPair.current.spreadChange = +(averageSpread - prev).toFixed(2);
       }
 
-      const last = avgPair.history[avgPair.history.length - 1];
-      if (last && last.date === today) {
-        last.spread = averageSpread;
-        if (marketSummary?.price != null) last.kospiPrice = marketSummary.price;
-      } else {
-        const nextEntry = { date: today, commonPrice: 0, preferredPrice: 0, spread: averageSpread };
+      if (averageHistoryDate) {
+        const nextEntry = { commonPrice: 0, preferredPrice: 0, spread: averageSpread };
         if (marketSummary?.price != null) nextEntry.kospiPrice = marketSummary.price;
-        avgPair.history.push(nextEntry);
+        upsertHistoryPoint(avgPair, averageHistoryDate, nextEntry);
       }
     }
 
