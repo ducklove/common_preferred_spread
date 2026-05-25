@@ -1,6 +1,6 @@
 {
-  "source": "내부 가격 API + 내부 지표 API + 네이버 증권 + eSignal 선물 시세",
-  "lastUpdated": "2026-05-23 22:59:19",
+  "source": "네이버 증권",
+  "lastUpdated": "2026-05-25 11:49:02",
   "prices": {
     "samsung_elec": {
       "date": "2026-05-22",
@@ -42,9 +42,9 @@
       "commonPrice": 655000,
       "preferredPrice": 256000,
       "spread": 60.92,
-      "spreadChange": -2.67,
+      "spreadChange": -0.19,
       "commonChange": -1.65,
-      "preferredChange": 5.57
+      "preferredChange": -1.16
     },
     "lg_elec": {
       "date": "2026-05-22",
@@ -174,8 +174,8 @@
       "commonPrice": 1340000,
       "preferredPrice": 454000,
       "spread": 66.12,
-      "spreadChange": 6.98,
-      "commonChange": 26.3,
+      "spreadChange": 2.12,
+      "commonChange": 11.3,
       "preferredChange": 4.73
     },
     "nh_investment": {
@@ -229,9 +229,9 @@
       "commonPrice": 118500,
       "preferredPrice": 75900,
       "spread": 35.95,
-      "spreadChange": -6.41,
+      "spreadChange": -1.45,
       "commonChange": -3.66,
-      "preferredChange": 7.05
+      "preferredChange": -1.43
     },
     "cj": {
       "date": "2026-05-22",
@@ -262,8 +262,8 @@
       "commonPrice": 98200,
       "preferredPrice": 11850,
       "spread": 87.93,
-      "spreadChange": 1.65,
-      "commonChange": 26.87,
+      "spreadChange": 0.65,
+      "commonChange": 17.6,
       "preferredChange": 11.58
     },
     "doosan_fuelcell_2pref": {
@@ -273,8 +273,8 @@
       "commonPrice": 98200,
       "preferredPrice": 12550,
       "spread": 87.22,
-      "spreadChange": 2.4,
-      "commonChange": 26.87,
+      "spreadChange": 1.29,
+      "commonChange": 17.6,
       "preferredChange": 6.81
     },
     "byc": {
@@ -284,9 +284,9 @@
       "commonPrice": 43400,
       "preferredPrice": 30700,
       "spread": 29.26,
-      "spreadChange": -2.23,
-      "commonChange": 2.36,
-      "preferredChange": 5.68
+      "spreadChange": 0.19,
+      "commonChange": 3.83,
+      "preferredChange": 3.54
     },
     "solus": {
       "date": "2026-05-22",
@@ -317,8 +317,8 @@
       "commonPrice": 6770,
       "preferredPrice": 4155,
       "spread": 38.63,
-      "spreadChange": 2.96,
-      "commonChange": 5.45,
+      "spreadChange": 1.21,
+      "commonChange": 2.58,
       "preferredChange": 0.61
     },
     "sebang": {
@@ -350,9 +350,9 @@
       "commonPrice": 24700,
       "preferredPrice": 11160,
       "spread": 54.82,
-      "spreadChange": -0.57,
+      "spreadChange": -0.24,
       "commonChange": 2.49,
-      "preferredChange": 3.81
+      "preferredChange": 3.05
     },
     "sk_chemicals": {
       "date": "2026-05-22",
@@ -559,9 +559,9 @@
       "commonPrice": 42700,
       "preferredPrice": 24350,
       "spread": 42.97,
-      "spreadChange": -0.5,
+      "spreadChange": 0.73,
       "commonChange": 5.17,
-      "preferredChange": 6.1
+      "preferredChange": 3.84
     },
     "lotte_chilsung": {
       "date": "2026-05-22",
@@ -614,8 +614,8 @@
       "commonPrice": 22400,
       "preferredPrice": 13360,
       "spread": 40.36,
-      "spreadChange": 7.16,
-      "commonChange": 15.82,
+      "spreadChange": 1.45,
+      "commonChange": 5.91,
       "preferredChange": 3.41
     },
     "daekyo": {
@@ -637,8 +637,8 @@
       "preferredPrice": 4470,
       "spread": 21.99,
       "spreadChange": -1.49,
-      "commonChange": 2.69,
-      "preferredChange": 4.68
+      "commonChange": -0.69,
+      "preferredChange": 1.25
     },
     "sk_discovery": {
       "date": "2026-05-22",
@@ -658,7 +658,7 @@
     "price": 7847.71,
     "change": 32.12,
     "changePct": 0.41,
-    "marketStatus": "내부 지표 API",
+    "marketStatus": "CLOSE",
     "unit": null,
     "code": null,
     "time": "2026-05-22",
@@ -683,9 +683,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1517.07,
-        "change": 17.3,
-        "changePct": 1.15,
+        "price": 1510.5,
+        "change": 5.0,
+        "changePct": 0.33,
         "marketStatus": "내부 지표 API",
         "unit": "원",
         "code": null,
@@ -697,9 +697,9 @@
       {
         "id": "GOLD",
         "name": "금가격 (COMEX)",
-        "price": 4526.8,
-        "change": -13.0,
-        "changePct": -0.29,
+        "price": 4523.2,
+        "change": -19.3,
+        "changePct": -0.42,
         "marketStatus": "내부 지표 API",
         "unit": null,
         "code": null,
@@ -711,10 +711,10 @@
       {
         "id": "SP500",
         "name": "S&P500",
-        "price": 7445.72,
-        "change": 12.75,
-        "changePct": 0.17,
-        "marketStatus": "내부 지표 API",
+        "price": 7473.47,
+        "change": 27.75,
+        "changePct": 0.37,
+        "marketStatus": "CLOSE",
         "unit": null,
         "code": null,
         "time": "2026-05-21",
@@ -722,24 +722,10 @@
         "source": "yahoo",
         "sessionTradeDate": null
       }
-    ],
-    "nightFuture": {
-      "id": "KOSPI200_FUTURES",
-      "name": "KOSPI200 선물",
-      "price": 1219.0,
-      "change": -9.15,
-      "changePct": -0.75,
-      "marketStatus": "야간",
-      "unit": null,
-      "code": "A0166000",
-      "time": "30:00:00",
-      "contractName": null,
-      "source": "esignal_socket",
-      "sessionTradeDate": "2026-05-23"
-    }
+    ]
   },
   "averageSpread": 47.64,
-  "averageSpreadChange": 0.5,
+  "averageSpreadChange": 0.46,
   "summary": {
     "market": {
       "id": "KOSPI",
@@ -747,7 +733,7 @@
       "price": 7847.71,
       "change": 32.12,
       "changePct": 0.41,
-      "marketStatus": "내부 지표 API",
+      "marketStatus": "CLOSE",
       "unit": null,
       "code": null,
       "time": "2026-05-22",
@@ -772,9 +758,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1517.07,
-          "change": 17.3,
-          "changePct": 1.15,
+          "price": 1510.5,
+          "change": 5.0,
+          "changePct": 0.33,
           "marketStatus": "내부 지표 API",
           "unit": "원",
           "code": null,
@@ -786,9 +772,9 @@
         {
           "id": "GOLD",
           "name": "금가격 (COMEX)",
-          "price": 4526.8,
-          "change": -13.0,
-          "changePct": -0.29,
+          "price": 4523.2,
+          "change": -19.3,
+          "changePct": -0.42,
           "marketStatus": "내부 지표 API",
           "unit": null,
           "code": null,
@@ -800,10 +786,10 @@
         {
           "id": "SP500",
           "name": "S&P500",
-          "price": 7445.72,
-          "change": 12.75,
-          "changePct": 0.17,
-          "marketStatus": "내부 지표 API",
+          "price": 7473.47,
+          "change": 27.75,
+          "changePct": 0.37,
+          "marketStatus": "CLOSE",
           "unit": null,
           "code": null,
           "time": "2026-05-21",
@@ -811,52 +797,22 @@
           "source": "yahoo",
           "sessionTradeDate": null
         }
-      ],
-      "nightFuture": {
-        "id": "KOSPI200_FUTURES",
-        "name": "KOSPI200 선물",
-        "price": 1219.0,
-        "change": -9.15,
-        "changePct": -0.75,
-        "marketStatus": "야간",
-        "unit": null,
-        "code": "A0166000",
-        "time": "30:00:00",
-        "contractName": null,
-        "source": "esignal_socket",
-        "sessionTradeDate": "2026-05-23"
-      }
+      ]
     },
     "averageSpread": 47.64,
-    "averageSpreadChange": 0.5,
-    "averageCommonChange": 3.7,
-    "averagePreferredChange": 2.38,
+    "averageSpreadChange": 0.46,
+    "averageCommonChange": 2.89,
+    "averagePreferredChange": 1.88,
     "representativeCount": 48,
     "topWidening": {
-      "id": "daeduck",
-      "name": "대덕",
-      "commonName": "대덕",
-      "preferredName": "대덕우",
-      "spread": 40.36,
-      "spreadChange": 7.16
+      "id": "daekyo",
+      "name": "대교",
+      "commonName": "대교",
+      "preferredName": "대교우B",
+      "spread": 27.62,
+      "spreadChange": 4.2
     },
     "topWideningRunners": [
-      {
-        "id": "samsung_electro",
-        "name": "삼성전기",
-        "commonName": "삼성전기",
-        "preferredName": "삼성전기우",
-        "spread": 66.12,
-        "spreadChange": 6.98
-      },
-      {
-        "id": "daekyo",
-        "name": "대교",
-        "commonName": "대교",
-        "preferredName": "대교우B",
-        "spread": 27.62,
-        "spreadChange": 4.2
-      },
       {
         "id": "sk",
         "name": "SK",
@@ -866,46 +822,46 @@
         "spreadChange": 2.98
       },
       {
-        "id": "nexen_tire",
-        "name": "넥센타이어",
-        "commonName": "넥센타이어",
-        "preferredName": "넥센타이어1우B",
-        "spread": 38.63,
-        "spreadChange": 2.96
+        "id": "samsung_electro",
+        "name": "삼성전기",
+        "commonName": "삼성전기",
+        "preferredName": "삼성전기우",
+        "spread": 66.12,
+        "spreadChange": 2.12
+      },
+      {
+        "id": "sk_innovation",
+        "name": "SK이노베이션",
+        "commonName": "SK이노베이션",
+        "preferredName": "SK이노베이션우",
+        "spread": 42.44,
+        "spreadChange": 1.95
+      },
+      {
+        "id": "namyang_dairy",
+        "name": "남양유업",
+        "commonName": "남양유업",
+        "preferredName": "남양유업우",
+        "spread": 25.53,
+        "spreadChange": 1.89
       }
     ],
     "topNarrowing": {
-      "id": "lg",
-      "name": "LG",
-      "commonName": "LG",
-      "preferredName": "LG우",
-      "spread": 35.95,
-      "spreadChange": -6.41
+      "id": "yuanta_sec",
+      "name": "유안타증권",
+      "commonName": "유안타증권",
+      "preferredName": "유안타증권우",
+      "spread": 21.99,
+      "spreadChange": -1.49
     },
     "topNarrowingRunners": [
       {
-        "id": "hyundai_motor_3pref",
-        "name": "현대차/3우",
-        "commonName": "현대차",
-        "preferredName": "현대차3우B",
-        "spread": 60.92,
-        "spreadChange": -2.67
-      },
-      {
-        "id": "byc",
-        "name": "BYC",
-        "commonName": "BYC",
-        "preferredName": "BYC우",
-        "spread": 29.26,
-        "spreadChange": -2.23
-      },
-      {
-        "id": "yuanta_sec",
-        "name": "유안타증권",
-        "commonName": "유안타증권",
-        "preferredName": "유안타증권우",
-        "spread": 21.99,
-        "spreadChange": -1.49
+        "id": "lg",
+        "name": "LG",
+        "commonName": "LG",
+        "preferredName": "LG우",
+        "spread": 35.95,
+        "spreadChange": -1.45
       },
       {
         "id": "samsung_elec",
@@ -914,6 +870,22 @@
         "preferredName": "삼성전자우",
         "spread": 35.9,
         "spreadChange": -1.4
+      },
+      {
+        "id": "dl_enc_pref",
+        "name": "DL이앤씨/우",
+        "commonName": "DL이앤씨",
+        "preferredName": "DL이앤씨우",
+        "spread": 67.4,
+        "spreadChange": -0.88
+      },
+      {
+        "id": "s_oil",
+        "name": "S-Oil",
+        "commonName": "S-Oil",
+        "preferredName": "S-Oil우",
+        "spread": 49.54,
+        "spreadChange": -0.79
       }
     ]
   }
