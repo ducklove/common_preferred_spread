@@ -9,6 +9,7 @@ Yahoo Finance에서 보통주/우선주 가격 데이터를 가져와 data.js를
 
 import argparse
 import json
+import math
 import os
 import re
 from collections import defaultdict
@@ -64,6 +65,11 @@ GOOGLE_SHEET_DIVIDEND_URL = (
     "1RKLAARnfVNsLKBxyXfdjHhw7AUE1Wv91OrEm868Q3Z8/gviz/tq?tqx=out:csv&sheet=Data"
 )
 GOOGLE_SHEET_DIVIDEND_CACHE_PATH = Path(__file__).parent / ".cache" / "google_sheet" / "dividend_data.csv"
+DIVIDEND_AMOUNT_OVERRIDES = {
+    ("019680.KS", "019685.KS"): {
+        "preferredDividendPerShare": 60.0,
+    },
+}
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
@@ -1567,6 +1573,11 @@ def main():
                 common_dividend_per_share = sheet_dividend_amounts.get("commonDividendPerShare")
             if preferred_dividend_per_share is None:
                 preferred_dividend_per_share = sheet_dividend_amounts.get("preferredDividendPerShare")
+        dividend_override = DIVIDEND_AMOUNT_OVERRIDES.get((ct, pt), {})
+        if "commonDividendPerShare" in dividend_override:
+            common_dividend_per_share = dividend_override["commonDividendPerShare"]
+        if "preferredDividendPerShare" in dividend_override:
+            preferred_dividend_per_share = dividend_override["preferredDividendPerShare"]
         c_dy = (
             common_dividend_per_share / latest["commonPrice"] * 100
             if common_dividend_per_share is not None and latest["commonPrice"]
@@ -1638,26 +1649,42 @@ def main():
     # KOSPI 지수 데이터 준비
     kospi_close = close[KOSPI_TICKER].dropna()
 
-    # 그룹(commonName)당 최고 괴리율 pair만 선택하여 평균 계산
-    rep_pairs = {}
+    # Issuer-level sqrt preferred-market-cap weighted spread index.
+    issuer_names = {pair_data["commonName"] for pair_data in pairs_result}
+    daily_issuer_inputs = defaultdict(lambda: defaultdict(list))
     for pair_data in pairs_result:
-        cn = pair_data["commonName"]
-        if cn not in rep_pairs or pair_data["current"]["spread"] > rep_pairs[cn]["current"]["spread"]:
-            rep_pairs[cn] = pair_data
-    rep_pairs_list = list(rep_pairs.values())
-
-    # 일별 전체 평균 괴리율 계산
-    daily_spreads = defaultdict(list)
-    for pair_data in rep_pairs_list:
+        issuer = pair_data["commonName"]
+        preferred_shares = pair_data["current"].get("preferredSharesOutstanding") or 0
+        fallback_mcap = pair_data["current"].get("preferredMarketCap") or 0
         for h in pair_data["history"]:
-            daily_spreads[h["date"]].append(h["spread"])
+            spread = h.get("spread")
+            preferred_price = h.get("preferredPrice")
+            if spread is None:
+                continue
+            preferred_mcap = 0
+            if preferred_price is not None and preferred_shares > 0:
+                preferred_mcap = float(preferred_price) * float(preferred_shares)
+            if preferred_mcap <= 0:
+                preferred_mcap = fallback_mcap
+            if preferred_mcap <= 0:
+                continue
+            daily_issuer_inputs[h["date"]][issuer].append((float(spread), float(preferred_mcap)))
 
     avg_history = []
-    n_pairs = len(rep_pairs_list)
-    for date in sorted(daily_spreads.keys()):
-        spreads = daily_spreads[date]
+    n_issuers = len(issuer_names)
+    for date in sorted(daily_issuer_inputs.keys()):
+        issuer_values = []
+        for inputs in daily_issuer_inputs[date].values():
+            total_mcap = sum(mcap for _, mcap in inputs)
+            if total_mcap <= 0:
+                continue
+            issuer_spread = sum(spread * mcap for spread, mcap in inputs) / total_mcap
+            issuer_values.append((issuer_spread, math.sqrt(total_mcap)))
         # 종목 수가 절반 미만인 날은 휴장일 오류 데이터이므로 제외
-        if len(spreads) < n_pairs / 2:
+        if len(issuer_values) < n_issuers / 2:
+            continue
+        total_weight = sum(weight for _, weight in issuer_values)
+        if total_weight <= 0:
             continue
         # KOSPI: 새 데이터 우선, 없으면 기존 데이터 사용
         ts = pd.Timestamp(date)
@@ -1671,7 +1698,7 @@ def main():
             "date": date,
             "commonPrice": 0,
             "preferredPrice": 0,
-            "spread": round(sum(spreads) / len(spreads), 2),
+            "spread": round(sum(spread * weight for spread, weight in issuer_values) / total_weight, 2),
         }
         if kospi_price is not None:
             entry["kospiPrice"] = kospi_price
@@ -1683,10 +1710,11 @@ def main():
         avg_change = round(latest_avg["spread"] - prev_avg["spread"], 2)
         avg_pair = {
             "id": "_average",
-            "name": "전체 평균",
+            "name": "괴리율 지수",
             "commonName": "",
             "preferredName": "",
             "isAverage": True,
+            "methodology": "issuer_sqrt_preferred_market_cap",
             "current": {
                 "commonPrice": 0,
                 "preferredPrice": 0,
@@ -1696,7 +1724,7 @@ def main():
             "history": avg_history,
         }
         print(
-            f"  전체 평균: {len(avg_history)}일, "
+            f"  괴리율 지수: {len(avg_history)}일, "
             f"현재 괴리율 {latest_avg['spread']:.2f}% "
             f"({'↑' if avg_change > 0 else '↓'}{abs(avg_change):.2f}%p)"
         )

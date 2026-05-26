@@ -738,8 +738,8 @@
       "sessionTradeDate": "2026-05-23"
     }
   },
-  "averageSpread": 47.64,
-  "averageSpreadChange": 0.5,
+  "averageSpread": 46.0,
+  "averageSpreadChange": 0.56,
   "summary": {
     "market": {
       "id": "KOSPI",
@@ -827,10 +827,10 @@
         "sessionTradeDate": "2026-05-23"
       }
     },
-    "averageSpread": 47.64,
-    "averageSpreadChange": 0.5,
-    "averageCommonChange": 3.7,
-    "averagePreferredChange": 2.38,
+    "averageSpread": 46.0,
+    "averageSpreadChange": 0.56,
+    "averageCommonChange": 1.69,
+    "averagePreferredChange": 1.48,
     "representativeCount": 48,
     "topWidening": {
       "id": "daeduck",
@@ -915,6 +915,7 @@
         "spread": 35.9,
         "spreadChange": -1.4
       }
-    ]
+    ],
+    "averageMethod": "제곱근 총액가중"
   }
 }
