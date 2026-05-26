@@ -494,6 +494,19 @@ body {
 }
 
 /* Summary cards */
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 12px;
+  flex-wrap: wrap;
+}
+.card-toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -686,11 +699,14 @@ body {
   font-size: 17px;
   font-weight: 600;
 }
-.period-btns {
+.period-btns,
+.card-sort-options {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
-.period-btns button {
+.period-btns button,
+.card-sort-options button {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
@@ -700,8 +716,10 @@ body {
   font-size: 13px;
   transition: all 0.15s;
 }
-.period-btns button:hover { border-color: var(--accent); color: var(--text); }
-.period-btns button.active {
+.period-btns button:hover,
+.card-sort-options button:hover { border-color: var(--accent); color: var(--text); }
+.period-btns button.active,
+.card-sort-options button.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -1032,6 +1050,15 @@ td.numeric .bar-cell {
 
 <div class="container">
   <div class="today-overview" id="todayOverview"></div>
+  <div class="card-toolbar">
+    <div class="card-toolbar-title">카드 정렬</div>
+    <div class="card-sort-options" id="cardSortOptions" aria-label="카드 정렬">
+      <button type="button" data-card-sort="spread" class="active">괴리율</button>
+      <button type="button" data-card-sort="preferredYield">배당수익률</button>
+      <button type="button" data-card-sort="spreadWidening">일 확대</button>
+      <button type="button" data-card-sort="spreadNarrowing">일 축소</button>
+    </div>
+  </div>
   <div class="cards" id="cards"></div>
 
   <div class="chart-section" id="spreadChartSection">
@@ -1147,6 +1174,13 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   let zoomWindow = { start: 0, end: ZOOM_RANGE_MAX };
   let latestMarketExtras = [];
   let latestNightFutureMetric = null;
+  let cardSortMode = 'spread';
+  const CARD_SORT_CONFIG = {
+    spread: { direction: 'desc' },
+    preferredYield: { direction: 'desc' },
+    spreadWidening: { direction: 'desc' },
+    spreadNarrowing: { direction: 'asc' },
+  };
   let todayOverviewData = buildTodaySummaryFromPairs();
   let latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
   if (todayOverviewData?.market) {
@@ -1169,6 +1203,147 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   };
   const configLoadPromise = loadPairConfig();
 
+  function getCardSortMetric(pair, mode = cardSortMode) {
+    if (!pair?.current) return null;
+    if (mode === 'preferredYield') return pair.current.preferredDivYield;
+    if (mode === 'spreadWidening' || mode === 'spreadNarrowing') return pair.current.spreadChange;
+    return pair.current.spread;
+  }
+
+  function compareCardItems(a, b, mode = cardSortMode) {
+    const direction = CARD_SORT_CONFIG[mode]?.direction || 'desc';
+    const valueA = getCardSortMetric(a.pair, mode);
+    const valueB = getCardSortMetric(b.pair, mode);
+    const aMissing = valueA == null || Number.isNaN(valueA);
+    const bMissing = valueB == null || Number.isNaN(valueB);
+    if (aMissing && bMissing) return (a.pair.name || '').localeCompare(b.pair.name || '', 'ko');
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    if (valueA !== valueB) {
+      return direction === 'asc' ? valueA - valueB : valueB - valueA;
+    }
+    const spreadA = a.pair.current.spread ?? Number.NEGATIVE_INFINITY;
+    const spreadB = b.pair.current.spread ?? Number.NEGATIVE_INFINITY;
+    if (spreadB !== spreadA) return spreadB - spreadA;
+    return (a.pair.name || '').localeCompare(b.pair.name || '', 'ko');
+  }
+
+  function toFiniteNumber(value) {
+    if (value == null || value === '') return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  function getIndexPreferredMarketCap(pair) {
+    const current = pair?.current || {};
+    const preferredMarketCap = calculateLiveMarketCap(
+      current.preferredPrice,
+      current.preferredSharesOutstanding,
+      current.preferredMarketCap,
+    );
+    return preferredMarketCap != null && preferredMarketCap > 0 ? preferredMarketCap : null;
+  }
+
+  function calculateSqrtPreferredMarketCapSpreadIndex(pairList = pairs) {
+    const issuers = new Map();
+
+    pairList.forEach(pair => {
+      if (!pair || pair.isAverage || !pair.current) return;
+      const spread = toFiniteNumber(pair.current.spread);
+      const preferredMarketCap = getIndexPreferredMarketCap(pair);
+      if (spread == null || preferredMarketCap == null) return;
+
+      const issuerName = pair.commonName || pair.name || pair.id;
+      if (!issuers.has(issuerName)) {
+        issuers.set(issuerName, {
+          totalMarketCap: 0,
+          spreadWeighted: 0,
+          spreadWeight: 0,
+          spreadChangeWeighted: 0,
+          spreadChangeWeight: 0,
+          commonChangeWeighted: 0,
+          commonChangeWeight: 0,
+          preferredChangeWeighted: 0,
+          preferredChangeWeight: 0,
+        });
+      }
+
+      const issuer = issuers.get(issuerName);
+      issuer.totalMarketCap += preferredMarketCap;
+      issuer.spreadWeighted += spread * preferredMarketCap;
+      issuer.spreadWeight += preferredMarketCap;
+
+      const spreadChange = toFiniteNumber(pair.current.spreadChange);
+      if (spreadChange != null) {
+        issuer.spreadChangeWeighted += spreadChange * preferredMarketCap;
+        issuer.spreadChangeWeight += preferredMarketCap;
+      }
+
+      const commonChange = toFiniteNumber(pair.current.commonChange);
+      if (commonChange != null) {
+        issuer.commonChangeWeighted += commonChange * preferredMarketCap;
+        issuer.commonChangeWeight += preferredMarketCap;
+      }
+
+      const preferredChange = toFiniteNumber(pair.current.preferredChange);
+      if (preferredChange != null) {
+        issuer.preferredChangeWeighted += preferredChange * preferredMarketCap;
+        issuer.preferredChangeWeight += preferredMarketCap;
+      }
+    });
+
+    const indexValues = {
+      spreadWeighted: 0,
+      spreadWeight: 0,
+      spreadChangeWeighted: 0,
+      spreadChangeWeight: 0,
+      commonChangeWeighted: 0,
+      commonChangeWeight: 0,
+      preferredChangeWeighted: 0,
+      preferredChangeWeight: 0,
+      issuerCount: 0,
+    };
+
+    issuers.forEach(issuer => {
+      if (issuer.totalMarketCap <= 0 || issuer.spreadWeight <= 0) return;
+      const indexWeight = Math.sqrt(issuer.totalMarketCap);
+      if (!Number.isFinite(indexWeight) || indexWeight <= 0) return;
+
+      indexValues.issuerCount += 1;
+      indexValues.spreadWeighted += (issuer.spreadWeighted / issuer.spreadWeight) * indexWeight;
+      indexValues.spreadWeight += indexWeight;
+
+      if (issuer.spreadChangeWeight > 0) {
+        indexValues.spreadChangeWeighted += (issuer.spreadChangeWeighted / issuer.spreadChangeWeight) * indexWeight;
+        indexValues.spreadChangeWeight += indexWeight;
+      }
+      if (issuer.commonChangeWeight > 0) {
+        indexValues.commonChangeWeighted += (issuer.commonChangeWeighted / issuer.commonChangeWeight) * indexWeight;
+        indexValues.commonChangeWeight += indexWeight;
+      }
+      if (issuer.preferredChangeWeight > 0) {
+        indexValues.preferredChangeWeighted += (issuer.preferredChangeWeighted / issuer.preferredChangeWeight) * indexWeight;
+        indexValues.preferredChangeWeight += indexWeight;
+      }
+    });
+
+    if (indexValues.spreadWeight <= 0) return null;
+    return {
+      spread: indexValues.spreadWeighted / indexValues.spreadWeight,
+      spreadChange: indexValues.spreadChangeWeight > 0
+        ? indexValues.spreadChangeWeighted / indexValues.spreadChangeWeight
+        : null,
+      commonChange: indexValues.commonChangeWeight > 0
+        ? indexValues.commonChangeWeighted / indexValues.commonChangeWeight
+        : null,
+      preferredChange: indexValues.preferredChangeWeight > 0
+        ? indexValues.preferredChangeWeighted / indexValues.preferredChangeWeight
+        : null,
+      issuerCount: indexValues.issuerCount,
+      methodLabel: '제곱근 총액가중',
+    };
+  }
+
   function getCardGroups() {
     const map = new Map();
     pairs.forEach((p, i) => {
@@ -1181,20 +1356,13 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       map.get(key).push({ pair: p, idx: i });
     });
     for (const items of map.values()) {
-      items.sort((a, b) => b.pair.current.spread - a.pair.current.spread);
+      items.sort((a, b) => compareCardItems(a, b));
     }
     const groups = [...map.values()];
     const averageGroup = groups.find(items => items[0]?.pair.isAverage) || null;
     const stockGroups = groups
       .filter(items => !items[0]?.pair.isAverage)
-      .sort((a, b) => {
-        const spreadA = a[0]?.pair.current.spread ?? Number.NEGATIVE_INFINITY;
-        const spreadB = b[0]?.pair.current.spread ?? Number.NEGATIVE_INFINITY;
-        if (spreadB !== spreadA) return spreadB - spreadA;
-        const nameA = a[0]?.pair.commonName || a[0]?.pair.name || '';
-        const nameB = b[0]?.pair.commonName || b[0]?.pair.name || '';
-        return nameA.localeCompare(nameB, 'ko');
-      });
+      .sort((a, b) => compareCardItems(a[0], b[0]));
 
     return averageGroup ? [averageGroup, ...stockGroups] : stockGroups;
   }
@@ -1578,6 +1746,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     renderTodayOverview();
     renderCards();
     renderTable();
+    bindCardSortControls();
     bindZoomControls();
     renderZoomPanel();
     renderChart();
@@ -1665,7 +1834,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   function renderAverageOverviewCard(summary, representativeCount) {
     return `
       <div class="overview-card average-card">
-        <div class="overview-label">평균 괴리율</div>
+        <div class="overview-label">괴리율 지수</div>
         <div class="average-card-body">
           <div class="average-main-metric">
             <div class="overview-value">${summary.averageSpread.toFixed(2)}%</div>
@@ -1677,7 +1846,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
           ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
           ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
         </div>
-        <div class="overview-detail">대표 ${representativeCount}개 그룹 기준</div>
+        <div class="overview-detail">${summary.averageMethod || '제곱근 총액가중'} · ${representativeCount}개 그룹</div>
       </div>
     `;
   }
@@ -1849,11 +2018,20 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     if (!representatives.length) return null;
 
     const market = getRenderableMarketSummary(marketOverride);
-    const averageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
+    const spreadIndex = calculateSqrtPreferredMarketCapSpreadIndex();
+    const fallbackAverageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
+    const averageSpreadValue = spreadIndex?.spread ?? fallbackAverageSpread;
+    const averagePair = getAveragePair();
+    const averagePairSpread = toFiniteNumber(averagePair?.current?.spread);
+    const averagePairSpreadChange = toFiniteNumber(averagePair?.current?.spreadChange);
+    const indexSpreadChange = averagePairSpread != null
+      && Math.abs(averagePairSpread - averageSpreadValue) < 0.005
+      ? averagePairSpreadChange
+      : null;
     const changeValues = representatives
       .map(pair => pair.current.spreadChange)
       .filter(value => value != null && !Number.isNaN(value));
-    const averageSpreadChange = changeValues.length
+    const fallbackAverageSpreadChange = changeValues.length
       ? changeValues.reduce((sum, value) => sum + value, 0) / changeValues.length
       : null;
     const commonChangeValues = representatives
@@ -1881,13 +2059,20 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     return {
       source: '기본 데이터 기준',
       market,
-      representativeCount: representatives.length,
-      averageSpread: +averageSpread.toFixed(2),
-      averageSpreadChange: averageSpreadChange == null ? null : +averageSpreadChange.toFixed(2),
-      averageCommonChange: commonChangeValues.length
+      representativeCount: spreadIndex?.issuerCount || representatives.length,
+      averageMethod: spreadIndex?.methodLabel || '동일비중',
+      averageSpread: +averageSpreadValue.toFixed(2),
+      averageSpreadChange: (indexSpreadChange ?? (spreadIndex ? null : fallbackAverageSpreadChange)) == null
+        ? null
+        : +(indexSpreadChange ?? (spreadIndex ? null : fallbackAverageSpreadChange)).toFixed(2),
+      averageCommonChange: spreadIndex?.commonChange != null
+        ? +spreadIndex.commonChange.toFixed(2)
+        : commonChangeValues.length
         ? +(commonChangeValues.reduce((sum, value) => sum + value, 0) / commonChangeValues.length).toFixed(2)
         : null,
-      averagePreferredChange: preferredChangeValues.length
+      averagePreferredChange: spreadIndex?.preferredChange != null
+        ? +spreadIndex.preferredChange.toFixed(2)
+        : preferredChangeValues.length
         ? +(preferredChangeValues.reduce((sum, value) => sum + value, 0) / preferredChangeValues.length).toFixed(2)
         : null,
       topWidening: topWidening ? serializePairSummary(topWidening) : null,
@@ -2800,6 +2985,21 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     return Math.abs(xPositions[low] - targetX) < Math.abs(xPositions[prev] - targetX)
       ? low
       : prev;
+  }
+
+  function bindCardSortControls() {
+    const controls = document.getElementById('cardSortOptions');
+    if (!controls || bindCardSortControls._bound) return;
+    controls.addEventListener('click', event => {
+      const button = event.target.closest('button[data-card-sort]');
+      if (!button || !controls.contains(button)) return;
+      cardSortMode = button.dataset.cardSort || 'spread';
+      controls.querySelectorAll('button').forEach(item => {
+        item.classList.toggle('active', item === button);
+      });
+      renderCards();
+    });
+    bindCardSortControls._bound = true;
   }
 
   // --- Period buttons ---
