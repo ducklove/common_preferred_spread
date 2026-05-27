@@ -854,6 +854,41 @@ def fetch_internal_daily_history(tickers, start_date, end_date):
     return close, volume
 
 
+def latest_series_date(frame, ticker):
+    if frame is None or ticker not in frame.columns:
+        return None
+    series = frame[ticker].dropna()
+    if series.empty:
+        return None
+    return pd.Timestamp(series.index.max()).normalize()
+
+
+def select_yahoo_fallback_tickers(tickers, close, end_date):
+    # yfinance treats end as exclusive. At the daily 05:00 KST run, the
+    # expected latest completed Korean trading date is usually yesterday.
+    expected_recent_date = pd.Timestamp(end_date).normalize() - pd.Timedelta(days=1)
+    targets = []
+    for ticker in tickers:
+        latest_date = latest_series_date(close, ticker)
+        if latest_date is None or latest_date < expected_recent_date:
+            targets.append(ticker)
+    return targets
+
+
+def merge_missing_price_frame(base, extra):
+    if extra is None or extra.empty:
+        return base
+    if base is None or base.empty:
+        return extra.copy()
+
+    merged = base.copy()
+    combined_index = merged.index.union(extra.index).sort_values()
+    combined_columns = merged.columns.union(extra.columns)
+    merged = merged.reindex(index=combined_index, columns=combined_columns)
+    extra_aligned = extra.reindex(index=combined_index, columns=combined_columns)
+    return merged.combine_first(extra_aligned)
+
+
 def fetch_internal_index_history(series_id):
     if series_id not in _internal_index_history_cache:
         rows = []
@@ -1248,7 +1283,10 @@ def main():
         )
     )
 
-    end_date = datetime.now()
+    # GitHub Actions runners use UTC. Use naive KST here so the 05:00 KST
+    # daily job requests Yahoo with an exclusive end date of the KST date,
+    # which includes the previous Korean close.
+    end_date = datetime.now(KST).replace(tzinfo=None)
     configured_pair_ids = {pair["id"] for pair in PAIRS if not pair.get("isAverage")}
     missing_pair_ids = sorted(configured_pair_ids - existing_pair_ids)
 
@@ -1291,12 +1329,12 @@ def main():
     if not kospi_internal.empty:
         close[KOSPI_TICKER] = kospi_internal
 
-    missing_tickers = [
-        ticker for ticker in stock_tickers
-        if close[ticker].dropna().empty
-    ]
-    yahoo_tickers = list(missing_tickers)
-    if KOSPI_TICKER not in close.columns or close[KOSPI_TICKER].dropna().empty:
+    yahoo_tickers = select_yahoo_fallback_tickers(stock_tickers, close, end_date)
+    if (
+        KOSPI_TICKER not in close.columns
+        or close[KOSPI_TICKER].dropna().empty
+        or latest_series_date(close, KOSPI_TICKER) < pd.Timestamp(end_date).normalize() - pd.Timedelta(days=1)
+    ):
         yahoo_tickers.insert(0, KOSPI_TICKER)
     yahoo_tickers = list(dict.fromkeys(yahoo_tickers))
     if yahoo_tickers:
@@ -1315,11 +1353,8 @@ def main():
         if isinstance(yahoo_volume, pd.Series):
             yahoo_volume = yahoo_volume.to_frame(yahoo_tickers[0])
 
-        for ticker in yahoo_tickers:
-            if ticker in yahoo_close.columns:
-                close[ticker] = close[ticker].combine_first(yahoo_close[ticker])
-            if ticker in yahoo_volume.columns:
-                volume[ticker] = volume[ticker].combine_first(yahoo_volume[ticker])
+        close = merge_missing_price_frame(close, yahoo_close)
+        volume = merge_missing_price_frame(volume, yahoo_volume)
     if KOSPI_TICKER not in close.columns:
         close[KOSPI_TICKER] = pd.NA
 
