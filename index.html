@@ -236,6 +236,13 @@ body {
 .overview-card.average-card {
   align-items: stretch;
   text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.overview-card.average-card:hover {
+  border-color: var(--green);
+  background: var(--overview-card-hover-bg);
+  transform: translateY(-1px);
 }
 .overview-card.average-card .overview-label,
 .overview-card.average-card .overview-detail {
@@ -310,6 +317,18 @@ body {
 }
 .overview-card.average-card .overview-detail {
   text-align: right;
+}
+.average-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left !important;
+}
+.overview-detail-action {
+  flex-shrink: 0;
+  color: var(--green);
+  font-weight: 700;
 }
 .overview-label {
   font-size: 12px;
@@ -492,6 +511,10 @@ body {
 .overview-stat-value {
   font-size: 15px;
   font-weight: var(--overview-weight-value);
+}
+.neutral-color,
+.overview-stat-value.neutral-color {
+  color: var(--text);
 }
 
 /* Summary cards */
@@ -678,6 +701,170 @@ body {
   color: var(--text-dim);
   font-size: 11px;
   padding-top: 2px;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+.index-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 8, 18, 0.68);
+  backdrop-filter: blur(8px);
+}
+.index-modal-backdrop[hidden] {
+  display: none;
+}
+.index-modal-panel {
+  width: min(880px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.index-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--soft-border);
+}
+.index-modal-kicker {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.index-modal-title {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+}
+.index-modal-close {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+.index-modal-close:hover {
+  border-color: var(--accent);
+}
+.index-modal-body {
+  padding: 16px 22px 20px;
+  overflow: auto;
+}
+.index-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.index-modal-metric {
+  border: 1px solid var(--soft-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.index-modal-metric-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.index-modal-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.index-modal-note {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.index-weight-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--soft-border);
+  border-radius: 8px;
+}
+.index-weight-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+  font-size: 13px;
+}
+.index-weight-table th,
+.index-weight-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--soft-border);
+  text-align: right;
+  vertical-align: middle;
+}
+.index-weight-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.index-weight-table th:first-child,
+.index-weight-table td:first-child {
+  text-align: left;
+}
+.index-weight-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.index-weight-name {
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.index-weight-sub {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+.index-weight-share {
+  min-width: 130px;
+}
+.index-weight-bar {
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.index-weight-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+.index-weight-empty {
+  color: var(--text-dim);
+  padding: 18px;
+  text-align: center;
 }
 
 /* Chart area */
@@ -1010,6 +1197,22 @@ td.numeric .bar-cell {
   .header-row { flex-direction: column; align-items: stretch; }
   .header-actions { justify-content: flex-start; }
   .today-overview-title { font-size: 20px; }
+  .average-card-body { grid-template-columns: 1fr; }
+  .index-modal-backdrop {
+    padding: 10px;
+    align-items: stretch;
+  }
+  .index-modal-panel {
+    max-height: calc(100vh - 20px);
+  }
+  .index-modal-header,
+  .index-modal-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .index-modal-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .chart-container { height: 280px; }
   .price-chart-container { height: 200px; }
@@ -1120,6 +1323,36 @@ td.numeric .bar-cell {
   </div>
 </div>
 
+<div class="index-modal-backdrop" id="indexWeightModal" hidden>
+  <div class="index-modal-panel" role="dialog" aria-modal="true" aria-labelledby="indexWeightModalTitle">
+    <div class="index-modal-header">
+      <div>
+        <div class="index-modal-kicker">괴리율 지수</div>
+        <h2 class="index-modal-title" id="indexWeightModalTitle">종목별 비중</h2>
+      </div>
+      <button type="button" class="index-modal-close" id="indexWeightModalClose" aria-label="닫기">×</button>
+    </div>
+    <div class="index-modal-body">
+      <div class="index-modal-summary" id="indexWeightSummary"></div>
+      <div class="index-modal-note" id="indexWeightNote"></div>
+      <div class="index-weight-table-wrap">
+        <table class="index-weight-table">
+          <thead>
+            <tr>
+              <th>종목</th>
+              <th>비중</th>
+              <th>우선주총액</th>
+              <th>괴리율</th>
+              <th>전일비</th>
+            </tr>
+          </thead>
+          <tbody id="indexWeightTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
 </script>
@@ -1198,6 +1431,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   let lastCurrentPricesFetchStartedAt = 0;
   let refreshButtonBusy = false;
   let pairConfigMap = new Map();
+  let indexWeightModalLastFocus = null;
   let tableSortState = {
     key: 'name',
     direction: TABLE_SORT_DEFAULT_DIRECTION.name,
@@ -1245,6 +1479,24 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     return preferredMarketCap != null && preferredMarketCap > 0 ? preferredMarketCap : null;
   }
 
+  function calculateSimpleAverageMetrics(pairList = getRepresentativePairs()) {
+    const sourcePairs = pairList.filter(pair => pair && !pair.isAverage && pair.current);
+    const averageOf = (key) => {
+      const values = sourcePairs
+        .map(pair => toFiniteNumber(pair.current[key]))
+        .filter(value => value != null);
+      return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+    };
+
+    return {
+      spread: averageOf('spread'),
+      spreadChange: averageOf('spreadChange'),
+      commonChange: averageOf('commonChange'),
+      preferredChange: averageOf('preferredChange'),
+      count: sourcePairs.length,
+    };
+  }
+
   function calculateSqrtPreferredMarketCapSpreadIndex(pairList = pairs) {
     const issuers = new Map();
 
@@ -1257,6 +1509,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       const issuerName = pair.commonName || pair.name || pair.id;
       if (!issuers.has(issuerName)) {
         issuers.set(issuerName, {
+          name: issuerName,
           totalMarketCap: 0,
           spreadWeighted: 0,
           spreadWeight: 0,
@@ -1266,6 +1519,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
           commonChangeWeight: 0,
           preferredChangeWeighted: 0,
           preferredChangeWeight: 0,
+          parts: [],
         });
       }
 
@@ -1273,6 +1527,14 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       issuer.totalMarketCap += preferredMarketCap;
       issuer.spreadWeighted += spread * preferredMarketCap;
       issuer.spreadWeight += preferredMarketCap;
+      issuer.parts.push({
+        id: pair.id,
+        name: pair.name,
+        preferredName: pair.preferredName || pair.name,
+        preferredMarketCap,
+        spread,
+        spreadChange: toFiniteNumber(pair.current.spreadChange),
+      });
 
       const spreadChange = toFiniteNumber(pair.current.spreadChange);
       if (spreadChange != null) {
@@ -1304,18 +1566,40 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       preferredChangeWeight: 0,
       issuerCount: 0,
     };
+    const constituents = [];
 
     issuers.forEach(issuer => {
       if (issuer.totalMarketCap <= 0 || issuer.spreadWeight <= 0) return;
       const indexWeight = Math.sqrt(issuer.totalMarketCap);
       if (!Number.isFinite(indexWeight) || indexWeight <= 0) return;
 
+      const issuerSpread = issuer.spreadWeighted / issuer.spreadWeight;
+      const issuerSpreadChange = issuer.spreadChangeWeight > 0
+        ? issuer.spreadChangeWeighted / issuer.spreadChangeWeight
+        : null;
+      const parts = issuer.parts
+        .slice()
+        .sort((a, b) => b.preferredMarketCap - a.preferredMarketCap)
+        .map(part => ({
+          ...part,
+          issuerShare: issuer.totalMarketCap > 0 ? part.preferredMarketCap / issuer.totalMarketCap * 100 : null,
+        }));
+
+      constituents.push({
+        name: issuer.name,
+        totalMarketCap: issuer.totalMarketCap,
+        indexWeight,
+        spread: issuerSpread,
+        spreadChange: issuerSpreadChange,
+        parts,
+      });
+
       indexValues.issuerCount += 1;
-      indexValues.spreadWeighted += (issuer.spreadWeighted / issuer.spreadWeight) * indexWeight;
+      indexValues.spreadWeighted += issuerSpread * indexWeight;
       indexValues.spreadWeight += indexWeight;
 
       if (issuer.spreadChangeWeight > 0) {
-        indexValues.spreadChangeWeighted += (issuer.spreadChangeWeighted / issuer.spreadChangeWeight) * indexWeight;
+        indexValues.spreadChangeWeighted += issuerSpreadChange * indexWeight;
         indexValues.spreadChangeWeight += indexWeight;
       }
       if (issuer.commonChangeWeight > 0) {
@@ -1329,6 +1613,11 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     });
 
     if (indexValues.spreadWeight <= 0) return null;
+    constituents.forEach(item => {
+      item.weight = item.indexWeight / indexValues.spreadWeight * 100;
+    });
+    constituents.sort((a, b) => b.weight - a.weight);
+
     return {
       spread: indexValues.spreadWeighted / indexValues.spreadWeight,
       spreadChange: indexValues.spreadChangeWeight > 0
@@ -1342,6 +1631,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
         : null,
       issuerCount: indexValues.issuerCount,
       methodLabel: '제곱근 총액가중',
+      constituents,
     };
   }
 
@@ -1747,6 +2037,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     renderTodayOverview();
     renderCards();
     renderTable();
+    bindIndexWeightModal();
     bindCardSortControls();
     bindZoomControls();
     renderZoomPanel();
@@ -1786,9 +2077,17 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       </div>
     `;
 
-    overviewEl.querySelectorAll('.overview-card.clickable').forEach(card => {
+    overviewEl.querySelectorAll('.overview-card.clickable[data-idx]').forEach(card => {
       card.addEventListener('click', () => {
         selectPair(parseInt(card.dataset.idx, 10));
+      });
+    });
+    overviewEl.querySelectorAll('[data-index-card="1"]').forEach(card => {
+      card.addEventListener('click', openIndexWeightModal);
+      card.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openIndexWeightModal();
       });
     });
     overviewEl.querySelectorAll('.overview-rank-item[data-idx]').forEach(item => {
@@ -1833,8 +2132,13 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   }
 
   function renderAverageOverviewCard(summary, representativeCount) {
+    const liveSimpleAverage = calculateSimpleAverageMetrics();
+    const simpleAverageSpread = toFiniteNumber(summary.simpleAverageSpread) ?? liveSimpleAverage.spread;
+    const averageSpreadVsSimple = toFiniteNumber(summary.averageSpreadVsSimple)
+      ?? (simpleAverageSpread == null ? null : summary.averageSpread - simpleAverageSpread);
+
     return `
-      <div class="overview-card average-card">
+      <div class="overview-card average-card" data-index-card="1" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="indexWeightModal">
         <div class="overview-label">괴리율 지수</div>
         <div class="average-card-body">
           <div class="average-main-metric">
@@ -1846,8 +2150,13 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
         <div class="overview-summary-grid">
           ${renderOverviewStat('우선주 평균 상승률', formatPercentChange(summary.averagePreferredChange))}
           ${renderOverviewStat('보통주 평균 상승률', formatPercentChange(summary.averageCommonChange))}
+          ${renderOverviewStat('단순 평균', simpleAverageSpread == null ? '-' : `${simpleAverageSpread.toFixed(2)}%`, { directional: false })}
+          ${renderOverviewStat('지수-단순', formatPointChange(averageSpreadVsSimple))}
         </div>
-        <div class="overview-detail">${summary.averageMethod || '제곱근 총액가중'} · ${representativeCount}개 그룹</div>
+        <div class="overview-detail average-detail-row">
+          <span>${summary.averageMethod || '제곱근 총액가중'} · ${representativeCount}개 그룹</span>
+          <span class="overview-detail-action">비중</span>
+        </div>
       </div>
     `;
   }
@@ -1919,13 +2228,140 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     `;
   }
 
-  function renderOverviewStat(label, value) {
+  function renderOverviewStat(label, value, { directional = true } = {}) {
+    const valueClass = directional ? getTextColorClass(parseDirectionalNumber(value)) : 'neutral-color';
     return `
       <div class="overview-stat">
         <div class="overview-stat-label">${label}</div>
-        <div class="overview-stat-value ${getTextColorClass(parseDirectionalNumber(value))}">${value}</div>
+        <div class="overview-stat-value ${valueClass}">${value}</div>
       </div>
     `;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[char]));
+  }
+
+  function formatIndexWeightPercent(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    const decimals = value >= 10 ? 1 : 2;
+    return `${value.toFixed(decimals)}%`;
+  }
+
+  function formatIndexSpread(value) {
+    if (value == null || Number.isNaN(value)) return '-';
+    return `${value.toFixed(2)}%`;
+  }
+
+  function renderIndexModalMetric(label, value, colorClass = '') {
+    return `
+      <div class="index-modal-metric">
+        <div class="index-modal-metric-label">${label}</div>
+        <div class="index-modal-metric-value ${colorClass}">${value}</div>
+      </div>
+    `;
+  }
+
+  function getIndexWeightPartLabel(parts) {
+    if (!Array.isArray(parts) || !parts.length) return '';
+    return parts
+      .map(part => {
+        const name = escapeHtml(part.preferredName || part.name || '');
+        const share = parts.length > 1 ? ` ${formatIndexWeightPercent(part.issuerShare)}` : '';
+        return `${name}${share}`;
+      })
+      .join(' · ');
+  }
+
+  function renderIndexWeightModalContent() {
+    const index = calculateSqrtPreferredMarketCapSpreadIndex();
+    const simpleAverage = calculateSimpleAverageMetrics();
+    const summaryEl = document.getElementById('indexWeightSummary');
+    const noteEl = document.getElementById('indexWeightNote');
+    const tableBody = document.getElementById('indexWeightTableBody');
+    if (!summaryEl || !noteEl || !tableBody) return;
+
+    if (!index || !Array.isArray(index.constituents) || !index.constituents.length) {
+      summaryEl.innerHTML = '';
+      noteEl.textContent = '';
+      tableBody.innerHTML = '<tr><td colspan="5" class="index-weight-empty">비중을 계산할 수 없습니다.</td></tr>';
+      return;
+    }
+
+    const indexMinusSimple = simpleAverage.spread == null ? null : index.spread - simpleAverage.spread;
+    summaryEl.innerHTML = [
+      renderIndexModalMetric('괴리율 지수', formatIndexSpread(index.spread)),
+      renderIndexModalMetric('단순 평균', formatIndexSpread(simpleAverage.spread), 'neutral-color'),
+      renderIndexModalMetric('지수-단순', formatPointChange(indexMinusSimple), getTextColorClass(indexMinusSimple)),
+      renderIndexModalMetric('구성 그룹', `${index.issuerCount}개`, 'neutral-color'),
+    ].join('');
+    noteEl.textContent = '비중은 각 보통주 그룹의 우선주 시가총액 합계에 제곱근을 적용한 뒤 전체 합계로 나눈 값입니다.';
+
+    const maxWeight = Math.max(...index.constituents.map(item => item.weight || 0), 1);
+    tableBody.innerHTML = index.constituents.map(item => {
+      const barWidth = Math.max(2, Math.min(100, (item.weight || 0) / maxWeight * 100));
+      return `
+        <tr>
+          <td>
+            <div class="index-weight-name">${escapeHtml(item.name)}</div>
+            <div class="index-weight-sub">${getIndexWeightPartLabel(item.parts)}</div>
+          </td>
+          <td class="index-weight-share">
+            <div>${formatIndexWeightPercent(item.weight)}</div>
+            <div class="index-weight-bar"><span style="width: ${barWidth.toFixed(1)}%"></span></div>
+          </td>
+          <td>${formatMarketCap(item.totalMarketCap)}</td>
+          <td>${formatIndexSpread(item.spread)}</td>
+          <td class="${getTextColorClass(item.spreadChange)}">${formatPointChange(item.spreadChange)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openIndexWeightModal(event) {
+    if (event) event.stopPropagation();
+    const modal = document.getElementById('indexWeightModal');
+    const closeButton = document.getElementById('indexWeightModalClose');
+    if (!modal) return;
+
+    renderIndexWeightModalContent();
+    indexWeightModalLastFocus = document.activeElement;
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+    requestAnimationFrame(() => closeButton?.focus());
+  }
+
+  function closeIndexWeightModal() {
+    const modal = document.getElementById('indexWeightModal');
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    if (indexWeightModalLastFocus && typeof indexWeightModalLastFocus.focus === 'function') {
+      indexWeightModalLastFocus.focus();
+    }
+    indexWeightModalLastFocus = null;
+  }
+
+  function bindIndexWeightModal() {
+    if (bindIndexWeightModal._bound) return;
+    const modal = document.getElementById('indexWeightModal');
+    const closeButton = document.getElementById('indexWeightModalClose');
+    if (!modal || !closeButton) return;
+
+    closeButton.addEventListener('click', closeIndexWeightModal);
+    modal.addEventListener('click', event => {
+      if (event.target === modal) closeIndexWeightModal();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeIndexWeightModal();
+    });
+    bindIndexWeightModal._bound = true;
   }
 
   function getFutureSessionLabel(metric) {
@@ -2020,7 +2456,8 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
 
     const market = getRenderableMarketSummary(marketOverride);
     const spreadIndex = calculateSqrtPreferredMarketCapSpreadIndex();
-    const fallbackAverageSpread = representatives.reduce((sum, pair) => sum + pair.current.spread, 0) / representatives.length;
+    const simpleAverage = calculateSimpleAverageMetrics(representatives);
+    const fallbackAverageSpread = simpleAverage.spread;
     const averageSpreadValue = spreadIndex?.spread ?? fallbackAverageSpread;
     const averagePair = getAveragePair();
     const averagePairSpread = toFiniteNumber(averagePair?.current?.spread);
@@ -2029,18 +2466,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       && Math.abs(averagePairSpread - averageSpreadValue) < 0.005
       ? averagePairSpreadChange
       : null;
-    const changeValues = representatives
-      .map(pair => pair.current.spreadChange)
-      .filter(value => value != null && !Number.isNaN(value));
-    const fallbackAverageSpreadChange = changeValues.length
-      ? changeValues.reduce((sum, value) => sum + value, 0) / changeValues.length
-      : null;
-    const commonChangeValues = representatives
-      .map(pair => pair.current.commonChange)
-      .filter(value => value != null && !Number.isNaN(value));
-    const preferredChangeValues = representatives
-      .map(pair => pair.current.preferredChange)
-      .filter(value => value != null && !Number.isNaN(value));
+    const fallbackAverageSpreadChange = simpleAverage.spreadChange;
 
     const topWideningRanked = representatives
       .filter(pair => pair.current.spreadChange > 0)
@@ -2066,15 +2492,19 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       averageSpreadChange: (indexSpreadChange ?? (spreadIndex ? null : fallbackAverageSpreadChange)) == null
         ? null
         : +(indexSpreadChange ?? (spreadIndex ? null : fallbackAverageSpreadChange)).toFixed(2),
+      simpleAverageSpread: simpleAverage.spread == null ? null : +simpleAverage.spread.toFixed(2),
+      simpleAverageSpreadChange: simpleAverage.spreadChange == null ? null : +simpleAverage.spreadChange.toFixed(2),
+      averageSpreadVsSimple: simpleAverage.spread == null ? null : +(averageSpreadValue - simpleAverage.spread).toFixed(2),
+      simpleAverageCount: simpleAverage.count,
       averageCommonChange: spreadIndex?.commonChange != null
         ? +spreadIndex.commonChange.toFixed(2)
-        : commonChangeValues.length
-        ? +(commonChangeValues.reduce((sum, value) => sum + value, 0) / commonChangeValues.length).toFixed(2)
+        : simpleAverage.commonChange != null
+        ? +simpleAverage.commonChange.toFixed(2)
         : null,
       averagePreferredChange: spreadIndex?.preferredChange != null
         ? +spreadIndex.preferredChange.toFixed(2)
-        : preferredChangeValues.length
-        ? +(preferredChangeValues.reduce((sum, value) => sum + value, 0) / preferredChangeValues.length).toFixed(2)
+        : simpleAverage.preferredChange != null
+        ? +simpleAverage.preferredChange.toFixed(2)
         : null,
       topWidening: topWidening ? serializePairSummary(topWidening) : null,
       topWideningRunners: rankedByWidening
@@ -2278,7 +2708,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
 
       if (p.isAverage) {
         const dir = getDirectionClass(c.spreadChange);
-        return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}">
+        return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" data-index-card="1" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="indexWeightModal">
           <div class="name">${p.name}</div>
           <div class="spread-line">
             <div class="spread-val">${c.spread.toFixed(1)}%</div>
@@ -2292,8 +2722,18 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       </div>`;
     }).join('');
     el.querySelectorAll('.card').forEach(card => {
-      card.addEventListener('click', () => {
+      const handleCardAction = () => {
+        if (card.dataset.indexCard === '1') {
+          openIndexWeightModal();
+          return;
+        }
         selectPair(parseInt(card.dataset.idx, 10));
+      };
+      card.addEventListener('click', handleCardAction);
+      card.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        handleCardAction();
       });
     });
     applyAutoFitText(el);
