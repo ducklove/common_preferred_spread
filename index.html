@@ -2708,7 +2708,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
 
       if (p.isAverage) {
         const dir = getDirectionClass(c.spreadChange);
-        return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" data-index-card="1" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="indexWeightModal">
+        return `<div class="card avg-card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" role="button" tabindex="0">
           <div class="name">${p.name}</div>
           <div class="spread-line">
             <div class="spread-val">${c.spread.toFixed(1)}%</div>
@@ -2723,10 +2723,6 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     }).join('');
     el.querySelectorAll('.card').forEach(card => {
       const handleCardAction = () => {
-        if (card.dataset.indexCard === '1') {
-          openIndexWeightModal();
-          return;
-        }
         selectPair(parseInt(card.dataset.idx, 10));
       };
       card.addEventListener('click', handleCardAction);
