@@ -1082,84 +1082,41 @@ canvas { display: block; }
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.preferred-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 18px;
-}
-.preferred-panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-.preferred-panel-title {
-  font-size: 14px;
-  font-weight: 700;
-}
-.preferred-panel-subtitle {
-  color: var(--text-dim);
-  font-size: 12px;
-  margin-top: 3px;
-}
-.preferred-tab-list {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.preferred-tab {
-  appearance: none;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text-dim);
-  border-radius: 999px;
-  padding: 7px 11px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
-.preferred-tab:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-.preferred-tab.active {
-  border-color: var(--accent);
-  background: rgba(108,140,255,0.16);
-  color: var(--text);
-}
-.preferred-terms {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-}
-.preferred-term {
-  background: var(--surface2);
-  border: 1px solid var(--soft-border);
-  border-radius: 8px;
-  padding: 10px 12px;
+.preferred-name-with-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
 }
-.preferred-term-label {
-  color: var(--text-dim);
-  font-size: 11px;
+.preferred-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preferred-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(108,140,255,0.4);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--accent);
+  font-size: 10px;
   font-weight: 700;
-  margin-bottom: 4px;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: 0;
 }
-.preferred-term-value {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
+.preferred-badge.dividend {
+  border-color: rgba(56,201,106,0.45);
+  color: var(--green);
 }
-.preferred-term-note {
-  color: var(--text-dim);
-  font-size: 11px;
-  line-height: 1.4;
-  margin-top: 10px;
+.chart-title .preferred-badge + .preferred-badge,
+.price-chart-title .preferred-badge + .preferred-badge {
+  margin-left: 4px;
 }
 
 /* Comparison table */
@@ -1411,7 +1368,6 @@ td.numeric .bar-cell {
     </div>
   </div>
 
-  <div class="preferred-panel" id="preferredPanel"></div>
   <div class="stats-row" id="statsRow"></div>
 
   <div class="table-section">
@@ -1487,6 +1443,9 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   const LIVE_FETCH_BATCH_CONCURRENCY = 2;
   const EMA_ALPHA = 0.1;
   const SELECTED_CODE_QUERY_KEY = 'code';
+  const PREFERRED_ADDITIONAL_DIVIDEND_BADGES = {
+    cj_4pref: 50,
+  };
   const TABLE_SORT_DEFAULT_DIRECTION = {
     name: 'asc',
     commonMarketCap: 'desc',
@@ -2131,7 +2090,6 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     renderZoomPanel();
     renderChart();
     renderPriceChart();
-    renderPreferredPanel();
     renderStats();
     if (scrollToChart) {
       scrollToSelectedSpreadSection();
@@ -2155,7 +2113,6 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     renderZoomPanel();
     renderChart();
     renderPriceChart();
-    renderPreferredPanel();
     renderStats();
     bindPeriodBtns();
     if (initialSelection.matched) {
@@ -2676,10 +2633,13 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     const c = p.current;
     const dir = getDirectionClass(c.spreadChange);
     const displayName = items.length > 1 ? p.commonName : p.name;
+    const displayNameHtml = items.length > 1
+      ? escapeHtml(displayName)
+      : renderPreferredInlineLabel(p, displayName);
     const emphasisClass = emphasizeChange ? ' emphasis' : '';
 
     return `
-      <div class="name">${displayName}</div>
+      <div class="name">${displayNameHtml}</div>
       <div class="spread-line">
         <div class="spread-val">${c.spread.toFixed(1)}%</div>
         <div class="spread-change ${dir}${emphasisClass}">${formatPointChange(c.spreadChange)}</div>
@@ -2718,7 +2678,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     if (items.length === 1) {
       return `<div class="prices">
         ${renderPriceLine(labels.common, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
-        ${renderPriceLine(labels.preferred, `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
+        ${renderPriceLine(renderPreferredInlineLabel(p, labels.preferred), `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
         <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
       </div>`;
     }
@@ -2726,7 +2686,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     const prefLines = items.map(item => {
       const ip = item.pair;
       const ic = ip.current;
-      return renderPriceLine(getPreferredShortLabel(ip), `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)}`);
+      return renderPriceLine(renderPreferredInlineLabel(ip, getPreferredShortLabel(ip)), `${formatPrice(ic.preferredPrice)} ${fmtChange(ic.preferredChange)}`);
     }).join('');
 
     return `<div class="prices">
@@ -2736,120 +2696,42 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     </div>`;
   }
 
-  function formatTermValue(value, yesText, noText, unknownText = '확인 필요') {
-    if (value === true) return yesText;
-    if (value === false) return noText;
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    return unknownText;
+  function formatBadgeAmount(value) {
+    if (value == null || Number.isNaN(value)) return '';
+    const abs = Math.abs(value);
+    const formatted = Number.isInteger(abs)
+      ? abs.toLocaleString('ko-KR')
+      : abs.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+    return `${value > 0 ? '+' : '-'}${formatted}`;
   }
 
-  function formatDividendDifference(pair) {
-    const preferred = toFiniteNumber(pair?.current?.preferredDividendPerShare);
-    const common = toFiniteNumber(pair?.current?.commonDividendPerShare);
-    if (preferred == null || common == null) return '확인 필요';
-    const diff = preferred - common;
-    if (Math.abs(diff) < 0.0001) return '동일';
-    const sign = diff > 0 ? '+' : '-';
-    return `${sign}${Math.abs(diff).toLocaleString('ko-KR')}원`;
-  }
-
-  function inferPreferredTerms(pair) {
-    const config = pairConfigMap.get(pair?.id) || {};
-    const configured = pair?.preferredTerms || config.preferredTerms || {};
-    const name = String(pair?.preferredName || pair?.name || '');
-    const fullName = `${name} ${pair?.name || ''}`;
-    const convertibleByName = /전환/.test(fullName);
-    const classText = /[2-9]우/.test(name)
-      ? '복수 우선주'
-      : /우B/.test(name)
-      ? 'B계열 우선주'
-      : '일반 우선주';
-    const source = configured.source || (Object.keys(configured).length ? 'manual' : 'inferred');
-
-    return {
-      classText: configured.classText || classText,
-      cumulative: configured.cumulative ?? null,
-      participating: configured.participating ?? null,
-      convertible: configured.convertible ?? (convertibleByName ? true : null),
-      redeemable: configured.redeemable ?? null,
-      additionalDividend: configured.additionalDividend || formatDividendDifference(pair),
-      votingRights: configured.votingRights || '미배당 시 부활 여부 확인 필요',
-      source,
-      sourceLabel: configured.sourceLabel || (source === 'manual' ? '수동 검수' : '종목명/DPS 기반 추정'),
-      sourceUrl: configured.sourceUrl || null,
-      confidence: configured.confidence || (source === 'manual' ? 'high' : 'low'),
-      note: configured.note || '누적/참가/상환 조건은 정관·사업보고서 원문 확인 후 확정합니다.',
-    };
-  }
-
-  function renderPreferredTerm(label, value) {
-    return `
-      <div class="preferred-term">
-        <div class="preferred-term-label">${label}</div>
-        <div class="preferred-term-value">${value}</div>
-      </div>
-    `;
-  }
-
-  function renderPreferredPanel() {
-    const el = document.getElementById('preferredPanel');
-    if (!el) return;
-    const pair = pairs[selectedIdx];
-    if (!pair || pair.isAverage) {
-      el.innerHTML = '';
-      el.hidden = true;
-      return;
+  function getPreferredBadges(pair) {
+    const badges = [];
+    const explicitDividendDiff = PREFERRED_ADDITIONAL_DIVIDEND_BADGES[pair?.id];
+    if (explicitDividendDiff != null) {
+      badges.push({ type: 'dividend', label: formatBadgeAmount(Number(explicitDividendDiff)) });
     }
 
-    const groupItems = getGroupItemsByPairId(pair.id) || [{ pair, idx: selectedIdx }];
-    const terms = inferPreferredTerms(pair);
-    const selectedTicker = getPreferredShareCodeByPairId(pair.id);
-    const tabList = groupItems.length > 1
-      ? `<div class="preferred-tab-list">${groupItems.map(item => {
-          const itemPair = item.pair;
-          const isActive = item.idx === selectedIdx;
-          const label = escapeHtml(getPreferredShortLabel(itemPair));
-          const code = escapeHtml(getPreferredShareCodeByPairId(itemPair.id));
-          return `<button type="button" class="preferred-tab${isActive ? ' active' : ''}" data-idx="${item.idx}">
-            ${label}${code ? ` <span class="stat-label-normal">${code}</span>` : ''}
-          </button>`;
-        }).join('')}</div>`
-      : '';
-    const sourceText = terms.sourceUrl
-      ? `<a href="${escapeHtml(terms.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(terms.sourceLabel)}</a>`
-      : escapeHtml(terms.sourceLabel);
+    const name = `${pair?.preferredName || ''} ${pair?.name || ''}`;
+    if (/전환/.test(name)) {
+      badges.push({ type: 'convertible', label: '전환' });
+    }
 
-    el.hidden = false;
-    el.innerHTML = `
-      <div class="preferred-panel-head">
-        <div>
-          <div class="preferred-panel-title">${escapeHtml(pair.commonName || pair.name)} 우선주 조건</div>
-          <div class="preferred-panel-subtitle">${escapeHtml(pair.preferredName || pair.name)}${selectedTicker ? ` · ${escapeHtml(selectedTicker)}` : ''}</div>
-        </div>
-      </div>
-      ${tabList}
-      <div class="preferred-terms">
-        ${renderPreferredTerm('종류', escapeHtml(terms.classText))}
-        ${renderPreferredTerm('누적 여부', escapeHtml(formatTermValue(terms.cumulative, '누적적', '비누적적')))}
-        ${renderPreferredTerm('참가 여부', escapeHtml(formatTermValue(terms.participating, '참가적', '비참가적')))}
-        ${renderPreferredTerm('추가 배당액', escapeHtml(terms.additionalDividend))}
-        ${renderPreferredTerm('전환 옵션', escapeHtml(formatTermValue(terms.convertible, '전환 가능', '전환 없음')))}
-        ${renderPreferredTerm('상환 옵션', escapeHtml(formatTermValue(terms.redeemable, '상환 가능', '상환 없음')))}
-        ${renderPreferredTerm('의결권', escapeHtml(terms.votingRights))}
-        ${renderPreferredTerm('근거', `${sourceText} · ${escapeHtml(terms.confidence === 'high' ? '검수됨' : '검수 필요')}`)}
-      </div>
-      <div class="preferred-term-note">${escapeHtml(terms.note)}</div>
-    `;
+    return badges;
+  }
 
-    el.querySelectorAll('.preferred-tab[data-idx]').forEach(button => {
-      const handle = () => selectPair(parseInt(button.dataset.idx, 10), { scrollToChart: false });
-      button.addEventListener('click', handle);
-      button.addEventListener('keydown', event => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        handle();
-      });
-    });
+  function renderPreferredBadges(pair) {
+    return getPreferredBadges(pair)
+      .map(badge => `<span class="preferred-badge ${badge.type}">${escapeHtml(badge.label)}</span>`)
+      .join('');
+  }
+
+  function renderPreferredInlineLabel(pair, fallbackLabel = null) {
+    const label = fallbackLabel || pair?.preferredName || pair?.name || '우선주';
+    return `<span class="preferred-name-with-badges">
+      <span class="preferred-name-text">${escapeHtml(label)}</span>
+      ${renderPreferredBadges(pair)}
+    </span>`;
   }
 
   function serializePairSummary(pair) {
@@ -3096,7 +2978,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       const preferredMarketCap = row?.preferredMarketCap ?? null;
       const preferredRatio = row?.preferredRatio ?? null;
       return `<tr>
-        <td><strong>${displayName}</strong></td>
+        <td><strong>${renderPreferredInlineLabel(p, displayName)}</strong></td>
         <td class="numeric">${formatPrice(c.commonPrice)}</td>
         <td class="numeric">${formatPrice(c.preferredPrice)}</td>
         <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
@@ -3147,7 +3029,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
       { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
       {
-        label: preferredLabel,
+        label: renderPreferredInlineLabel(p, preferredLabel),
         value: renderComboRows([
           { label: "현재가격", value: formatStatPrice(p.current.preferredPrice) },
           { label: "전일비", value: renderChangeHtml(p.current.preferredChange) },
@@ -3174,7 +3056,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
           { label: "보통주", value: formatMarketCap(commonMarketCap) },
         ]),
       },
-      { label: "우선주 20일 평균 거래대금", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
+      { label: "거래액 (최근 1개월 평균)", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
       {
         label: "배당수익률",
         value: renderComboRows([
@@ -3191,7 +3073,8 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   function renderChart() {
     const p = pairs[selectedIdx];
     const theme = getChartTheme();
-    document.getElementById('chartTitle').textContent = p.name + ' 괴리율 추이';
+    const titleBadges = p.isAverage ? '' : renderPreferredBadges(p);
+    document.getElementById('chartTitle').innerHTML = `${escapeHtml(p.name)}${titleBadges ? ` ${titleBadges}` : ''} 괴리율 추이`;
 
     const canvas = document.getElementById('chart');
     const container = canvas.parentElement;
@@ -3387,7 +3270,8 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       titleEl.textContent = 'KOSPI 지수 추이';
       legendEl.innerHTML = '<span class="leg-kospi">KOSPI</span>';
     } else {
-      titleEl.textContent = p.name + ' 시세 추이';
+      const titleBadges = renderPreferredBadges(p);
+      titleEl.innerHTML = `${escapeHtml(p.name)}${titleBadges ? ` ${titleBadges}` : ''} 시세 추이`;
       legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${detailLabels.preferred}</span>`;
     }
 
@@ -4873,7 +4757,6 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     renderZoomPanel();
     renderChart();
     renderPriceChart();
-    renderPreferredPanel();
     renderStats();
     return true;
   }
