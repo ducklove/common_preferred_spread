@@ -70,9 +70,91 @@ DIVIDEND_AMOUNT_OVERRIDES = {
         "preferredDividendPerShare": 60.0,
     },
 }
+PREFERRED_TERM_COLLECTION = {
+    "status": "hybrid",
+    "sources": [
+        {
+            "name": "OpenDART 주식의 총수 현황",
+            "url": "https://opendart.fss.or.kr/api/stockTotqySttus.json",
+            "usage": "종류주식 구분과 유통주식수 확인",
+        },
+        {
+            "name": "OpenDART 배당에 관한 사항",
+            "url": "https://opendart.fss.or.kr/api/alotMatter.json",
+            "usage": "보통주/우선주 주당배당금 차이 확인",
+        },
+        {
+            "name": "OpenDART 공시서류 원본",
+            "url": "https://opendart.fss.or.kr/api/document.xml",
+            "usage": "정관·사업보고서 원문에서 누적/참가/전환/상환 조건 검수",
+        },
+        {
+            "name": "KRX 정보데이터시스템",
+            "url": "https://data.krx.co.kr",
+            "usage": "상장 종목명과 종목코드 유니버스 교차확인",
+        },
+    ],
+    "method": "structured_api_first_then_disclosure_text_review",
+}
 
 with open(CONFIG_PATH, encoding="utf-8") as f:
     PAIRS = json.load(f)
+
+
+def normalize_ticker_code(ticker):
+    return str(ticker or "").split(".", 1)[0].upper()
+
+
+def format_won_amount(value):
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return f"{value:g}원"
+
+
+def infer_preferred_share_class(pair):
+    name = str(pair.get("preferredName") or pair.get("name") or "")
+    if "전환" in name:
+        return "전환우선주"
+    if re.search(r"[2-9]우", name):
+        return "복수 우선주"
+    if "우B" in name:
+        return "B계열 우선주"
+    return "일반 우선주"
+
+
+def build_preferred_terms(pair, common_dividend_per_share, preferred_dividend_per_share):
+    configured = pair.get("preferredTerms") or {}
+    name = str(pair.get("preferredName") or pair.get("name") or "")
+    full_name = f"{name} {pair.get('name') or ''}"
+    dividend_diff = None
+    if common_dividend_per_share is not None and preferred_dividend_per_share is not None:
+        dividend_diff = preferred_dividend_per_share - common_dividend_per_share
+    if dividend_diff is None:
+        additional_dividend = "확인 필요"
+    elif abs(dividend_diff) < 0.0001:
+        additional_dividend = "동일"
+    else:
+        sign = "+" if dividend_diff > 0 else "-"
+        additional_dividend = sign + format_won_amount(abs(dividend_diff))
+
+    source = configured.get("source") or ("manual" if configured else "inferred")
+    return {
+        "ticker": normalize_ticker_code(pair.get("preferredTicker")),
+        "classText": configured.get("classText") or infer_preferred_share_class(pair),
+        "cumulative": configured.get("cumulative"),
+        "participating": configured.get("participating"),
+        "convertible": configured.get("convertible") if "convertible" in configured else (True if "전환" in full_name else None),
+        "redeemable": configured.get("redeemable"),
+        "additionalDividend": configured.get("additionalDividend") or additional_dividend,
+        "votingRights": configured.get("votingRights") or "미배당 시 부활 여부 확인 필요",
+        "source": source,
+        "sourceLabel": configured.get("sourceLabel") or ("수동 검수" if source == "manual" else "종목명/DPS 기반 추정"),
+        "sourceUrl": configured.get("sourceUrl"),
+        "confidence": configured.get("confidence") or ("high" if source == "manual" else "low"),
+        "note": configured.get("note") or "누적/참가/상환 조건은 정관·사업보고서 원문 확인 후 확정합니다.",
+    }
 
 
 def load_existing_data():
@@ -1652,6 +1734,11 @@ def main():
             "name": pair["name"],
             "commonName": pair["commonName"],
             "preferredName": pair["preferredName"],
+            "preferredTerms": build_preferred_terms(
+                pair,
+                common_dividend_per_share,
+                preferred_dividend_per_share,
+            ),
             "current": {
                 "commonPrice": latest["commonPrice"],
                 "preferredPrice": latest["preferredPrice"],
@@ -1787,6 +1874,7 @@ def main():
     stock_data = {
         "lastUpdated": datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S"),
         "dividendHistories": dividend_histories,
+        "preferredTermCollection": PREFERRED_TERM_COLLECTION,
         "pairs": pairs_result,
     }
 
