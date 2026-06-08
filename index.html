@@ -5,16 +5,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>우선주 괴리율 대시보드</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <script>
+// iframe embed + theme: ?theme=dark|light overrides stored theme; ?embed hides chrome.
 (function() {
   try {
-    var theme = localStorage.getItem('theme') || localStorage.getItem('preferred-theme') || 'light';
+    var params = new URLSearchParams(location.search);
+    var urlTheme = params.get('theme');
+    var stored = localStorage.getItem('theme') || localStorage.getItem('preferred-theme');
+    var theme = (urlTheme === 'dark' || urlTheme === 'light') ? urlTheme : (stored || 'light');
     document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+    var embed = params.get('embed');
+    if (embed !== null && embed !== '0' && embed !== 'false') {
+      document.documentElement.dataset.embed = '1';
+    }
   } catch (e) {
     document.documentElement.dataset.theme = 'light';
   }
 })();
 </script>
+<style>
+/* iframe embed mode: hide standalone chrome so the dashboard fits a host frame */
+html[data-embed] .header,
+html[data-embed] footer { display: none !important; }
+html[data-embed] .container { padding-top: 14px !important; }
+</style>
 <style>
 :root {
   color-scheme: dark;
@@ -1443,7 +1458,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   const LIVE_FETCH_BATCH_CONCURRENCY = 2;
   const EMA_ALPHA = 0.1;
   const SELECTED_CODE_QUERY_KEY = 'code';
-  const PREFERRED_ADDITIONAL_DIVIDEND_BADGES = {
+  const PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES = {
     cj_4pref: 50,
   };
   const TABLE_SORT_DEFAULT_DIRECTION = {
@@ -2705,33 +2720,48 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
     return `${value > 0 ? '+' : '-'}${formatted}`;
   }
 
-  function getPreferredBadges(pair) {
-    const badges = [];
-    const explicitDividendDiff = PREFERRED_ADDITIONAL_DIVIDEND_BADGES[pair?.id];
-    if (explicitDividendDiff != null) {
-      badges.push({ type: 'dividend', label: formatBadgeAmount(Number(explicitDividendDiff)) });
-    }
-
+  function hasConvertibleOption(pair) {
     const name = `${pair?.preferredName || ''} ${pair?.name || ''}`;
-    if (/전환/.test(name)) {
-      badges.push({ type: 'convertible', label: '전환' });
-    }
-
-    return badges;
+    return /전환/.test(name);
   }
 
-  function renderPreferredBadges(pair) {
-    return getPreferredBadges(pair)
-      .map(badge => `<span class="preferred-badge ${badge.type}">${escapeHtml(badge.label)}</span>`)
-      .join('');
+  function stripConvertibleMarker(label) {
+    return String(label || '').replace(/\s*\(전환\)\s*/g, '').trim();
+  }
+
+  function getAdditionalDividendAmount(pair) {
+    const explicitDividendDiff = PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES[pair?.id];
+    if (explicitDividendDiff != null) return Number(explicitDividendDiff);
+    const commonDividend = toFiniteNumber(pair?.current?.commonDividendPerShare);
+    const preferredDividend = toFiniteNumber(pair?.current?.preferredDividendPerShare);
+    if (commonDividend == null || preferredDividend == null) return null;
+    const dividendDiff = preferredDividend - commonDividend;
+    return dividendDiff > 0.0001 ? dividendDiff : null;
+  }
+
+  function renderConvertibleBadge(pair) {
+    if (!hasConvertibleOption(pair)) return '';
+    return '<span class="preferred-badge convertible">전환</span>';
+  }
+
+  function renderAdditionalDividendBadge(pair) {
+    const dividendDiff = getAdditionalDividendAmount(pair);
+    if (dividendDiff == null || Number.isNaN(dividendDiff)) return '';
+    return `<span class="preferred-badge dividend">${escapeHtml(formatBadgeAmount(dividendDiff))}</span>`;
   }
 
   function renderPreferredInlineLabel(pair, fallbackLabel = null) {
-    const label = fallbackLabel || pair?.preferredName || pair?.name || '우선주';
+    const rawLabel = fallbackLabel || pair?.preferredName || pair?.name || '우선주';
+    const label = stripConvertibleMarker(rawLabel) || rawLabel;
     return `<span class="preferred-name-with-badges">
       <span class="preferred-name-text">${escapeHtml(label)}</span>
-      ${renderPreferredBadges(pair)}
+      ${renderConvertibleBadge(pair)}
     </span>`;
+  }
+
+  function renderPreferredYieldLabel(pair) {
+    const dividendBadge = renderAdditionalDividendBadge(pair);
+    return `우선주${dividendBadge ? ` ${dividendBadge}` : ''}`;
   }
 
   function serializePairSummary(pair) {
@@ -3060,7 +3090,7 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       {
         label: "배당수익률",
         value: renderComboRows([
-          { label: "우선주", value: formatYield(p.current.preferredDivYield) },
+          { label: renderPreferredYieldLabel(p), value: formatYield(p.current.preferredDivYield) },
           { label: "보통주", value: formatYield(p.current.commonDivYield) },
         ]),
       },
@@ -3073,8 +3103,8 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
   function renderChart() {
     const p = pairs[selectedIdx];
     const theme = getChartTheme();
-    const titleBadges = p.isAverage ? '' : renderPreferredBadges(p);
-    document.getElementById('chartTitle').innerHTML = `${escapeHtml(p.name)}${titleBadges ? ` ${titleBadges}` : ''} 괴리율 추이`;
+    const titleLabel = p.isAverage ? escapeHtml(p.name) : renderPreferredInlineLabel(p, p.name);
+    document.getElementById('chartTitle').innerHTML = `${titleLabel} 괴리율 추이`;
 
     const canvas = document.getElementById('chart');
     const container = canvas.parentElement;
@@ -3270,9 +3300,8 @@ document.write('<script src="data.js?t=' + Date.now() + '"><\/script>');
       titleEl.textContent = 'KOSPI 지수 추이';
       legendEl.innerHTML = '<span class="leg-kospi">KOSPI</span>';
     } else {
-      const titleBadges = renderPreferredBadges(p);
-      titleEl.innerHTML = `${escapeHtml(p.name)}${titleBadges ? ` ${titleBadges}` : ''} 시세 추이`;
-      legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${detailLabels.preferred}</span>`;
+      titleEl.innerHTML = `${renderPreferredInlineLabel(p, p.name)} 시세 추이`;
+      legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${renderPreferredInlineLabel(p, detailLabels.preferred)}</span>`;
     }
 
     const canvas = document.getElementById('priceChart');
