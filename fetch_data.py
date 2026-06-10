@@ -13,6 +13,7 @@ import math
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -41,6 +42,9 @@ PROXY_HISTORY_BASE_URL = os.environ.get("PROXY_HISTORY_BASE_URL", "").strip()
 PROXY_HISTORY_START_DATE = pd.Timestamp("1989-01-01")
 PROXY_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "proxy_history"
 PROXY_BACKFILL_WORKERS = 2
+PROXY_HISTORY_WINDOW_DAYS = 730
+PROXY_HISTORY_TIMEOUT_SECONDS = 60
+PROXY_HISTORY_RETRIES = 3
 INTERNAL_CLOSE_API_URL = os.environ.get("INTERNAL_CLOSE_API_URL", "").strip()
 INTERNAL_DAILY_API_URL = os.environ.get("INTERNAL_DAILY_API_URL", "").strip()
 INTERNAL_INDICES_API_URL = os.environ.get("INTERNAL_INDICES_API_URL", "").strip()
@@ -693,22 +697,41 @@ def fetch_proxy_daily_history(ticker):
         except Exception:
             pass
 
+    # 전체 구간(1989~현재)을 한 번에 조회하면 깊은 종목에서 서버 타임아웃이 나므로
+    # 2년 단위 윈도우로 나눠 역방향 순회한다. 요청은 재시도하고, 실패해도 수집분은 보존.
     history_rows = []
     seen_dates = set()
-    cursor_end = datetime.now(KST).date()
     start_date = PROXY_HISTORY_START_DATE.date()
+    window_end = datetime.now(KST).date()
+    consecutive_window_failures = 0
+    partial = False
 
-    try:
-        while cursor_end >= start_date:
+    while window_end >= start_date:
+        window_start = max(start_date, window_end - timedelta(days=PROXY_HISTORY_WINDOW_DAYS - 1))
+        cursor_end = window_end
+        window_failed = False
+
+        while cursor_end >= window_start:
             url = (
                 f"{PROXY_HISTORY_BASE_URL}/v1/stocks/{code}/history"
-                f"?start_date={start_date.isoformat()}"
+                f"?start_date={window_start.isoformat()}"
                 f"&end_date={cursor_end.isoformat()}"
                 f"&period=D&adjusted=true"
             )
-            request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urlopen(request, timeout=20) as response:
-                payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            payload = None
+            for attempt in range(PROXY_HISTORY_RETRIES):
+                try:
+                    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urlopen(request, timeout=PROXY_HISTORY_TIMEOUT_SECONDS) as response:
+                        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+                    break
+                except Exception:
+                    if attempt < PROXY_HISTORY_RETRIES - 1:
+                        time.sleep(3 * (attempt + 1))
+            if payload is None:
+                window_failed = True
+                partial = True
+                break
 
             items = payload.get("items", [])
             if not items:
@@ -739,25 +762,28 @@ def fetch_proxy_daily_history(ticker):
             if next_end >= cursor_end:
                 break
             cursor_end = next_end
-    except Exception:
-        if cache_path.exists():
-            try:
-                cached = pd.read_csv(cache_path, index_col=0, parse_dates=True)
-                if {"close", "volume"}.issubset(cached.columns):
-                    _proxy_daily_history_cache[ticker] = cached
-                    return cached.copy()
-            except Exception:
-                pass
-        empty = pd.DataFrame(columns=["close", "volume"])
-        _proxy_daily_history_cache[ticker] = empty
-        return empty.copy()
+
+        if window_failed:
+            consecutive_window_failures += 1
+            if consecutive_window_failures >= 2:
+                print(
+                    f"  WARNING: PROXY {ticker} 연속 윈도우 실패, "
+                    f"부분 수집 {len(history_rows)}일로 중단"
+                )
+                break
+        else:
+            consecutive_window_failures = 0
+
+        window_end = window_start - timedelta(days=1)
 
     if history_rows:
         history = pd.DataFrame(history_rows).dropna(subset=["date", "close", "volume"])
         history = history.set_index("date").sort_index()
         history = history[~history.index.duplicated(keep="first")]
-        PROXY_HISTORY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        history.to_csv(cache_path, encoding="utf-8")
+        if not partial:
+            # 부분 수집본을 캐시에 남기면 다음 실행의 완전 수집을 막으므로 완주 시에만 저장
+            PROXY_HISTORY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            history.to_csv(cache_path, encoding="utf-8")
     else:
         history = pd.DataFrame(columns=["close", "volume"])
 
