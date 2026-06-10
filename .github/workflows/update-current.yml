@@ -12,22 +12,27 @@ on:
 permissions:
   contents: write
 
+# 일별 워크플로우와 그룹을 분리해 일별 작업이 대기열에서 밀려 취소되는 것을 방지.
+# 두 워크플로우 간 push 경합은 커밋 스텝의 rebase 재시도로 처리한다.
+concurrency:
+  group: current-commit
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+          cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install websocket-client
+        run: pip install -r requirements-current.txt
 
       - name: Fetch current prices
         env:
@@ -43,7 +48,15 @@ jobs:
           git add current.json
           if git diff --cached --quiet; then
             echo "No changes to commit"
-          else
-            git commit -m "현재가 갱신 ($(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M'))"
-            git push
+            exit 0
           fi
+          git commit -m "현재가 갱신 ($(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M'))"
+          for attempt in 1 2 3 4; do
+            if git push; then
+              exit 0
+            fi
+            echo "push 실패, rebase 후 재시도 ($attempt)"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            sleep $((attempt * 5))
+          done
+          git push
