@@ -3693,7 +3693,7 @@ td.numeric .bar-cell {
       drawLine(ctx, pad, cW, cH, hist, scale, d => d.commonPrice, minP, rangeP, theme.accent, false);
       drawLine(ctx, pad, cW, cH, hist, scale, d => d.preferredPrice, minP, rangeP, theme.up, false);
 
-      // 배당(우선주) 마커: 표시 구간 내 배당 기준일을 차트 하단에 점으로 표시
+      // 배당(우선주) 마커: 표시 구간 내 배당 일자를 차트 하단에 점으로 표시
       if (hasDividendMarks) {
         const firstDate = hist[0]?.date || '';
         const lastDate = hist[hist.length - 1]?.date || '';
@@ -3962,6 +3962,7 @@ td.numeric .bar-cell {
       const button = event.target.closest('button[data-card-sort]');
       if (!button || !controls.contains(button)) return;
       cardSortMode = button.dataset.cardSort || 'spread';
+      writeStoredValue(CARD_SORT_STORAGE_KEY, cardSortMode);
       controls.querySelectorAll('button').forEach(item => {
         item.classList.toggle('active', item === button);
       });
@@ -3977,6 +3978,7 @@ td.numeric .bar-cell {
       this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       periodDays = parseInt(e.target.dataset.days);
+      writeStoredValue(PERIOD_DAYS_STORAGE_KEY, String(periodDays));
       resetZoomWindow({ render: false });
       renderZoomPanel();
       renderTable();
@@ -4002,6 +4004,41 @@ td.numeric .bar-cell {
     endInput.addEventListener('input', () => handleInput('end'));
     resetBtn.addEventListener('click', () => resetZoomWindow());
     bindZoomControls._bound = true;
+  }
+
+  // --- CSV 내보내기 ---
+  function buildHistoryCsv(hist, { includeKospi = false } = {}) {
+    const header = ['date', 'commonPrice', 'preferredPrice', 'spread', ...(includeKospi ? ['kospiPrice'] : [])];
+    const lines = hist.map(entry => {
+      const cells = [entry.date ?? '', entry.commonPrice ?? '', entry.preferredPrice ?? '', entry.spread ?? ''];
+      if (includeKospi) cells.push(entry.kospiPrice ?? '');
+      return cells.join(',');
+    });
+    return '\ufeff' + [header.join(','), ...lines].join('\n'); // UTF-8 BOM (엑셀 한글 호환)
+  }
+
+  function exportSelectedPairCsv() {
+    const pair = pairs[selectedIdx];
+    if (!pair) return;
+    const hist = getFilteredHistory(pair) || [];
+    if (!hist.length) return;
+    const csv = buildHistoryCsv(hist, { includeKospi: !!pair.isAverage });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${pair.id}_${hist[0].date}_${hist[hist.length - 1].date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function bindCsvExportButton() {
+    const button = document.getElementById('csvExportBtn');
+    if (!button || bindCsvExportButton._bound) return;
+    button.addEventListener('click', exportSelectedPairCsv);
+    bindCsvExportButton._bound = true;
   }
 
   // --- Helpers ---
@@ -4299,6 +4336,23 @@ td.numeric .bar-cell {
     });
 
     return series;
+  }
+
+  function calculateMeanStd(values) {
+    if (!Array.isArray(values)) return null;
+    const valid = values.filter(value => value != null && !Number.isNaN(value));
+    if (valid.length < 2) return null;
+    const mean = valid.reduce((sum, value) => sum + value, 0) / valid.length;
+    const variance = valid.reduce((sum, value) => sum + ((value - mean) * (value - mean)), 0) / valid.length;
+    return { mean, std: Math.sqrt(variance) };
+  }
+
+  function calculatePercentileRank(values, current) {
+    if (current == null || Number.isNaN(current) || !Array.isArray(values)) return null;
+    const valid = values.filter(value => value != null && !Number.isNaN(value));
+    if (!valid.length) return null;
+    const below = valid.filter(value => value <= current).length;
+    return below / valid.length * 100;
   }
 
   function calculateLiveMarketCap(price, sharesOutstanding, fallbackMarketCap = null) {
