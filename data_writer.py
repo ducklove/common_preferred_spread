@@ -9,6 +9,7 @@ data.js(레거시 호환)와 data/ 분할 출력(summary/history/dividends)을 �
 
 import argparse
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -55,6 +56,34 @@ def atomic_write_text(path, text):
 def dump_compact_json(obj):
     """프런트엔드 계약에 맞춘 콤팩트 JSON 직렬화."""
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+
+
+def compute_spread_stats(history):
+    """history의 spread 유효 값(숫자, NaN 제외)으로 분포 통계를 계산한다.
+
+    프런트엔드 calculateMeanStd와 동일하게 모집단 표준편차(÷n)를 사용하며,
+    유효 표본이 2개 미만이면 None을 반환한다(이때 spreadStats 키 자체를 생략).
+    """
+    values = []
+    for record in history:
+        value = record.get("spread")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        if math.isnan(value):
+            continue
+        values.append(value)
+    count = len(values)
+    if count < 2:
+        return None
+    mean = sum(values) / count
+    variance = sum((v - mean) ** 2 for v in values) / count
+    return {
+        "mean": round(mean, 4),
+        "std": round(math.sqrt(variance), 4),
+        "min": round(min(values), 4),
+        "max": round(max(values), 4),
+        "count": count,
+    }
 
 
 def build_history_payload(pair, last_updated):
