@@ -35,6 +35,7 @@ jobs:
       # ubuntu-latest 러너에 기본 설치된 node 사용 (setup-node 불필요)
       - name: Frontend syntax (node --check)
         run: |
+          # 1) index.html 인라인 <script> (테마 부트스트랩) 구문 검사
           python3 - <<'EOF'
           import re
           html = open('index.html', encoding='utf-8').read()
@@ -42,3 +43,12 @@ jobs:
               open(f'/tmp/ci_script_{i}.js', 'w', encoding='utf-8').write(s)
           EOF
           for f in /tmp/ci_script_*.js; do [ -e "$f" ] || continue; node --check "$f"; done
+          # 2) js/*.js ES 모듈 구문 검사 — node --check는 .js의 import/export를
+          #    러너 node 버전에 따라 거부할 수 있어 .mjs로 복사해 검사한다 (로컬 검증됨)
+          tmpdir=$(mktemp -d)
+          for f in js/*.js; do
+            mjs="$tmpdir/$(basename "${f%.js}").mjs"
+            cp "$f" "$mjs"
+            node --check "$mjs"
+          done
+          rm -rf "$tmpdir"
