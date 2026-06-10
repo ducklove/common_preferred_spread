@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [master]
+    # 봇 데이터 커밋(30분 간격 현재가, 일별 시세)에는 CI를 돌리지 않는다
+    paths-ignore:
+      - 'current.json'
+      - 'data.js'
+      - 'data/**'
+      - 'proxy_backfill_progress.json'
 
 concurrency:
   group: ci-${{ github.ref }}
