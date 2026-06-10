@@ -1307,3 +1307,108 @@ td.numeric .bar-cell {
     padding-top: 12px;
   }
 }
+
+/* Heatmap (전 종목 괴리율 트리맵) */
+.heatmap-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.heatmap-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.heatmap-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.heatmap-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.heatmap-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.heatmap-legend-bar {
+  width: 96px;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--soft-border);
+  /* ±2σ 타일 색 강도(약 70%)와 동일한 매핑의 그라데이션 */
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--down) 70%, var(--surface)),
+    var(--surface) 50%,
+    color-mix(in srgb, var(--up) 70%, var(--surface)));
+}
+.heatmap-treemap {
+  position: relative;
+  height: 380px;
+}
+.heatmap-tile {
+  position: absolute;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: outline-color 0.15s;
+  border: 1px solid var(--soft-border);
+  padding: 6px 8px;
+  box-sizing: border-box;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+.heatmap-tile:hover {
+  border-color: var(--accent);
+  z-index: 1;
+}
+.heatmap-tile:focus-visible {
+  outline-color: var(--accent);
+  z-index: 1;
+}
+.heatmap-tile.active {
+  outline: 2px solid var(--accent);
+  z-index: 1;
+}
+.heatmap-tile.neutral {
+  background: transparent;
+}
+.heatmap-tile.deep {
+  color: #fff;
+}
+.heatmap-tile .ht-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heatmap-tile .ht-meta {
+  font-size: 11px;
+  opacity: 0.92;
+  white-space: nowrap;
+}
+.heatmap-tile.compact .ht-name,
+.heatmap-tile.compact .ht-meta {
+  display: none;
+}
+@media (max-width: 768px) {
+  .heatmap-treemap { height: 300px; }
+}

@@ -54,6 +54,22 @@
   </div>
   <div class="cards" id="cards"></div>
 
+  <div class="heatmap-section" id="heatmapSection">
+    <div class="heatmap-header">
+      <div>
+        <div class="heatmap-title">괴리율 히트맵</div>
+        <div class="heatmap-subtitle">색 = 현재 괴리율의 역사적 위치(z-score) · 면적 = 우선주 시총(√)</div>
+      </div>
+      <div class="heatmap-actions">
+        <div class="heatmap-legend" id="heatmapLegend"></div>
+        <button type="button" class="zoom-reset-btn" id="heatmapToggleBtn">접기</button>
+      </div>
+    </div>
+    <div class="heatmap-body" id="heatmapBody">
+      <div class="heatmap-treemap" id="heatmapTreemap"></div>
+    </div>
+  </div>
+
   <div class="chart-section" id="spreadChartSection">
     <div class="chart-header">
       <div class="chart-title" id="chartTitle">삼성전자 괴리율 추이</div>

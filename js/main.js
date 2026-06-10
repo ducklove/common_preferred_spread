@@ -21,6 +21,7 @@ import {
   updateSelectedPairQueryParam,
 } from './views.js';
 import { bindZoomControls, renderChart, renderPriceChart, renderZoomPanel } from './charts.js';
+import { bindHeatmapControls, renderHeatmap } from './heatmap.js';
 import { bindAutoRefresh, bindRefreshButton, fetchCurrentPrices } from './live.js';
 
 // --- Init ---
@@ -48,6 +49,8 @@ export async function initializeDashboard() {
   await Promise.all([ensureHistory(getAveragePair()), ensureHistory(app.pairs[app.selectedIdx])].filter(Boolean));
   renderTodayOverview();
   renderCards();
+  bindHeatmapControls();
+  renderHeatmap();
   renderTable();
   bindIndexWeightModal();
   bindCardSortControls();
@@ -79,4 +82,5 @@ window.addEventListener('resize', () => {
   renderZoomPanel();
   renderChart();
   renderPriceChart();
+  renderHeatmap();
 });

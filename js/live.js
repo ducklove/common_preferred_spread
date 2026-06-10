@@ -41,6 +41,7 @@ import {
 } from './market.js';
 import { renderCards, renderStats, renderTable, renderTodayOverview } from './views.js';
 import { renderChart, renderPriceChart, renderZoomPanel } from './charts.js';
+import { renderHeatmap } from './heatmap.js';
 
 export function getSnapshotPriceDate(snapshotPrice, fallbackDate) {
   const explicitDate = normalizeDateText(snapshotPrice?.date || snapshotPrice?.tradeDate || snapshotPrice?.priceDate);
@@ -724,6 +725,7 @@ export function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
   renderChart();
   renderPriceChart();
   renderStats();
+  renderHeatmap();
   return true;
 }
 
