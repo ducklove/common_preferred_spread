@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.13" }
+
+      - name: Python syntax
+        run: python -m py_compile fetch_data.py fetch_current.py data_writer.py history_rules.py
+
+      - name: Unit tests
+        run: |
+          pip install pytest
+          python -m pytest -q
+
+      # ubuntu-latest 러너에 기본 설치된 node 사용 (setup-node 불필요)
+      - name: Frontend syntax (node --check)
+        run: |
+          python3 - <<'EOF'
+          import re
+          html = open('index.html', encoding='utf-8').read()
+          for i, s in enumerate(re.findall(r'<script>(.*?)</script>', html, re.S)):
+              open(f'/tmp/ci_script_{i}.js', 'w', encoding='utf-8').write(s)
+          EOF
+          for f in /tmp/ci_script_*.js; do [ -e "$f" ] || continue; node --check "$f"; done

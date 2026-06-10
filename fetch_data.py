@@ -25,6 +25,7 @@ import yfinance as yf
 import pandas as pd
 
 import data_writer
+import history_rules
 
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -1585,13 +1586,11 @@ def main():
 
         # 모드와 무관하게 기존 데이터의 더 오래된 과거 구간(프록시/네이버 백필분)을 보존
         if not args.allow_history_truncation and history:
-            prev_hist = previous_hist_map.get(pair["id"]) or []
-            if prev_hist:
-                first_new_date = history[0]["date"]
-                earlier = [h for h in prev_hist if h["date"] < first_new_date]
-                if earlier:
-                    history = earlier + history
-                    print(f"  INFO: {pair['name']} 기존 과거 구간 보존 {len(earlier)}일 ({earlier[0]['date']}~{earlier[-1]['date']})")
+            earlier, history = history_rules.merge_preserved_history(
+                history, previous_hist_map.get(pair["id"])
+            )
+            if earlier:
+                print(f"  INFO: {pair['name']} 기존 과거 구간 보존 {len(earlier)}일 ({earlier[0]['date']}~{earlier[-1]['date']})")
 
         if not history:
             continue
@@ -1790,23 +1789,9 @@ def main():
         for p in pairs_result
         if not p.get("isAverage")
     }
-    violations = []
-    for pair_id, prev_hist in previous_hist_map.items():
-        if pair_id not in configured_pair_ids or not prev_hist:
-            continue
-        new_hist = result_hist_map.get(pair_id) or []
-        if not new_hist:
-            violations.append(f"{pair_id}: 결과에서 사라졌거나 히스토리가 비어 있음")
-            continue
-        if new_hist[0]["date"] > prev_hist[0]["date"]:
-            violations.append(
-                f"{pair_id}: 시작일 후퇴 {prev_hist[0]['date']} -> {new_hist[0]['date']}"
-            )
-        allowed_drop = max(20, int(len(prev_hist) * 0.02))
-        if len(new_hist) < len(prev_hist) - allowed_drop:
-            violations.append(
-                f"{pair_id}: 히스토리 포인트 감소 {len(prev_hist)} -> {len(new_hist)}"
-            )
+    violations = history_rules.find_quality_violations(
+        result_hist_map, previous_hist_map, configured_pair_ids
+    )
     if violations and not args.allow_history_truncation:
         for violation in violations:
             print(f"ERROR: {violation}")

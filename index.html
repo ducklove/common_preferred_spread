@@ -553,6 +553,7 @@ body {
   margin-bottom: 24px;
 }
 .card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -561,6 +562,22 @@ body {
   transition: border-color 0.15s, background 0.15s;
 }
 .card:hover { border-color: var(--accent); }
+.card .card-pin {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px;
+}
+.card .card-pin:hover { color: var(--accent); }
+.card .card-pin.pinned { color: #f5c518; }
+.cards .card .name { padding-right: 22px; }
 .card.avg-card { border-color: var(--green); background: var(--avg-card-bg); }
 .card.avg-card.active { border-color: var(--green); background: var(--avg-card-bg-active); }
 .card.active {
@@ -1273,6 +1290,7 @@ td.numeric .bar-cell {
 .price-legend .leg-common::before { background: var(--accent); }
 .price-legend .leg-preferred::before { background: var(--up); }
 .price-legend .leg-kospi::before { background: var(--green); }
+.price-legend .leg-dividend::before { background: var(--green); }
 
 @media (max-width: 768px) {
   .header, .container { padding-left: 16px; padding-right: 16px; }
@@ -1357,6 +1375,7 @@ td.numeric .bar-cell {
         <button data-days="365">1Y</button>
         <button data-days="0" class="active">전체</button>
       </div>
+      <button type="button" class="zoom-reset-btn" id="csvExportBtn">CSV</button>
     </div>
     <div class="chart-container">
       <canvas id="chart"></canvas>
@@ -1441,7 +1460,12 @@ td.numeric .bar-cell {
   let pairs = STOCK_DATA.pairs;
   const DATA_SUMMARY_URL = 'data/summary.json';
   const LEGACY_DATA_JS_URL = 'data.js';
+  const DATA_DIVIDENDS_URL = 'data/dividends.json';
   const THEME_STORAGE_KEY = 'theme';
+  const PINNED_PAIRS_STORAGE_KEY = 'pinnedPairIds';
+  const CARD_SORT_STORAGE_KEY = 'cardSortMode';
+  const PERIOD_DAYS_STORAGE_KEY = 'periodDays';
+  const PERIOD_DAYS_OPTIONS = [0, 30, 90, 180, 365];
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
   const LIVE_REFRESH_RETRY_DELAY_MS = 1500;
   const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
@@ -1500,6 +1524,7 @@ td.numeric .bar-cell {
     spreadWidening: { direction: 'desc' },
     spreadNarrowing: { direction: 'asc' },
   };
+  let pinnedPairIds = loadPinnedPairIds();
   let todayOverviewData = null;
   let latestAppliedSnapshotMs = 0;
   let liveRefreshPromise = null;
@@ -1517,6 +1542,9 @@ td.numeric .bar-cell {
   const historyLoadedIds = new Set();
   const historyLoadPromises = new Map();
   const lastAppliedPriceByPairId = new Map(); // pair별 마지막 실시간 가격 {priceDate, point}
+  let dividendHistories = null;
+  let dividendLoadPromise = null;
+  let dividendRenderQueued = false; // 배당 최초 로드 완료 시 1회 재렌더용
 
   async function loadSummaryData() {
     // 1순위: summary.json (소형이므로 no-store + 타임스탬프)
@@ -1610,6 +1638,37 @@ td.numeric .bar-cell {
       .finally(() => historyLoadPromises.delete(pair.id));
     historyLoadPromises.set(pair.id, promise);
     return promise;
+  }
+
+  function ensureDividends() {
+    if (dividendHistories) return Promise.resolve(dividendHistories);
+    if (dividendLoadPromise) return dividendLoadPromise;
+    const version = encodeURIComponent(STOCK_DATA.lastUpdated || '');
+    dividendLoadPromise = fetch(`${DATA_DIVIDENDS_URL}?v=${version}`)
+      .then(resp => {
+        if (!resp.ok) throw new Error(`dividends ${resp.status}`);
+        return resp.json();
+      })
+      .then(payload => {
+        dividendHistories = payload?.dividendHistories || {};
+        return dividendHistories;
+      })
+      .catch(e => {
+        console.warn('배당 이력 로드 실패:', e);
+        dividendHistories = {}; // 실패 시 재시도하지 않는다.
+        return dividendHistories;
+      });
+    return dividendLoadPromise;
+  }
+
+  function queueDividendRender() {
+    // 배당 데이터 최초 로드가 끝나는 시점에만 1회 재렌더한다 (이미 로드됐으면 일반 렌더 경로에 포함).
+    if (dividendHistories || dividendRenderQueued) return;
+    dividendRenderQueued = true;
+    ensureDividends().then(() => {
+      renderPriceChart();
+      renderStats();
+    });
   }
 
   function getCardSortMetric(pair, mode = cardSortMode) {
