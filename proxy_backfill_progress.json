@@ -2,6 +2,7 @@
   "completedPairIds": [
     "cj_4pref",
     "dl_enc_2pref",
+    "dl_enc_pref",
     "samsung_elec"
   ],
   "history": [
@@ -25,6 +26,13 @@
       "beforeStart": "2021-02-08",
       "afterStart": "2019-08-09",
       "extended": true
+    },
+    {
+      "pairId": "dl_enc_pref",
+      "attemptedAt": "2026-06-11 06:50:39",
+      "beforeStart": "2021-01-25",
+      "afterStart": "2021-01-25",
+      "extended": false
     }
   ]
 }
