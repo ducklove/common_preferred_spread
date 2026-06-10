@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -23,6 +24,8 @@ from urllib.request import Request, urlopen
 import yfinance as yf
 import pandas as pd
 
+import data_writer
+
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
 DATA_PATH = Path(__file__).parent / "data.js"
@@ -33,26 +36,14 @@ AUTO_NAVER_BACKFILL_START_DATE = pd.Timestamp("2005-09-29")
 AUTO_NAVER_BACKFILL_END_DATE = pd.Timestamp("2010-12-31")
 NAVER_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "naver_history"
 NAVER_BACKFILL_WORKERS = 6
-PROXY_HISTORY_BASE_URL = "http://cantabile.tplinkdns.com:3288"
+PROXY_HISTORY_BASE_URL = os.environ.get("PROXY_HISTORY_BASE_URL", "").strip()
 PROXY_HISTORY_START_DATE = pd.Timestamp("1989-01-01")
 PROXY_HISTORY_CACHE_DIR = Path(__file__).parent / ".cache" / "proxy_history"
 PROXY_BACKFILL_WORKERS = 2
-INTERNAL_CLOSE_API_URL = os.environ.get(
-    "INTERNAL_CLOSE_API_URL",
-    "http://192.168.68.84:8400/api/prices/close",
-).strip()
-INTERNAL_DAILY_API_URL = os.environ.get(
-    "INTERNAL_DAILY_API_URL",
-    "http://192.168.68.84:8400/api/prices/daily",
-).strip()
-INTERNAL_INDICES_API_URL = os.environ.get(
-    "INTERNAL_INDICES_API_URL",
-    "http://192.168.68.84:8400/api/macro/indices",
-).strip()
-INTERNAL_DIVIDENDS_API_URL = os.environ.get(
-    "INTERNAL_DIVIDENDS_API_URL",
-    "http://192.168.68.84:8400/api/fundamentals/dividends",
-).strip()
+INTERNAL_CLOSE_API_URL = os.environ.get("INTERNAL_CLOSE_API_URL", "").strip()
+INTERNAL_DAILY_API_URL = os.environ.get("INTERNAL_DAILY_API_URL", "").strip()
+INTERNAL_INDICES_API_URL = os.environ.get("INTERNAL_INDICES_API_URL", "").strip()
+INTERNAL_DIVIDENDS_API_URL = os.environ.get("INTERNAL_DIVIDENDS_API_URL", "").strip()
 INTERNAL_CLOSE_TIMEOUT_SECONDS = 10
 INTERNAL_PRICE_TIMEOUT_SECONDS = 30
 INTERNAL_PRICE_MAX_DAYS = 3650
@@ -686,7 +677,7 @@ def fetch_proxy_daily_history(ticker):
         return _proxy_daily_history_cache[ticker].copy()
 
     code = ticker.split(".")[0]
-    if not code:
+    if not PROXY_HISTORY_BASE_URL or not code:
         empty = pd.DataFrame(columns=["close", "volume"])
         _proxy_daily_history_cache[ticker] = empty
         return empty.copy()
@@ -1246,6 +1237,11 @@ def main():
         action="store_true",
         help="Yahoo/Naver/프록시 종가 누락 시 내부 종가 API 백업 사용을 끕니다",
     )
+    parser.add_argument(
+        "--allow-history-truncation",
+        action="store_true",
+        help="기존 데이터보다 과거 구간이 줄어드는 것을 허용합니다 (의도적 재구축용)",
+    )
     args = parser.parse_args()
 
     explicit_naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
@@ -1255,7 +1251,13 @@ def main():
     explicit_proxy_backfill_pair_ids = set(DEFAULT_PROXY_BACKFILL_PAIR_IDS)
     if args.proxy_backfill is not None:
         explicit_proxy_backfill_pair_ids.update(args.proxy_backfill)
-    existing_data = None if args.full else load_existing_data()
+    previous_data = load_existing_data()
+    existing_data = None if args.full else previous_data
+    previous_hist_map = {
+        p["id"]: p.get("history", [])
+        for p in (previous_data or {}).get("pairs", [])
+        if not p.get("isAverage")
+    }
     proxy_backfill_progress = load_proxy_backfill_progress()
     if args.full:
         explicit_proxy_backfill_pair_ids.update(proxy_backfill_progress["completedPairIds"])
@@ -1264,6 +1266,10 @@ def main():
         set(proxy_backfill_progress["completedPairIds"]),
         args.auto_proxy_backfill_batch_size,
     )
+    if not PROXY_HISTORY_BASE_URL:
+        auto_proxy_backfill_pair_ids = []
+        if args.auto_proxy_backfill_batch_size > 0:
+            print("WARNING: PROXY_HISTORY_BASE_URL 미설정, 자동 프록시 백필 건너뜀")
     explicit_proxy_backfill_pair_ids.update(auto_proxy_backfill_pair_ids)
     existing_pair_ids = set()
     if existing_data:
@@ -1290,24 +1296,23 @@ def main():
     configured_pair_ids = {pair["id"] for pair in PAIRS if not pair.get("isAverage")}
     missing_pair_ids = sorted(configured_pair_ids - existing_pair_ids)
 
+    full_fetch_pair_ids = set()
     if existing_data:
         if missing_pair_ids:
-            start_date = datetime(2000, 1, 1)
+            full_fetch_pair_ids = set(missing_pair_ids)
             print(
-                "신규 종목 감지, 전체 백필 모드: "
+                "신규 종목 감지, 해당 종목만 전체 수집: "
                 + ", ".join(missing_pair_ids)
             )
-            existing_data = None
+        last_date_str = get_last_date(existing_data)
+        if last_date_str:
+            # 마지막 날짜에서 5일 전부터 가져와서 안전하게 겹침 처리
+            start_date = datetime.strptime(last_date_str, "%Y-%m-%d") - timedelta(days=5)
+            print(f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다")
         else:
-            last_date_str = get_last_date(existing_data)
-            if last_date_str:
-                # 마지막 날짜에서 5일 전부터 가져와서 안전하게 겹침 처리
-                start_date = datetime.strptime(last_date_str, "%Y-%m-%d") - timedelta(days=5)
-                print(f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다")
-            else:
-                start_date = datetime(2000, 1, 1)
-                print("기존 히스토리 없음, 전체 다운로드")
-                existing_data = None
+            start_date = datetime(2000, 1, 1)
+            print("기존 히스토리 없음, 전체 다운로드")
+            existing_data = None
     else:
         start_date = datetime(2000, 1, 1)
         print("전체 다운로드 모드")
@@ -1428,7 +1433,7 @@ def main():
         apply_proxy_backfill = pair["id"] in proxy_backfill_pair_ids
 
         # 거래정지일(volume=0) 제외
-        if apply_proxy_backfill and not args.full:
+        if (apply_proxy_backfill or pair["id"] in full_fetch_pair_ids) and not args.full:
             pair_close, pair_volume = fetch_full_yahoo_pair_history(pair, end_date)
             common_close = pair_close[ct].dropna()
             preferred_close = pair_close[pt].dropna()
@@ -1577,6 +1582,16 @@ def main():
             history = kept + new_history
         else:
             history = new_history
+
+        # 모드와 무관하게 기존 데이터의 더 오래된 과거 구간(프록시/네이버 백필분)을 보존
+        if not args.allow_history_truncation and history:
+            prev_hist = previous_hist_map.get(pair["id"]) or []
+            if prev_hist:
+                first_new_date = history[0]["date"]
+                earlier = [h for h in prev_hist if h["date"] < first_new_date]
+                if earlier:
+                    history = earlier + history
+                    print(f"  INFO: {pair['name']} 기존 과거 구간 보존 {len(earlier)}일 ({earlier[0]['date']}~{earlier[-1]['date']})")
 
         if not history:
             continue
@@ -1769,6 +1784,35 @@ def main():
         pairs_result.append(avg_pair)
     pairs_result.sort(key=lambda p: p["current"]["spread"], reverse=True)
 
+    # 품질 가드: 기존 데이터 대비 히스토리 유실/후퇴가 감지되면 쓰기 전에 중단
+    result_hist_map = {
+        p["id"]: p.get("history", [])
+        for p in pairs_result
+        if not p.get("isAverage")
+    }
+    violations = []
+    for pair_id, prev_hist in previous_hist_map.items():
+        if pair_id not in configured_pair_ids or not prev_hist:
+            continue
+        new_hist = result_hist_map.get(pair_id) or []
+        if not new_hist:
+            violations.append(f"{pair_id}: 결과에서 사라졌거나 히스토리가 비어 있음")
+            continue
+        if new_hist[0]["date"] > prev_hist[0]["date"]:
+            violations.append(
+                f"{pair_id}: 시작일 후퇴 {prev_hist[0]['date']} -> {new_hist[0]['date']}"
+            )
+        allowed_drop = max(20, int(len(prev_hist) * 0.02))
+        if len(new_hist) < len(prev_hist) - allowed_drop:
+            violations.append(
+                f"{pair_id}: 히스토리 포인트 감소 {len(prev_hist)} -> {len(new_hist)}"
+            )
+    if violations and not args.allow_history_truncation:
+        for violation in violations:
+            print(f"ERROR: {violation}")
+        print("ERROR: 히스토리 보존 위반으로 중단합니다 (--allow-history-truncation 으로 무시 가능)")
+        sys.exit(1)
+
     if auto_proxy_backfill_pair_ids:
         after_pair_start_dates = {
             pair["id"]: pair["history"][0]["date"]
@@ -1790,12 +1834,8 @@ def main():
         "pairs": pairs_result,
     }
 
-    js_content = "const STOCK_DATA = " + json.dumps(stock_data, ensure_ascii=False, indent=2) + ";\n"
-
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        f.write(js_content)
-
-    print(f"\n{DATA_PATH} 생성 완료 ({len(pairs_result)}개 종목, {len(js_content)} bytes)")
+    info = data_writer.write_stock_data_outputs(stock_data, Path(__file__).parent)
+    print(f"\n출력 완료: data.js {info['dataJsBytes']:,} bytes, summary {info['summaryBytes']:,} bytes, history {info['historyFiles']}개 파일 ({info['totalPoints']:,} 포인트)")
 
 
 if __name__ == "__main__":
