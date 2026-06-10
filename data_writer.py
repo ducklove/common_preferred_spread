@@ -116,13 +116,18 @@ def write_stock_data_outputs(stock_data, repo_root):
     atomic_write_text(repo_root / "data.js", js_content)
     data_js_bytes = len(js_content.encode("utf-8"))
 
-    # (b) data/summary.json: history 제외 pair 목록 + 히스토리 메타
+    # (b) data/summary.json: history 제외 pair 목록(+spreadStats) + 히스토리 메타
     summary_pairs = []
     history_meta = {}
     total_points = 0
     for pair in pairs:
-        summary_pairs.append({k: v for k, v in pair.items() if k != "history"})
+        # 원본 stock_data를 변형하지 않도록 history 제거 사본에만 spreadStats를 추가
+        summary_pair = {k: v for k, v in pair.items() if k != "history"}
         history = pair.get("history", [])
+        spread_stats = compute_spread_stats(history)
+        if spread_stats is not None:
+            summary_pair["spreadStats"] = spread_stats
+        summary_pairs.append(summary_pair)
         if history:
             history_meta[pair["id"]] = {
                 "start": history[0]["date"],
