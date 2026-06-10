@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import ssl
 import tempfile
 import threading
@@ -47,26 +48,11 @@ NAVER_STOCK_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/s
 NAVER_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
 NAVER_WORLD_INDEX_API_URL = "https://polling.finance.naver.com/api/realtime/worldstock/index/{code}"
 NAVER_MARKETINDEX_URL = "https://finance.naver.com/marketindex/"
-INTERNAL_CLOSE_API_URL = os.environ.get(
-    "INTERNAL_CLOSE_API_URL",
-    "http://192.168.68.84:8400/api/prices/close",
-).strip()
-INTERNAL_DAILY_API_URL = os.environ.get(
-    "INTERNAL_DAILY_API_URL",
-    "http://192.168.68.84:8400/api/prices/daily",
-).strip()
-INTERNAL_INDICES_API_URL = os.environ.get(
-    "INTERNAL_INDICES_API_URL",
-    "http://192.168.68.84:8400/api/macro/indices",
-).strip()
-INTERNAL_FX_API_URL = os.environ.get(
-    "INTERNAL_FX_API_URL",
-    "http://192.168.68.84:8400/api/macro/fx",
-).strip()
-INTERNAL_COMMODITIES_API_URL = os.environ.get(
-    "INTERNAL_COMMODITIES_API_URL",
-    "http://192.168.68.84:8400/api/macro/commodities",
-).strip()
+INTERNAL_CLOSE_API_URL = os.environ.get("INTERNAL_CLOSE_API_URL", "").strip()
+INTERNAL_DAILY_API_URL = os.environ.get("INTERNAL_DAILY_API_URL", "").strip()
+INTERNAL_INDICES_API_URL = os.environ.get("INTERNAL_INDICES_API_URL", "").strip()
+INTERNAL_FX_API_URL = os.environ.get("INTERNAL_FX_API_URL", "").strip()
+INTERNAL_COMMODITIES_API_URL = os.environ.get("INTERNAL_COMMODITIES_API_URL", "").strip()
 INTERNAL_CLOSE_LOOKBACK_DAYS = int(os.environ.get("INTERNAL_CLOSE_LOOKBACK_DAYS", "14"))
 INTERNAL_DAILY_LOOKBACK_DAYS = int(os.environ.get("INTERNAL_DAILY_LOOKBACK_DAYS", "14"))
 HANKYUNG_KOSPI200_FUTURES_URL = "https://markets.hankyung.com/indices/kospi-future"
@@ -1607,14 +1593,15 @@ def fetch_market_metrics(previous_snapshot):
 
 
 def fetch_domestic_cme_master_rows():
-    ssl._create_default_https_context = ssl._create_unverified_context
     workdir = Path(tempfile.mkdtemp(prefix="kis_cme_master_"))
     zip_path = workdir / "fo_cme_code.mst.zip"
     path = workdir / "fo_cme_code.mst"
     try:
-        from urllib.request import urlretrieve
-
-        urlretrieve(DOMESTIC_CME_MASTER_URL, zip_path)
+        # 다운로드 서버 인증서 문제로 이 요청에 한해 검증을 끈다
+        context = ssl._create_unverified_context()
+        request = Request(DOMESTIC_CME_MASTER_URL, headers={"User-Agent": USER_AGENT})
+        with urlopen(request, timeout=30, context=context) as response, open(zip_path, "wb") as f:
+            shutil.copyfileobj(response, f)
         with zipfile.ZipFile(zip_path) as archive:
             archive.extractall(workdir)
         rows = []

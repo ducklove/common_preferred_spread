@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우선주 괴리율 대시보드 — 구조·품질 리뷰 및 리팩토링 로드맵 (2026-06)</title>
+<style>
+:root {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --border: #d9e0ec;
+  --text: #1b2436;
+  --dim: #5d6880;
+  --accent: #315bdb;
+  --green: #1f9a54;
+  --red: #c93b34;
+  --orange: #d97a1a;
+  --yellow: #b08a00;
+  --code-bg: #eef2f9;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.65; font-size: 15px;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 36px 24px 80px; }
+header.report-head {
+  border-bottom: 3px solid var(--accent); padding-bottom: 18px; margin-bottom: 28px;
+}
+.kicker { color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+h1 { font-size: 27px; letter-spacing: -0.5px; margin-top: 6px; }
+.meta { color: var(--dim); font-size: 13px; margin-top: 8px; }
+.meta span + span::before { content: " · "; }
+h2 {
+  font-size: 21px; margin: 44px 0 14px; padding-top: 18px;
+  border-top: 1px solid var(--border); letter-spacing: -0.3px;
+}
+h2 .num { color: var(--accent); margin-right: 8px; }
+h3 { font-size: 16.5px; margin: 26px 0 10px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0 10px 22px; }
+li { margin: 5px 0; }
+section { scroll-margin-top: 16px; }
+code {
+  background: var(--code-bg); border-radius: 4px; padding: 1px 6px;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px;
+}
+pre {
+  background: #182032; color: #dde5f4; border-radius: 10px;
+  padding: 16px 18px; overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+  margin: 12px 0;
+}
+pre code { background: transparent; color: inherit; padding: 0; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; background: var(--surface); }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #eef2f9; font-size: 12.5px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 20px; margin: 14px 0;
+}
+.grade-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.grade {
+  flex: 1 1 140px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+}
+.grade .g-label { font-size: 12px; color: var(--dim); }
+.grade .g-value { font-size: 22px; font-weight: 800; margin-top: 2px; }
+.g-a { color: var(--green); } .g-b { color: var(--accent); }
+.g-c { color: var(--orange); } .g-d { color: var(--red); }
+.badge {
+  display: inline-block; border-radius: 999px; font-size: 11px; font-weight: 700;
+  padding: 2px 9px; white-space: nowrap; vertical-align: middle;
+}
+.b-crit { background: #fbe4e2; color: var(--red); border: 1px solid #efb7b3; }
+.b-high { background: #fdeede; color: var(--orange); border: 1px solid #f0cda4; }
+.b-med  { background: #faf3d4; color: var(--yellow); border: 1px solid #e4d391; }
+.b-low  { background: #e3edff; color: var(--accent); border: 1px solid #bcd0f7; }
+.b-good { background: #e0f3e8; color: var(--green); border: 1px solid #b2dfc4; }
+.b-effort { background: #eef2f9; color: var(--dim); border: 1px solid var(--border); }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 22px; }
+.toc ol { margin-left: 18px; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.flow {
+  display: grid; gap: 10px; margin: 16px 0;
+}
+.flow-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.node {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; font-size: 13px; flex: 1 1 150px;
+}
+.node b { display: block; font-size: 13.5px; }
+.node small { color: var(--dim); display: block; margin-top: 2px; line-height: 1.45; }
+.node.src { border-left: 4px solid var(--dim); }
+.node.job { border-left: 4px solid var(--accent); }
+.node.art { border-left: 4px solid var(--green); }
+.node.ui  { border-left: 4px solid var(--orange); }
+.arrow { text-align: center; color: var(--dim); font-size: 18px; line-height: 1; }
+.callout { border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0; }
+.callout.warn { border-left-color: var(--red); }
+.callout.tip { border-left-color: var(--green); }
+.small-dim { color: var(--dim); font-size: 12.5px; }
+.issue-title { font-weight: 700; }
+.file-ref { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 12px; color: var(--dim); }
+@media print {
+  body { background: #fff; }
+  pre { white-space: pre-wrap; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="report-head">
+  <div class="kicker">Code Review &amp; Roadmap</div>
+  <h1>우선주 괴리율 대시보드 — 전체 구조·품질 리뷰 및 리팩토링 로드맵</h1>
+  <div class="meta">
+    <span>저장소: ducklove/common_preferred_spread</span>
+    <span>작성일: 2026-06-10</span>
+    <span>분석 범위: 전체 소스 (index.html, admin.html, fetch_data.py, fetch_current.py, workflows, analysis/)</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <b>목차</b>
+  <ol>
+    <li><a href="#summary">요약 (Executive Summary)</a></li>
+    <li><a href="#arch">시스템 아키텍처와 데이터 흐름</a></li>
+    <li><a href="#quality">컴포넌트별 품질 평가</a></li>
+    <li><a href="#issues">발견된 이슈 (심각도순)</a></li>
+    <li><a href="#roadmap">리팩토링 로드맵 (Phase 0~3)</a></li>
+    <li><a href="#features">추가 기능 제언</a></li>
+    <li><a href="#holding">holding_value 프로젝트 진행 방식 권고</a></li>
+    <li><a href="#appendix">부록: 권장 구조 / 데이터 스키마</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<section id="summary">
+<h2><span class="num">1.</span>요약 (Executive Summary)</h2>
+
+<p>
+이 프로젝트는 <b>한국 보통주/우선주 괴리율을 추적하는 정적 대시보드</b>로,
+GitHub Actions가 데이터를 수집해 저장소에 커밋하고 GitHub Pages가 그대로 서빙하는
+"서버리스 + 저장소 = DB" 구조입니다. 외부 프레임워크·차트 라이브러리·빌드 도구 없이
+순수 HTML/CSS/JS + Python 표준 구성으로 만들어져 있고, 다중 데이터 소스 폴백,
+주·야간 선물 세션 처리, 발행사 단위 sqrt 시총가중 지수 등 <b>도메인 로직의 완성도는 상당히 높습니다</b>.
+</p>
+<p>
+반면 성장 과정에서 누적된 구조적 부채가 명확합니다. 핵심은 네 가지입니다:
+<b>(1) 백필된 과거 데이터가 실제로 유실된 상태</b>(재발 가능한 파이프라인 결함),
+<b>(2) 42.5MB짜리 data.js를 매 방문마다 캐시 무효화 상태로 전송</b>,
+<b>(3) 4,884줄 단일 index.html / 1,800~2,000줄 단일 Python 스크립트 모놀리스 + 동일 로직의 Python/JS 이중 구현</b>,
+<b>(4) 테스트 0개·의존성 미고정 상태에서 매일 자동으로 데이터를 덮어쓰는 운영 방식</b>입니다.
+</p>
+
+<div class="grade-row">
+  <div class="grade"><div class="g-label">기능 완성도 / 도메인 로직</div><div class="g-value g-a">A−</div></div>
+  <div class="grade"><div class="g-label">코드 구조 / 유지보수성</div><div class="g-value g-c">C</div></div>
+  <div class="grade"><div class="g-label">성능 (초기 로드)</div><div class="g-value g-d">D</div></div>
+  <div class="grade"><div class="g-label">데이터 무결성 / 운영 안전망</div><div class="g-value g-d">D+</div></div>
+  <div class="grade"><div class="g-label">보안</div><div class="g-value g-c">C−</div></div>
+</div>
+
+<div class="callout warn">
+<b>지금 당장 확인이 필요한 사실 (검증 완료):</b>
+<code>proxy_backfill_progress.json</code>에는 삼성전자 히스토리가 <b>1989-09-25</b>,
+CJ4우선(전환)이 <b>2019-08-09</b>까지 백필 완료된 것으로 기록되어 있으나,
+현재 <code>data.js</code>의 실제 시작일은 각각 <b>1996-06-25</b>, <b>2021-02-08</b>입니다.
+즉 어렵게 백필한 과거 구간이 이후의 전체 재수집 과정에서 <b>이미 소실되었습니다</b>.
+원인 경로는 <a href="#issues">이슈 C1</a> 참고. 외부 소스(프록시 API)에 원본이 남아있을 때
+재백필 + 스냅샷 백업 체계를 먼저 갖추는 것을 최우선으로 권고합니다.
+</div>
+
+<h3>잘 되어 있는 점</h3>
+<ul>
+  <li><b>의존성 제로 프런트엔드</b> — 프레임워크/차트 라이브러리 없이 캔버스 직접 렌더링. 빌드 단계가 없어 배포가 단순하고 빠릅니다.</li>
+  <li><b>다층 데이터 소스 폴백</b> — 내부 API → KIS(한투) → 네이버 → 이전 스냅샷 순의 우아한 성능 저하(graceful degradation)가 수집기 전반에 일관되게 구현됨.</li>
+  <li><b>세심한 시장 도메인 처리</b> — KST 주간/야간 선물 세션 판별, 거래정지일(volume=0) 제외, Yahoo 소급조정 오류 필터(괴리율 &lt; −100% 제거), 백필 시 가격 조정비율 안전범위(0.01~10x) 검증 등.</li>
+  <li><b>UX 디테일</b> — 다크/라이트 테마, iframe 임베드 모드, URL 상태 공유(<code>?code=</code>), 줌 패널, 스파크라인, 모달 포커스 관리, <code>escapeHtml</code> 기반 XSS 방어.</li>
+  <li><b>analysis/ 의 통계적 엄밀성</b> — 클러스터 부트스트랩, BH FDR 보정, 단측검정 해석 주의사항까지 명시한 이벤트 스터디와 현실적 가정(수수료·정수주식·배당 재투자)의 백테스트.</li>
+</ul>
+
+<h3>핵심 권고 (한 줄씩)</h3>
+<ol>
+  <li><b>Phase 0 (즉시)</b>: 데이터 스냅샷 백업 + 백필 소실 경로 수정 + 의존성 고정 + 워크플로우 동시성 제어. 코드 구조는 건드리지 않고 안전망부터.</li>
+  <li><b>Phase 1</b>: data.js를 "메타+현재가(소형) / 종목별 히스토리(지연 로드)"로 분리해 초기 전송량을 42.5MB → 수백 KB로.</li>
+  <li><b>Phase 2</b>: index.html을 ES 모듈로 분해(빌드 도구 없이 가능), 상태-렌더 분리.</li>
+  <li><b>Phase 3</b>: Python을 소스 어댑터 패키지로 재구성 + pytest 회귀 테스트, 지수 산정 방식 단일화.</li>
+  <li><b>holding_value</b>: 분석·리팩토링은 별도 세션에서 진행하되, 공통 모듈 추출까지 갈 경우 두 저장소를 함께 연결한 세션에서. (<a href="#holding">7장</a>)</li>
+</ol>
+</section>
+
+<!-- ============================================================ -->
+<section id="arch">
+<h2><span class="num">2.</span>시스템 아키텍처와 데이터 흐름</h2>
+
+<h3>2.1 전체 구조</h3>
+<div class="flow">
+  <div class="flow-row">
+    <div class="node src"><b>Yahoo Finance</b><small>yfinance, 일별 종가/거래량/배당</small></div>
+    <div class="node src"><b>네이버 증권</b><small>일별 시세 스크래핑, 실시간 polling API, 시장지표 HTML</small></div>
+    <div class="node src"><b>한국투자증권 KIS API</b><small>현재가/지수/선물, 야간선물 WebSocket</small></div>
+    <div class="node src"><b>내부 가격 API</b><small>192.168.68.84:8400 (사설 LAN — CI에서 도달 불가)</small></div>
+    <div class="node src"><b>프록시 히스토리 API</b><small>cantabile.tplinkdns.com:3288 (개인 DDNS)</small></div>
+    <div class="node src"><b>기타</b><small>Google Sheets 배당, eSignal WS, investing/한경 HTML</small></div>
+  </div>
+  <div class="arrow">▼</div>
+  <div class="flow-row">
+    <div class="node job"><b>fetch_data.py (1,803줄)</b><small>일 1회 (KST 05:00). 증분 병합, 네이버/프록시 백필, 배당, sqrt 시총가중 지수 계산 → <code>data.js</code> 커밋</small></div>
+    <div class="node job"><b>fetch_current.py (2,036줄)</b><small>장중 30분 간격 (주중 38회/일). 현재가·시장지표·선물 스냅샷 → <code>current.json</code> 커밋</small></div>
+  </div>
+  <div class="arrow">▼ git commit/push (저장소 = 데이터베이스)</div>
+  <div class="flow-row">
+    <div class="node art"><b>data.js — 42.5MB</b><small>60개 페어 × 281,349 히스토리 포인트 + 배당 이력 + 지수</small></div>
+    <div class="node art"><b>current.json — ~1KB</b><small>실시간 스냅샷 + 시장 요약</small></div>
+    <div class="node art"><b>config.json</b><small>59개 페어 정의 (admin.html이 GitHub API로 수정)</small></div>
+  </div>
+  <div class="arrow">▼ GitHub Pages</div>
+  <div class="flow-row">
+    <div class="node ui"><b>index.html (4,884줄)</b><small>대시보드. data.js 로드 → current.json 폴링(5분) → 오래되면 CORS 프록시(codetabs) 경유 네이버 실시간 직접 조회</small></div>
+    <div class="node ui"><b>admin.html (617줄)</b><small>종목 관리. PAT를 localStorage에 저장, config.json 커밋 + workflow_dispatch</small></div>
+    <div class="node ui"><b>analysis/ (오프라인)</b><small>data.js를 입력으로 백테스트·가설검증 → md/csv 리포트</small></div>
+  </div>
+</div>
+
+<h3>2.2 파일 인벤토리</h3>
+<table>
+  <thead><tr><th>파일</th><th class="num">규모</th><th>역할</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td><code>index.html</code></td><td class="num">4,884줄</td><td>대시보드 (CSS ~1,320 + HTML ~120 + JS ~3,440)</td><td>단일 파일 모놀리스</td></tr>
+    <tr><td><code>fetch_data.py</code></td><td class="num">1,803줄</td><td>일별 히스토리 파이프라인</td><td>수집·병합·백필·지수 계산이 한 파일</td></tr>
+    <tr><td><code>fetch_current.py</code></td><td class="num">2,036줄</td><td>장중 현재가 파이프라인</td><td>KIS/네이버/WS/HTML 파서 혼재</td></tr>
+    <tr><td><code>admin.html</code></td><td class="num">617줄</td><td>config.json 편집 UI</td><td>PAT localStorage 저장</td></tr>
+    <tr><td><code>data.js</code></td><td class="num">42.5MB</td><td>생성 산출물 (매일 커밋)</td><td>이 중 들여쓰기 공백이 ~16.5MB</td></tr>
+    <tr><td><code>current.json</code></td><td class="num">~1KB</td><td>생성 산출물 (30분마다 커밋)</td><td>연간 약 1만 커밋 발생 구조</td></tr>
+    <tr><td><code>config.json</code></td><td class="num">59 pairs</td><td>종목 정의 (수동/admin 관리)</td><td></td></tr>
+    <tr><td><code>.github/workflows/</code></td><td class="num">2개</td><td>update-data(일별), update-current(30분)</td><td>concurrency 미설정, 의존성 미고정</td></tr>
+    <tr><td><code>analysis/</code></td><td class="num">1,406줄</td><td>백테스트·이벤트 스터디 + 산출물</td><td>품질 양호, 대시보드와 미연결</td></tr>
+    <tr><td><code>check_earliest_dates.py</code></td><td class="num">93줄</td><td>일회성 유틸</td><td>절대경로 하드코딩 (<code>/home/cantabile/...</code>)</td></tr>
+  </tbody>
+</table>
+
+<h3>2.3 같은 로직의 이중 구현 (Python ↔ JS)</h3>
+<p>
+프런트엔드의 "실시간 강제 갱신" 경로가 <code>fetch_current.py</code>의 수집 로직을 브라우저에서 재구현하고 있어,
+아래 로직들이 <b>두 언어로 중복 존재</b>합니다. 한쪽만 수정되는 드리프트가 이미 발생하기 좋은 구조입니다.
+</p>
+<table>
+  <thead><tr><th>로직</th><th>Python</th><th>JavaScript</th></tr></thead>
+  <tbody>
+    <tr><td>괴리율/전일 스프레드 계산</td><td><code>fetch_current.py:147</code></td><td><code>index.html:4628</code></td></tr>
+    <tr><td>야간 세션 판별/세션 일자</td><td><code>fetch_current.py:767~803</code></td><td><code>index.html:4130~4147</code></td></tr>
+    <tr><td>선물 메트릭 세션 판별</td><td><code>fetch_current.py:1081~1117</code></td><td><code>index.html:1819~1855</code></td></tr>
+    <tr><td>investing.com 야간선물 HTML 파싱</td><td><code>fetch_current.py:1120</code></td><td><code>index.html:4393</code></td></tr>
+    <tr><td>한경 KOSPI200 선물 HTML 파싱</td><td><code>fetch_current.py:1171</code></td><td><code>index.html:4525</code></td></tr>
+    <tr><td>eSignal WebSocket 프로토콜</td><td><code>fetch_current.py:962~1061</code></td><td><code>index.html:4431~4523</code></td></tr>
+    <tr><td>네이버 marketindex HTML 파싱</td><td><code>fetch_current.py:457</code></td><td><code>index.html:4357</code></td></tr>
+    <tr><td>시장지표 병합/보존 규칙</td><td><code>fetch_current.py:1227</code></td><td><code>index.html:1976~2018</code></td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="quality">
+<h2><span class="num">3.</span>컴포넌트별 품질 평가</h2>
+
+<div class="card">
+<h3 style="margin-top:0">index.html — 대시보드 <span class="badge b-med">구조 C / 기능 A</span></h3>
+<ul>
+  <li><span class="badge b-good">강점</span> 시간축 기반 차트 스케일(거래일 공백을 실제 시간 간격으로 표현, gap 분절 처리), 줌 오버뷰 패널, SMA250/EMA 오버레이, 베타·상관계수 계산, 테이블 정렬, autofit 텍스트 등 기능 밀도가 높음. 순수 함수(계산/포맷)들은 품질이 좋아 추출만 하면 바로 테스트 가능.</li>
+  <li><span class="badge b-high">약점</span> 약 3,440줄 JS가 하나의 IIFE 안에 ~110개 함수로 존재. 모듈 경계가 없고 상태가 10여 개의 최상위 <code>let</code>으로 산재(<code>selectedIdx</code>, <code>zoomWindow</code>, <code>todayOverviewData</code>, <code>latestMarketExtras</code>…). 모든 렌더 함수가 <code>innerHTML</code> 전체 재생성 + 리스너 재바인딩 방식이라 스냅샷 적용(5분마다)마다 DOM 전체가 교체됨.</li>
+  <li><span class="badge b-med">약점</span> "지수/평균"이 세 가지 정의로 공존: ① data.js의 일별 sqrt 시총가중 지수(fetch_data.py), ② 프런트 실시간 sqrt 지수(<code>calculateSqrtPreferredMarketCapSpreadIndex</code>), ③ current.json의 대표종목 단순평균(<code>build_summary</code>). 이로 인한 실제 불일치는 이슈 H4 참고.</li>
+  <li><span class="badge b-low">사소</span> <code>renderChart</code> 내 사용되지 않는 잔존 코드(<code>renderChart._raf</code>/<code>_lastCtx</code>, index.html:3263~3266), 기간 필터의 UTC 기준 날짜 컷오프(index.html:3653), 일반 카드의 키보드 포커스 불가(avg 카드만 <code>tabindex</code>), 캔버스 툴팁이 mousemove 전용이라 모바일 터치 미지원.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">fetch_data.py — 일별 파이프라인 <span class="badge b-med">구조 C+ / 견고성 B−</span></h3>
+<ul>
+  <li><span class="badge b-good">강점</span> 증분 갱신(마지막 날짜−5일 중첩 재수집), 외부 백필 시 중첩 구간 중앙값 비율로 가격 스케일 보정 + 안전범위 밖이면 스킵, 거래정지일 제외, 발행사 단위 지수 산출(휴장일 오염 방지용 "종목 수 절반 미만" 필터) 등 데이터 위생 처리가 좋음.</li>
+  <li><span class="badge b-crit">약점</span> 신규 종목 추가 시 전체를 버리고 재다운로드하는 경로에서 백필 이력이 보존되지 않음 → <b>실데이터 유실 확인</b> (이슈 C1).</li>
+  <li><span class="badge b-high">약점</span> 모듈 수준 가변 캐시 dict 11개 + import 시점에 config 로드(<code>PAIRS</code>) → 단위 테스트가 사실상 불가능한 구조. 수집(transport)·파싱·병합·지수 계산·CLI가 한 파일.</li>
+  <li><span class="badge b-med">약점</span> 사설 엔드포인트 기본값 하드코딩(이슈 H1). yfinance <code>.info</code>를 티커별 순차 호출(느리고 자주 깨지는 API). CI에서는 내부 API가 항상 실패해 매 실행마다 불필요한 타임아웃/경고 발생.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">fetch_current.py — 장중 파이프라인 <span class="badge b-low">구조 B− / 견고성 B+</span></h3>
+<ul>
+  <li><span class="badge b-good">강점</span> 세 파일 중 가장 정돈됨. 원자적 파일 쓰기(tmp→replace), 토큰 캐시(파일+락+만료 마진), 폴백 체인이 명시적, 이전 스냅샷 보존 규칙(선물 메트릭 세션/신선도 검사)이 꼼꼼함.</li>
+  <li><span class="badge b-high">약점</span> <code>ssl._create_default_https_context = ssl._create_unverified_context</code> 전역 패치(1610행) — CME 마스터 파일 하나 받자고 프로세스 전체 TLS 검증을 끔.</li>
+  <li><span class="badge b-med">약점</span> KIS 야간선물 후보 코드 생성(<code>build_kospi200_night_future_keys</code>)의 매직 코드 나열(<code>101W09</code> 등), 외부 사이트 HTML 정규식 파싱 2종 — 깨지기 쉬운 의존이며 동일 로직이 JS에도 중복.</li>
+</ul>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">admin.html / workflows / analysis</h3>
+<ul>
+  <li><b>admin.html</b> <span class="badge b-high">보안</span> — fine-grained PAT를 localStorage에 평문 저장(297행). 같은 오리진에서 XSS 한 번이면 저장소 쓰기 권한 토큰이 유출됨. <code>triggerWorkflow</code>의 <code>ref: 'master'</code> 하드코딩(403행). 기능 자체(추가/편집/중복 ID 검증/SHA 충돌 처리)는 잘 동작하는 수준.</li>
+  <li><b>workflows</b> <span class="badge b-med">운영</span> — <code>pip install yfinance pandas</code> 버전 미고정(yfinance는 파괴적 변경이 잦은 대표적 패키지), <code>concurrency</code> 그룹 없음(일별 작업과 30분 작업이 겹치면 push 충돌로 실패 가능), push 실패 시 재시도/rebase 없음, pip 캐시 미사용.</li>
+  <li><b>analysis/</b> <span class="badge b-good">양호</span> — 방법론 문서화가 충실하고 가정이 명시적. 다만 대시보드와 연결되지 않은 채 data.js 포맷에 직접 의존하므로, Phase 1 데이터 포맷 개편 시 함께 마이그레이션 필요.</li>
+</ul>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="issues">
+<h2><span class="num">4.</span>발견된 이슈 (심각도순)</h2>
+
+<table>
+  <thead><tr><th style="width:70px">ID</th><th style="width:86px">심각도</th><th>요약</th><th style="width:200px">위치</th></tr></thead>
+  <tbody>
+    <tr><td>C1</td><td><span class="badge b-crit">Critical</span></td><td>백필 히스토리 유실 — 재수집 경로에서 보존 안 됨 (실제 발생 확인)</td><td class="file-ref">fetch_data.py:1291~1310, 1260</td></tr>
+    <tr><td>C2</td><td><span class="badge b-crit">Critical</span></td><td>42.5MB data.js를 매 방문 캐시 무효화 상태로 전송</td><td class="file-ref">index.html:1439, fetch_data.py:1793</td></tr>
+    <tr><td>H1</td><td><span class="badge b-high">High</span></td><td>사설 LAN IP·개인 DDNS·시트 ID가 공개 코드에 하드코딩</td><td class="file-ref">fetch_data.py:36~66, fetch_current.py:50~69</td></tr>
+    <tr><td>H2</td><td><span class="badge b-high">High</span></td><td>GitHub PAT localStorage 평문 저장</td><td class="file-ref">admin.html:297</td></tr>
+    <tr><td>H3</td><td><span class="badge b-high">High</span></td><td>TLS 검증 전역 비활성화</td><td class="file-ref">fetch_current.py:1610</td></tr>
+    <tr><td>H4</td><td><span class="badge b-high">High</span></td><td>괴리율 지수 산정 방식 불일치 (일중=단순평균이 sqrt 지수 히스토리에 기록됨)</td><td class="file-ref">index.html:4734~4750, fetch_current.py:1752</td></tr>
+    <tr><td>H5</td><td><span class="badge b-high">High</span></td><td>테스트 0개 + 의존성 미고정 + 자동 데이터 덮어쓰기 조합</td><td class="file-ref">update-data.yml:31</td></tr>
+    <tr><td>M1</td><td><span class="badge b-med">Medium</span></td><td>Python↔JS 로직 이중 구현 8종 (드리프트 위험)</td><td class="file-ref">§2.3 표 참고</td></tr>
+    <tr><td>M2</td><td><span class="badge b-med">Medium</span></td><td>실시간 갱신이 서드파티 CORS 프록시(codetabs)에 의존 — 가용성·프라이버시</td><td class="file-ref">index.html:1453</td></tr>
+    <tr><td>M3</td><td><span class="badge b-med">Medium</span></td><td>워크플로우 동시성 미제어 → push 경합 실패 가능, 연 ~1만 커밋 누적 구조</td><td class="file-ref">.github/workflows/*</td></tr>
+    <tr><td>M4</td><td><span class="badge b-med">Medium</span></td><td>저장소가 곧 DB — 42MB 산출물의 일별 커밋으로 저장소 비대화 진행</td><td class="file-ref">data.js, current.json</td></tr>
+    <tr><td>L1</td><td><span class="badge b-low">Low</span></td><td><code>document.write</code>로 스크립트 주입(파싱 차단, 비권장 API)</td><td class="file-ref">index.html:1439</td></tr>
+    <tr><td>L2</td><td><span class="badge b-low">Low</span></td><td>기간 필터 컷오프가 UTC 기준 — KST 00~09시에 하루 오차</td><td class="file-ref">index.html:3653~3656</td></tr>
+    <tr><td>L3</td><td><span class="badge b-low">Low</span></td><td>일반 카드 키보드 접근 불가, 캔버스 툴팁 터치 미지원</td><td class="file-ref">index.html:2861, 3243</td></tr>
+    <tr><td>L4</td><td><span class="badge b-low">Low</span></td><td>죽은 코드(<code>renderChart._raf</code>), 일회성 스크립트의 절대경로 하드코딩</td><td class="file-ref">index.html:3263, check_earliest_dates.py:14</td></tr>
+    <tr><td>L5</td><td><span class="badge b-low">Low</span></td><td><code>dividendHistories</code>(~110KB)는 대시보드에서 미사용 — analysis 전용인데 브라우저 페이로드에 포함</td><td class="file-ref">fetch_data.py:1789</td></tr>
+  </tbody>
+</table>
+
+<h3>C1 — 백필 히스토리 유실 (상세)</h3>
+<div class="callout warn">
+<p><b>증거:</b> <code>proxy_backfill_progress.json</code> 기록 vs 현재 <code>data.js</code> 시작일</p>
+<table>
+  <thead><tr><th>pair</th><th>백필 완료 기록 (afterStart)</th><th>현재 data.js 시작일</th><th>유실 구간</th></tr></thead>
+  <tbody>
+    <tr><td>samsung_elec</td><td>1989-09-25</td><td><b>1996-06-25</b></td><td>약 6.7년</td></tr>
+    <tr><td>cj_4pref</td><td>2019-08-09</td><td><b>2021-02-08</b></td><td>약 1.5년</td></tr>
+    <tr><td>dl_enc_2pref</td><td>2022-04-28</td><td>2022-04-28</td><td>없음</td></tr>
+  </tbody>
+</table>
+<p><b>메커니즘:</b> <code>main()</code>에서 config에 새 종목이 감지되면(<code>missing_pair_ids</code>)
+<code>existing_data = None</code>으로 만들고 2000-01-01부터 전체 재다운로드합니다(fetch_data.py:1293~1300).
+이때 완료된 프록시 백필 pair 재적용은 <code>--full</code> 플래그 경로(1260~1261행)에서만 수행되므로,
+admin.html에서 종목 하나만 추가해도 → workflow 실행 → 기존 백필 구간이 통째로 사라집니다.
+CI 환경에서는 내부 가격 API(LAN)도 도달 불가라 구제 경로가 없습니다.
+백테스트(analysis/)의 시작점이 1996-06-25인 것도 이 유실의 결과로 보입니다.</p>
+<p><b>수정 방향:</b> ① 신규 종목 감지 시 전체 재수집 대신 "신규 pair만 풀 히스토리, 기존 pair는 증분 유지"로 변경
+(이미 pair 단위 <code>fetch_full_yahoo_pair_history</code>가 있어 작은 수정),
+② 어떤 경로든 병합 결과의 pair별 시작일이 기존보다 후퇴하면 기존 구간을 보존(증분 병합을 "이전 데이터 우선 유지"로),
+③ 매일 data.js를 덮어쓰기 전 직전본을 Actions 아티팩트나 별도 브랜치에 스냅샷.</p>
+</div>
+
+<h3>C2 — 42.5MB 초기 페이로드 (상세)</h3>
+<p>
+<code>data.js</code>는 <code>indent=2</code>로 직렬화되어 42.5MB이며(콤팩트 직렬화 시 25.9MB — <b>16.5MB가 공백</b>),
+프런트는 <code>data.js?t=Date.now()</code>로 로드해 브라우저/CDN 캐시를 완전히 무효화합니다.
+gzip 전송을 감안해도 방문마다 수 MB를 받고, 모바일에서는 JSON 파싱만으로도 수 초가 걸립니다.
+281,349개 포인트의 레코드형 JSON은 키 문자열 반복만 십수 MB입니다.
+</p>
+<ul>
+  <li><b>즉효(반나절):</b> <code>json.dumps(..., separators=(",", ":"))</code> — 42.5→25.9MB(−39%). 캐시버스터를 <code>Date.now()</code> 대신 일별 버전 문자열로.</li>
+  <li><b>근본(Phase 1):</b> "메타+현재가" 소형 파일과 pair별 히스토리 파일 분리 + 컬럼형 배열(<code>{dates:[], common:[], preferred:[]}</code>) — 초기 로드는 수백 KB, 선택 종목만 지연 로드. 부록 8.2 스키마 참고.</li>
+</ul>
+
+<h3>H4 — 지수 산정 방식 불일치 (상세)</h3>
+<p>
+일별 배치(data.js)의 "괴리율 지수"는 <b>발행사 sqrt 우선주 시총 가중</b>이고 비중 모달의 설명도 그렇게 안내합니다.
+그러나 장중에는 <code>applyCurrentSnapshot</code>이 <code>current.json</code>의 <code>averageSpread</code>
+(= <code>build_summary</code>의 <b>대표종목 단순평균</b>)를 지수 카드 값으로 덮어쓰고(<code>index.html:4734~4743</code>),
+같은 값을 지수 pair의 히스토리에 <code>upsertHistoryPoint</code>로 기록합니다(4746~4750행).
+즉 <b>당일 지수 포인트는 단순평균, 익일 배치 후에는 sqrt 가중으로 바뀌는</b> 비일관 상태입니다.
+프런트에 이미 sqrt 지수 실시간 계산기(<code>calculateSqrtPreferredMarketCapSpreadIndex</code>)가 있으므로,
+current.json의 단순평균보다 이를 우선 사용하거나, fetch_current.py가 동일 가중 방식을 계산해 내려주는 식으로 단일화해야 합니다.
+</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="roadmap">
+<h2><span class="num">5.</span>리팩토링 로드맵</h2>
+<p class="small-dim">노력 표기: <span class="badge b-effort">S</span> 반나절 이내 · <span class="badge b-effort">M</span> 1~2일 · <span class="badge b-effort">L</span> 1주 내외. 각 Phase는 독립 배포 가능하며 순서가 의존성을 반영합니다.</p>
+
+<h3>Phase 0 — 안전망 (코드 구조 불변, 최우선)</h3>
+<table>
+  <thead><tr><th>작업</th><th style="width:60px">노력</th><th>내용 / 해결 이슈</th></tr></thead>
+  <tbody>
+    <tr><td><b>데이터 스냅샷 백업</b></td><td><span class="badge b-effort">S</span></td><td>워크플로우에서 덮어쓰기 전 data.js를 아티팩트(보존 90일) 또는 <code>data-backup</code> 브랜치에 보관. <i>C1 피해 한정</i></td></tr>
+    <tr><td><b>백필 보존 수정 + 재백필</b></td><td><span class="badge b-effort">M</span></td><td>신규 종목 경로를 "신규만 풀 수집"으로 변경, 병합 시 시작일 후퇴 금지 가드 추가. 프록시 API 가용 시 samsung_elec/cj_4pref 재백필. <i>C1</i></td></tr>
+    <tr><td><b>requirements.txt 고정</b></td><td><span class="badge b-effort">S</span></td><td><code>yfinance==x.y.z, pandas==x.y.z, websocket-client==x.y.z</code> + setup-python pip 캐시. <i>H5 절반</i></td></tr>
+    <tr><td><b>워크플로우 동시성/푸시 견고화</b></td><td><span class="badge b-effort">S</span></td><td><code>concurrency: data-commit</code> 그룹 공유, push 전 <code>git pull --rebase</code> + 재시도. <i>M3</i></td></tr>
+    <tr><td><b>콤팩트 직렬화 + 버전 캐시버스터</b></td><td><span class="badge b-effort">S</span></td><td>42.5→25.9MB 즉시 절감, <code>?v=YYYYMMDD</code>로 일중 캐시 활용. <i>C2 완화</i></td></tr>
+    <tr><td><b>비밀/엔드포인트 정리</b></td><td><span class="badge b-effort">S</span></td><td>내부 IP·DDNS·시트 ID 기본값을 코드에서 제거하고 환경변수/Secrets로만 주입. TLS 전역 패치를 해당 요청 한정 컨텍스트로 축소. <i>H1, H3</i></td></tr>
+    <tr><td><b>README + 운영 문서</b></td><td><span class="badge b-effort">S</span></td><td>아키텍처 다이어그램, 로컬 실행법, 백필 절차, 장애 시 복구 절차.</td></tr>
+  </tbody>
+</table>
+
+<h3>Phase 1 — 데이터 포맷 개편 (성능)</h3>
+<table>
+  <thead><tr><th>작업</th><th style="width:60px">노력</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><b>data.js 분할</b></td><td><span class="badge b-effort">L</span></td><td><code>data/summary.json</code>(메타+현재가+지수 최근치, &lt;200KB)과 <code>data/history/{pairId}.json</code>(컬럼형)으로 분리. 초기 렌더는 summary만으로, 차트는 선택 종목 + 지수만 지연 로드(fetch + 메모리 캐시). 호환을 위해 과도기에 data.js 병행 생성 가능.</td></tr>
+    <tr><td><b>dividendHistories 분리</b></td><td><span class="badge b-effort">S</span></td><td>analysis 전용이므로 <code>data/dividends.json</code>으로 이동. <i>L5</i></td></tr>
+    <tr><td><b>analysis 입력 마이그레이션</b></td><td><span class="badge b-effort">S</span></td><td>백테스트/이벤트 스터디가 새 포맷을 읽도록 로더 함수 한 곳만 수정.</td></tr>
+    <tr><td><b>산출물 커밋 전략 검토</b></td><td><span class="badge b-effort">M</span></td><td>(선택) 히스토리 파일을 <code>data</code> 전용 브랜치로 분리해 main 히스토리 비대화 중단. Pages 빌드 소스만 조정하면 됨. <i>M4</i></td></tr>
+  </tbody>
+</table>
+
+<h3>Phase 2 — 프런트엔드 모듈화 (빌드 도구 없이 가능)</h3>
+<table>
+  <thead><tr><th>작업</th><th style="width:60px">노력</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><b>파일 분리</b></td><td><span class="badge b-effort">M</span></td><td><code>&lt;script type="module"&gt;</code> 기반: <code>css/app.css</code>, <code>js/state.js</code>(스냅샷 병합·전역 상태), <code>js/live.js</code>(current.json/실시간 폴백), <code>js/calc.js</code>(지수·베타·SMA/EMA — 순수 함수), <code>js/format.js</code>, <code>js/charts.js</code>(스프레드/시세/줌 공통화), <code>js/views/*.js</code>(overview·cards·table·stats). GitHub Pages에서 그대로 동작.</td></tr>
+    <tr><td><b>상태-렌더 분리</b></td><td><span class="badge b-effort">M</span></td><td>산재한 최상위 <code>let</code>들을 단일 상태 객체 + <code>update(patch)</code> 패턴으로. 이벤트는 위임(delegation)으로 전환해 재바인딩 제거.</td></tr>
+    <tr><td><b>차트 코드 통합</b></td><td><span class="badge b-effort">M</span></td><td>스프레드/시세/줌 차트가 공유하는 80%(스케일·세그먼트·축·툴팁)를 하나의 차트 모듈로. 터치 이벤트 지원 추가(<i>L3</i>).</td></tr>
+    <tr><td><b>순수 함수 단위 테스트</b></td><td><span class="badge b-effort">M</span></td><td>calc/format/merge 함수를 node 내장 test runner(또는 vitest)로. 지수 가중·스냅샷 병합·세션 판별이 우선 대상. <i>H5 나머지 절반의 시작</i></td></tr>
+  </tbody>
+</table>
+
+<h3>Phase 3 — 파이프라인 재구성 + 일관성</h3>
+<table>
+  <thead><tr><th>작업</th><th style="width:60px">노력</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><b>Python 패키지화</b></td><td><span class="badge b-effort">L</span></td><td><code>pipeline/sources/{yahoo,naver,kis,internal,proxy}.py</code> 어댑터 + <code>merge.py</code>(백필/증분 병합) + <code>index.py</code>(지수) + <code>build_daily.py / build_current.py</code> 엔트리. 모듈 전역 캐시를 명시적 컨텍스트 객체로. 부록 8.1 참고.</td></tr>
+    <tr><td><b>pytest 회귀 테스트</b></td><td><span class="badge b-effort">M</span></td><td>녹화된 응답 픽스처로 병합 규칙(시작일 후퇴 금지, 조정비율 스킵, 거래정지 제외)과 지수 계산을 고정. PR마다 CI 실행.</td></tr>
+    <tr><td><b>지수 방식 단일화</b></td><td><span class="badge b-effort">M</span></td><td>fetch_current.py가 sqrt 가중 지수를 계산해 내려주고(상장주식수는 data summary에서), 프런트는 덮어쓰기 대신 동일 방식 값만 채택. <i>H4</i></td></tr>
+    <tr><td><b>중복 로직 축소</b></td><td><span class="badge b-effort">M</span></td><td>브라우저 실시간 폴백을 "네이버 현재가 + 프런트 sqrt 지수 계산"으로 한정하고, 선물·시장지표 스크래핑 중복분은 서버(액션) 측 단일 구현으로 정리. <i>M1, M2 축소</i></td></tr>
+    <tr><td><b>린트/타입</b></td><td><span class="badge b-effort">S</span></td><td>ruff + (선택) mypy, JS는 eslint. pre-commit 또는 CI 체크.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+<b>의도적으로 권하지 않는 것:</b> React/Vue 등 프레임워크 도입, 차트 라이브러리 교체, 별도 백엔드 서버.
+현재 "정적 파일 + Actions" 모델은 이 프로젝트의 최대 강점(운영비 0, 배포 단순)이므로,
+구조 개선은 모두 이 모델 안에서 가능합니다. 빌드 도구(Vite 등)는 Phase 2를 마친 뒤 필요성이 생기면 그때 검토해도 늦지 않습니다.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="features">
+<h2><span class="num">6.</span>추가 기능 제언</h2>
+<p class="small-dim">가치 = 투자 판단 기여도 × 구현 난이도 대비. 데이터가 이미 갖춰진 항목부터 정렬.</p>
+
+<table>
+  <thead><tr><th style="width:30px">#</th><th>기능</th><th style="width:60px">노력</th><th>설명 / 근거</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><b>괴리율 통계 밴드 (z-score/백분위)</b></td><td><span class="badge b-effort">M</span></td><td>현재 괴리율이 자기 히스토리 분포에서 어디인지(1y/3y/전체 백분위, ±1σ·2σ 밴드 차트 오버레이). "지금 싸냐"를 한눈에 — 이 대시보드의 핵심 질문에 직접 답함. 데이터 추가 수집 불필요.</td></tr>
+    <tr><td>2</td><td><b>배당락 이벤트 차트 표시 + 배당 이력 패널</b></td><td><span class="badge b-effort">S</span></td><td><code>dividendHistories</code>가 이미 수집되어 있으나 화면에 전혀 안 쓰임. 차트에 배당 지급 마커, 종목 상세에 연도별 배당 추이 표.</td></tr>
+    <tr><td>3</td><td><b>괴리율 알림</b></td><td><span class="badge b-effort">M</span></td><td>fetch_current 실행 끝에 임계값(절대값 또는 z-score) 교차 시 Telegram/메일 발송. 종목·임계값은 config 확장으로. 30분 주기 인프라가 이미 있어 추가 비용 0.</td></tr>
+    <tr><td>4</td><td><b>백테스트/가설검증 결과 탭</b></td><td><span class="badge b-effort">M</span></td><td>analysis/ 산출물(md·csv)이 저장소에만 있음. 대시보드에 "전략" 탭을 만들어 상위3종 전략 에쿼티 커브와 이벤트 스터디 요약을 시각화 — 이미 만든 자산의 노출.</td></tr>
+    <tr><td>5</td><td><b>실효 괴리율(배당 보정) 지표</b></td><td><span class="badge b-effort">M</span></td><td>우선주 추가배당(+50원 등 이미 배지로 표시 중)을 반영한 "배당수익률 차이 기준 연환산 보상" 컬럼. 우선주 투자 판단의 실질 지표.</td></tr>
+    <tr><td>6</td><td><b>관심종목/정렬 상태 유지</b></td><td><span class="badge b-effort">S</span></td><td>즐겨찾기 핀 + 카드 정렬·기간 선택을 localStorage에 보존.</td></tr>
+    <tr><td>7</td><td><b>모바일 차트 터치 지원 + PWA</b></td><td><span class="badge b-effort">M</span></td><td>touchmove 툴팁, 매니페스트 + 서비스워커(데이터 stale-while-revalidate). 30분 갱신 주기와 궁합이 좋음. Phase 1 분할 이후에 적용해야 효과적.</td></tr>
+    <tr><td>8</td><td><b>전 종목 히트맵 뷰</b></td><td><span class="badge b-effort">M</span></td><td>x=시총, 색=괴리율 z-score, 크기=거래대금의 트리맵/산점도 — 60개 페어 비교 한 화면.</td></tr>
+    <tr><td>9</td><td><b>CSV/JSON 내보내기</b></td><td><span class="badge b-effort">S</span></td><td>선택 종목 히스토리 다운로드 버튼. 데이터는 이미 클라이언트 메모리에 있음.</td></tr>
+    <tr><td>10</td><td><b>데이터 품질 모니터</b></td><td><span class="badge b-effort">S</span></td><td>수집 후 pair별 시작일·포인트 수를 직전 실행과 비교해 후퇴/급감 시 워크플로우 실패 처리. C1 같은 사고의 재발 탐지 장치(기능이자 안전망).</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="holding">
+<h2><span class="num">7.</span>holding_value 프로젝트 진행 방식 권고</h2>
+
+<p><b>결론: 별도 세션에서 진행하는 것이 맞습니다.</b> 단, 목적에 따라 세션 구성이 달라집니다.</p>
+
+<ul>
+  <li><b>현재 세션의 제약:</b> 이 세션은 <code>ducklove/common_preferred_spread</code> 저장소에만 접근하도록
+  스코프되어 있고, 다른 저장소를 세션에 추가하는 도구도 이 세션에는 활성화되어 있지 않습니다.
+  따라서 holding_value 코드를 여기서 직접 읽거나 수정할 수 없습니다.</li>
+  <li><b>케이스 A — holding_value 자체의 리뷰/리팩토링:</b> holding_value 저장소로 새 세션을 시작하세요.
+  이 보고서를 그대로 템플릿(평가 축: 데이터 무결성/페이로드/모놀리스/중복 구현/운영 안전망)으로 재사용하면
+  같은 깊이의 리뷰를 훨씬 빠르게 받을 수 있습니다. 아키텍처가 비슷하다면 C1·C2·H5 류의 문제가
+  동일하게 존재할 가능성이 높으니 그 항목부터 점검을 요청하는 것을 권합니다.</li>
+  <li><b>케이스 B — 두 프로젝트의 공통 모듈 추출:</b> UI/차트/스냅샷 병합 로직을 공유 라이브러리로
+  뽑아내는 작업이라면, 새 세션을 만들 때 두 저장소를 함께 연결해 시작하는 것이 좋습니다
+  (한쪽만 보면서 추상화하면 다른 쪽에 맞지 않는 인터페이스가 나오기 쉽습니다).
+  공유 방식은 ① 별도 저장소 + 양쪽에서 복사 동기화(가장 단순), ② git submodule,
+  ③ npm 패키지(빌드 도입 후) 순으로 검토하면 됩니다.</li>
+  <li><b>권장 순서:</b> 이 프로젝트의 Phase 0~2를 먼저 끝내고 → 그 결과(모듈 경계, 데이터 스키마)를
+  기준 삼아 holding_value를 같은 구조로 정리 → 마지막에 공통 모듈 추출. 추상화는 두 번째 사용처가
+  생겼을 때 하는 것이 가장 정확합니다.</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="appendix">
+<h2><span class="num">8.</span>부록</h2>
+
+<h3>8.1 권장 디렉터리 구조 (Phase 3 완료 시점)</h3>
+<pre><code>common_preferred_spread/
+├── index.html                  # 마크업만 (~150줄)
+├── admin.html
+├── css/app.css
+├── js/
+│   ├── main.js                 # 부트스트랩
+│   ├── state.js                # 상태 저장소 + 스냅샷 병합
+│   ├── live.js                 # current.json 폴링 / 실시간 폴백
+│   ├── calc.js                 # 지수·베타·SMA/EMA (순수 함수)
+│   ├── format.js
+│   ├── charts.js               # 공통 캔버스 차트 엔진
+│   └── views/                  # overview / cards / table / stats
+├── pipeline/
+│   ├── sources/                # yahoo.py naver.py kis.py internal.py proxy.py
+│   ├── merge.py                # 증분 병합 + 백필 (시작일 후퇴 금지 가드)
+│   ├── index.py                # sqrt 시총가중 지수 (단일 구현)
+│   ├── build_daily.py          # 구) fetch_data.py
+│   └── build_current.py        # 구) fetch_current.py
+├── data/                       # 생성 산출물 (또는 별도 data 브랜치)
+│   ├── summary.json            # 메타 + 현재가 + 지수 최근치 (&lt;200KB)
+│   ├── history/{pairId}.json   # 컬럼형 히스토리 (지연 로드)
+│   ├── dividends.json
+│   └── current.json
+├── tests/                      # pytest + JS 단위 테스트
+├── analysis/
+├── requirements.txt
+└── docs/                       # 본 보고서, 아키텍처/운영 문서
+</code></pre>
+
+<h3>8.2 히스토리 컬럼형 스키마 예시</h3>
+<pre><code>// data/history/samsung_elec.json  (레코드형 대비 약 1/3 크기)
+{
+  "id": "samsung_elec",
+  "dates":     ["1989-09-25", "1989-09-26", ...],
+  "common":    [42000, 42200, ...],
+  "preferred": [29800, 29950, ...]
+  // spread는 클라이언트에서 (c-p)/c*100 로 파생 — 저장 불필요
+}
+
+// data/summary.json — 초기 렌더에 필요한 전부
+{
+  "lastUpdated": "2026-06-10 05:00:00",
+  "index": { "spread": 31.42, "change": -0.18, "trend30d": [ ... ] },
+  "pairs": [ { "id": "...", "name": "...", "current": { ... } }, ... ]
+}</code></pre>
+
+<h3>8.3 워크플로우 보강 예시 (Phase 0)</h3>
+<pre><code># 두 워크플로우 공통
+concurrency:
+  group: data-commit          # 일별/30분 작업의 push 경합 방지
+  cancel-in-progress: false
+
+- name: Install dependencies
+  run: pip install -r requirements.txt   # 버전 고정
+
+- name: Backup previous data            # 덮어쓰기 전 보존
+  uses: actions/upload-artifact@v4
+  with: { name: data-backup-${{ github.run_id }}, path: data.js, retention-days: 90 }
+
+- name: Commit and push if changed
+  run: |
+    ...
+    git pull --rebase origin master && git push   # 경합 시 재시도</code></pre>
+
+<p class="small-dim" style="margin-top:36px">
+본 보고서는 2026-06-10 기준 master 최신 커밋(2560d19)을 대상으로 전체 소스를 정독·검증하여 작성되었습니다.
+수치(파일 크기, 포인트 수, 유실 구간)는 모두 저장소 내 실데이터에서 직접 측정한 값입니다.
+</p>
+</section>
+
+</div>
+</body>
+</html>

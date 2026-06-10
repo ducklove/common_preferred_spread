@@ -11,36 +11,70 @@ on:
         required: false
         type: boolean
         default: false
+      proxy_backfill:
+        description: '프록시 백필 pair id 목록 (공백 구분, 예: samsung_elec cj_4pref)'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
+
+concurrency:
+  group: data-commit
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+          cache: pip
 
       - name: Install dependencies
-        run: pip install yfinance pandas
+        run: pip install -r requirements.txt
+
+      - name: Backup previous data
+        uses: actions/upload-artifact@v7
+        with:
+          name: data-backup-${{ github.run_id }}
+          path: |
+            data.js
+            proxy_backfill_progress.json
+          retention-days: 90
+          if-no-files-found: warn
 
       - name: Fetch latest data
-        run: python fetch_data.py ${{ inputs.full && '--full' || '' }} --auto-proxy-backfill-batch-size 1
+        env:
+          PROXY_HISTORY_BASE_URL: ${{ vars.PROXY_HISTORY_BASE_URL }}
+        run: >
+          python fetch_data.py
+          ${{ inputs.full && '--full' || '' }}
+          ${{ inputs.proxy_backfill && format('--proxy-backfill {0}', inputs.proxy_backfill) || '' }}
+          --auto-proxy-backfill-batch-size 1
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.js proxy_backfill_progress.json
+          git add data.js data proxy_backfill_progress.json
           if git diff --cached --quiet; then
             echo "No changes to commit"
-          else
-            git commit -m "시세 데이터 갱신 ($(TZ='Asia/Seoul' date +%Y-%m-%d))"
-            git push
+            exit 0
           fi
+          git commit -m "시세 데이터 갱신 ($(TZ='Asia/Seoul' date +%Y-%m-%d))"
+          for attempt in 1 2 3 4; do
+            if git push; then
+              exit 0
+            fi
+            echo "push 실패, rebase 후 재시도 ($attempt)"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            sleep $((attempt * 5))
+          done
+          git push
