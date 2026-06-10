@@ -3,7 +3,12 @@
 import json
 
 import data_writer
-from data_writer import atomic_write_text, parse_stock_data_js, write_stock_data_outputs
+from data_writer import (
+    atomic_write_text,
+    compute_spread_stats,
+    parse_stock_data_js,
+    write_stock_data_outputs,
+)
 
 PREFIX = "const STOCK_DATA = "
 
@@ -164,9 +169,16 @@ class TestWriteStockDataOutputs:
         assert [p["id"] for p in summary["pairs"]] == ["pair1", "_average"]
         for pair in summary["pairs"]:
             assert "history" not in pair
-        # history 제외 나머지 필드는 그대로 유지
+        # history 제외 나머지 필드는 그대로 유지하고, history 기반 spreadStats만 추가된다
         original_pair1 = build_stock_data()["pairs"][0]
         original_pair1.pop("history")
+        original_pair1["spreadStats"] = {
+            "mean": 19.9,
+            "std": 0.1,
+            "min": 19.8,
+            "max": 20.0,
+            "count": 2,
+        }
         assert summary["pairs"][0] == original_pair1
         assert summary["historyMeta"] == {
             "pair1": {"start": "2020-01-02", "end": "2020-01-03", "points": 2},
@@ -268,3 +280,130 @@ class TestWriteStockDataOutputs:
         summary = read_json(tmp_path / "data" / "summary.json")
         assert "한글id" in summary["historyMeta"]
         assert parse_stock_data_js(tmp_path / "data.js") == stock_data
+
+
+# ---------------------------------------------------------------------------
+# compute_spread_stats / summary.pairs[].spreadStats
+# ---------------------------------------------------------------------------
+
+
+def make_pair(pair_id, spreads):
+    """spread 값 목록만 다른 합성 pair를 만든다 (None은 spread 누락 일자를 모사)."""
+    return {
+        "id": pair_id,
+        "name": pair_id,
+        "commonName": pair_id,
+        "preferredName": pair_id + "우",
+        "current": {"commonPrice": 1000, "preferredPrice": 800, "spread": 20.0},
+        "history": [
+            {
+                "date": f"2020-01-{i + 2:02d}",
+                "commonPrice": 1000 + i,
+                "preferredPrice": 800 + i,
+                "spread": spread,
+            }
+            for i, spread in enumerate(spreads)
+        ],
+    }
+
+
+class TestComputeSpreadStats:
+    def test_invalid_records_are_excluded(self):
+        # 유효값 [1.0, 3.0]: mean 2.0, 모집단분산 ((-1)²+1²)/2 = 1.0, std 1.0
+        history = [
+            {"date": "2020-01-02", "spread": 1.0},
+            {"date": "2020-01-03", "spread": float("nan")},
+            {"date": "2020-01-04"},  # spread 키 자체가 없는 레코드
+            {"date": "2020-01-05", "spread": None},
+            {"date": "2020-01-06", "spread": True},  # bool은 숫자로 취급하지 않음
+            {"date": "2020-01-07", "spread": 3.0},
+        ]
+
+        assert compute_spread_stats(history) == {
+            "mean": 2.0,
+            "std": 1.0,
+            "min": 1.0,
+            "max": 3.0,
+            "count": 2,
+        }
+
+    def test_fewer_than_two_valid_samples_returns_none(self):
+        assert compute_spread_stats([]) is None
+        assert compute_spread_stats([{"spread": 5.0}]) is None
+        # 유효 표본이 1개뿐이면(나머지는 null/NaN) 역시 None
+        assert (
+            compute_spread_stats(
+                [{"spread": 5.0}, {"spread": None}, {"spread": float("nan")}]
+            )
+            is None
+        )
+
+
+class TestSummarySpreadStats:
+    def test_exact_stats_for_hand_computed_values(self, tmp_path):
+        # [10, 20, 30, 40]: mean 25, 모집단분산 (225+25+25+225)/4 = 125, std √125 ≈ 11.1803
+        stock_data = {
+            "lastUpdated": "2026-06-10 05:00:00",
+            "pairs": [make_pair("calc", [10.0, 20.0, 30.0, 40.0])],
+        }
+
+        write_stock_data_outputs(stock_data, tmp_path)
+
+        summary = read_json(tmp_path / "data" / "summary.json")
+        assert summary["pairs"][0]["spreadStats"] == {
+            "mean": 25.0,
+            "std": 11.1803,
+            "min": 10.0,
+            "max": 40.0,
+            "count": 4,
+        }
+
+    def test_single_sample_pair_has_no_spread_stats(self, tmp_path):
+        stock_data = {
+            "lastUpdated": "2026-06-10 05:00:00",
+            "pairs": [make_pair("solo", [20.0])],
+        }
+
+        write_stock_data_outputs(stock_data, tmp_path)
+
+        summary = read_json(tmp_path / "data" / "summary.json")
+        assert summary["pairs"][0]["id"] == "solo"
+        assert "spreadStats" not in summary["pairs"][0]
+
+    def test_null_spreads_use_only_valid_values(self, tmp_path):
+        # 유효값 [10, 30, 20]: mean 20, 모집단분산 (100+100+0)/3, std √66.67 ≈ 8.165, count 3
+        stock_data = {
+            "lastUpdated": "2026-06-10 05:00:00",
+            "pairs": [make_pair("gappy", [10.0, None, 30.0, None, 20.0])],
+        }
+
+        write_stock_data_outputs(stock_data, tmp_path)
+
+        summary = read_json(tmp_path / "data" / "summary.json")
+        assert summary["pairs"][0]["spreadStats"] == {
+            "mean": 20.0,
+            "std": 8.165,
+            "min": 10.0,
+            "max": 30.0,
+            "count": 3,
+        }
+
+    def test_average_pair_gets_stats_and_source_is_not_mutated(self, tmp_path):
+        stock_data = build_stock_data()
+
+        write_stock_data_outputs(stock_data, tmp_path)
+
+        summary = read_json(tmp_path / "data" / "summary.json")
+        average = next(p for p in summary["pairs"] if p["id"] == "_average")
+        # _average: [15.2, 15.0] → mean 15.1, std 0.1
+        assert average["spreadStats"] == {
+            "mean": 15.1,
+            "std": 0.1,
+            "min": 15.0,
+            "max": 15.2,
+            "count": 2,
+        }
+        # 원본 stock_data와 data.js에는 spreadStats가 추가되지 않는다
+        assert all("spreadStats" not in p for p in stock_data["pairs"])
+        assert stock_data == build_stock_data()
+        assert parse_stock_data_js(tmp_path / "data.js") == build_stock_data()

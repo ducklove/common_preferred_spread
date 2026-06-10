@@ -25,7 +25,10 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
                   GitHub Pages ──▶ index.html (대시보드)
 ```
 
-- `index.html` — 대시보드 본체. `data/summary.json`을 우선 로드하고 종목별 히스토리는 지연 로드합니다.
+- `index.html` — 대시보드 본체(마크업 + 인라인 테마 부트스트랩). `data/summary.json`을 우선 로드하고 종목별 히스토리는 지연 로드합니다.
+- `css/app.css` — 대시보드 전체 스타일 (embed 모드 CSS 포함).
+- `js/` — 대시보드 로직 ES 모듈. 빌드 도구 없이 GitHub Pages가 그대로 서빙합니다.
+  - `main.js`(진입점·부트스트랩) / `state.js`(공유 상태 `app`·상수·데이터 로더) / `format.js`(포맷터·날짜 유틸) / `calc.js`(지수·통계 계산) / `market.js`(시장 메트릭 병합·세션 로직) / `labels.js`(종목 라벨/배지) / `charts.js`(캔버스 차트·줌) / `views.js`(렌더·바인딩) / `live.js`(실시간 갱신)
 - `admin.html` — 종목 쌍 설정(config.json) 관리 UI. GitHub API로 직접 커밋합니다.
 - `analysis/` — 오프라인 연구 스크립트(백테스트, 이벤트 스터디). CI와 무관합니다.
 
