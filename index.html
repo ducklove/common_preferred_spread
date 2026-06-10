@@ -553,6 +553,7 @@ body {
   margin-bottom: 24px;
 }
 .card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -561,6 +562,22 @@ body {
   transition: border-color 0.15s, background 0.15s;
 }
 .card:hover { border-color: var(--accent); }
+.card .card-pin {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px;
+}
+.card .card-pin:hover { color: var(--accent); }
+.card .card-pin.pinned { color: #f5c518; }
+.cards .card .name { padding-right: 22px; }
 .card.avg-card { border-color: var(--green); background: var(--avg-card-bg); }
 .card.avg-card.active { border-color: var(--green); background: var(--avg-card-bg-active); }
 .card.active {
@@ -1273,6 +1290,7 @@ td.numeric .bar-cell {
 .price-legend .leg-common::before { background: var(--accent); }
 .price-legend .leg-preferred::before { background: var(--up); }
 .price-legend .leg-kospi::before { background: var(--green); }
+.price-legend .leg-dividend::before { background: var(--green); }
 
 @media (max-width: 768px) {
   .header, .container { padding-left: 16px; padding-right: 16px; }
@@ -1357,6 +1375,7 @@ td.numeric .bar-cell {
         <button data-days="365">1Y</button>
         <button data-days="0" class="active">전체</button>
       </div>
+      <button type="button" class="zoom-reset-btn" id="csvExportBtn">CSV</button>
     </div>
     <div class="chart-container">
       <canvas id="chart"></canvas>
@@ -1441,7 +1460,12 @@ td.numeric .bar-cell {
   let pairs = STOCK_DATA.pairs;
   const DATA_SUMMARY_URL = 'data/summary.json';
   const LEGACY_DATA_JS_URL = 'data.js';
+  const DATA_DIVIDENDS_URL = 'data/dividends.json';
   const THEME_STORAGE_KEY = 'theme';
+  const PINNED_PAIRS_STORAGE_KEY = 'pinnedPairIds';
+  const CARD_SORT_STORAGE_KEY = 'cardSortMode';
+  const PERIOD_DAYS_STORAGE_KEY = 'periodDays';
+  const PERIOD_DAYS_OPTIONS = [0, 30, 90, 180, 365];
   const LIVE_REFRESH_MAX_AGE_MS = 60 * 1000;
   const LIVE_REFRESH_RETRY_DELAY_MS = 1500;
   const LIVE_REFRESH_RETRY_ATTEMPTS = 3;
@@ -1500,6 +1524,7 @@ td.numeric .bar-cell {
     spreadWidening: { direction: 'desc' },
     spreadNarrowing: { direction: 'asc' },
   };
+  let pinnedPairIds = loadPinnedPairIds();
   let todayOverviewData = null;
   let latestAppliedSnapshotMs = 0;
   let liveRefreshPromise = null;
@@ -1517,6 +1542,9 @@ td.numeric .bar-cell {
   const historyLoadedIds = new Set();
   const historyLoadPromises = new Map();
   const lastAppliedPriceByPairId = new Map(); // pair별 마지막 실시간 가격 {priceDate, point}
+  let dividendHistories = null;
+  let dividendLoadPromise = null;
+  let dividendRenderQueued = false; // 배당 최초 로드 완료 시 1회 재렌더용
 
   async function loadSummaryData() {
     // 1순위: summary.json (소형이므로 no-store + 타임스탬프)
@@ -1610,6 +1638,37 @@ td.numeric .bar-cell {
       .finally(() => historyLoadPromises.delete(pair.id));
     historyLoadPromises.set(pair.id, promise);
     return promise;
+  }
+
+  function ensureDividends() {
+    if (dividendHistories) return Promise.resolve(dividendHistories);
+    if (dividendLoadPromise) return dividendLoadPromise;
+    const version = encodeURIComponent(STOCK_DATA.lastUpdated || '');
+    dividendLoadPromise = fetch(`${DATA_DIVIDENDS_URL}?v=${version}`)
+      .then(resp => {
+        if (!resp.ok) throw new Error(`dividends ${resp.status}`);
+        return resp.json();
+      })
+      .then(payload => {
+        dividendHistories = payload?.dividendHistories || {};
+        return dividendHistories;
+      })
+      .catch(e => {
+        console.warn('배당 이력 로드 실패:', e);
+        dividendHistories = {}; // 실패 시 재시도하지 않는다.
+        return dividendHistories;
+      });
+    return dividendLoadPromise;
+  }
+
+  function queueDividendRender() {
+    // 배당 데이터 최초 로드가 끝나는 시점에만 1회 재렌더한다 (이미 로드됐으면 일반 렌더 경로에 포함).
+    if (dividendHistories || dividendRenderQueued) return;
+    dividendRenderQueued = true;
+    ensureDividends().then(() => {
+      renderPriceChart();
+      renderStats();
+    });
   }
 
   function getCardSortMetric(pair, mode = cardSortMode) {
@@ -1809,6 +1868,70 @@ td.numeric .bar-cell {
     };
   }
 
+  function readStoredValue(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeStoredValue(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      // 저장 실패 시 현재 세션 설정만 적용한다.
+    }
+  }
+
+  function loadPinnedPairIds() {
+    try {
+      const parsed = JSON.parse(readStoredValue(PINNED_PAIRS_STORAGE_KEY) || '[]');
+      return new Set(Array.isArray(parsed) ? parsed.filter(id => typeof id === 'string') : []);
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function savePinnedPairIds() {
+    writeStoredValue(PINNED_PAIRS_STORAGE_KEY, JSON.stringify([...pinnedPairIds]));
+  }
+
+  function isGroupPinned(items) {
+    return items.some(item => pinnedPairIds.has(item.pair.id));
+  }
+
+  function togglePinnedGroup(idx) {
+    const pair = pairs[idx];
+    if (!pair || pair.isAverage) return;
+    const items = getGroupItemsByPairId(pair.id) || [{ pair, idx }];
+    if (isGroupPinned(items)) {
+      items.forEach(item => pinnedPairIds.delete(item.pair.id));
+    } else {
+      pinnedPairIds.add(pair.id);
+    }
+    savePinnedPairIds();
+    renderCards();
+  }
+
+  function restoreStoredSettings() {
+    const storedSortMode = readStoredValue(CARD_SORT_STORAGE_KEY);
+    if (storedSortMode && CARD_SORT_CONFIG[storedSortMode]) {
+      cardSortMode = storedSortMode;
+      document.querySelectorAll('#cardSortOptions button').forEach(button => {
+        button.classList.toggle('active', button.dataset.cardSort === cardSortMode);
+      });
+    }
+    const storedPeriodText = readStoredValue(PERIOD_DAYS_STORAGE_KEY);
+    const storedPeriodDays = storedPeriodText == null ? null : Number(storedPeriodText);
+    if (storedPeriodDays != null && PERIOD_DAYS_OPTIONS.includes(storedPeriodDays)) {
+      periodDays = storedPeriodDays;
+      document.querySelectorAll('#periodBtns button').forEach(button => {
+        button.classList.toggle('active', parseInt(button.dataset.days, 10) === periodDays);
+      });
+    }
+  }
+
   function getCardGroups() {
     const map = new Map();
     pairs.forEach((p, i) => {
@@ -1827,7 +1950,12 @@ td.numeric .bar-cell {
     const averageGroup = groups.find(items => items[0]?.pair.isAverage) || null;
     const stockGroups = groups
       .filter(items => !items[0]?.pair.isAverage)
-      .sort((a, b) => compareCardItems(a[0], b[0]));
+      .sort((a, b) => {
+        // 관심종목 핀은 카드 표시 순서에만 영향 (그룹 구성/대표 선정은 그대로)
+        const pinDiff = Number(isGroupPinned(b)) - Number(isGroupPinned(a));
+        if (pinDiff !== 0) return pinDiff;
+        return compareCardItems(a[0], b[0]);
+      });
 
     return averageGroup ? [averageGroup, ...stockGroups] : stockGroups;
   }
@@ -2191,6 +2319,7 @@ td.numeric .bar-cell {
     }
     renderTodayOverview();
     renderCards();
+    queueDividendRender();
     const renderDetail = () => {
       if (selectedIdx !== idx) return; // 로드 중 다른 종목이 선택된 경우
       renderZoomPanel();
@@ -2219,6 +2348,7 @@ td.numeric .bar-cell {
     document.getElementById('lastUpdated').textContent = '데이터 불러오는 중...';
     bindThemeButton();
     bindTableSortHeaders();
+    restoreStoredSettings();
     await loadSummaryData();
     todayOverviewData = buildTodaySummaryFromPairs();
     latestAppliedSnapshotMs = parseSnapshotTimestamp(STOCK_DATA.lastUpdated)?.getTime() || 0;
@@ -2246,7 +2376,9 @@ td.numeric .bar-cell {
     renderChart();
     renderPriceChart();
     renderStats();
+    queueDividendRender();
     bindPeriodBtns();
+    bindCsvExportButton();
     if (initialSelection.matched) {
       updateSelectedPairQueryParam();
       scrollToSelectedSpreadSection();
@@ -2981,7 +3113,9 @@ td.numeric .bar-cell {
         </div>`;
       }
 
+      const pinned = isGroupPinned(items);
       return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" role="button" tabindex="0">
+        <button type="button" class="card-pin${pinned ? ' pinned' : ''}" data-pin-idx="${primaryIdx}" aria-label="관심종목 ${pinned ? '해제' : '등록'}" aria-pressed="${pinned}">${pinned ? '★' : '☆'}</button>
         ${renderGroupSnapshot(items)}
       </div>`;
     }).join('');
@@ -2991,9 +3125,16 @@ td.numeric .bar-cell {
       };
       card.addEventListener('click', handleCardAction);
       card.addEventListener('keydown', event => {
+        if (event.target.closest?.('.card-pin')) return; // 핀 버튼은 자체 기본 동작(클릭) 사용
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         handleCardAction();
+      });
+    });
+    el.querySelectorAll('.card-pin').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        togglePinnedGroup(parseInt(button.dataset.pinIdx, 10));
       });
     });
     applyAutoFitText(el);
@@ -3153,6 +3294,14 @@ td.numeric .bar-cell {
     const correlation = calculatePairCorrelation(hist);
     const sma250 = calculateSma(spreads, 250);
     const ema = calculateLatestEma(spreads) ?? p.current.spread;
+    const spreadStats = calculateMeanStd(spreads);
+    const oneYearCutoff = formatKstTimestamp(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)).slice(0, 10);
+    const spreads1y = hist.filter(h => h.date >= oneYearCutoff).map(h => h.spread);
+    const percentileAll = calculatePercentileRank(spreads, current);
+    const percentile1y = calculatePercentileRank(spreads1y, current);
+    const zScore = spreadStats && spreadStats.std > 0 && current != null && !Number.isNaN(current)
+      ? (current - spreadStats.mean) / spreadStats.std
+      : null;
     const preferredLabel = formatPairName(p.preferredName || "우선주");
     const commonLabel = formatPairName(p.commonName || "보통주");
     const commonMarketCap = calculateLiveMarketCap(
@@ -3180,6 +3329,14 @@ td.numeric .bar-cell {
     const stats = [
       { label: "현재 괴리율", value: current == null ? "-" : `${current.toFixed(2)}%` },
       { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
+      {
+        label: "괴리율 위치",
+        value: renderComboRows([
+          { label: "전체 백분위", value: percentileAll == null ? "-" : `${Math.round(percentileAll)}%` },
+          { label: "1Y 백분위", value: percentile1y == null ? "-" : `${Math.round(percentile1y)}%` },
+          { label: "z-score", value: zScore == null ? "-" : `${zScore >= 0 ? '+' : ''}${zScore.toFixed(2)}σ` },
+        ]),
+      },
       { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
       {
         label: renderPreferredInlineLabel(p, preferredLabel),
@@ -3218,6 +3375,21 @@ td.numeric .bar-cell {
         ]),
       },
     ];
+
+    if (!p.isAverage) {
+      const dividendEntries = dividendHistories?.[p.id]?.preferred;
+      const recentDividendRows = Array.isArray(dividendEntries)
+        ? dividendEntries
+          .filter(entry => entry?.date && entry.amount != null && !Number.isNaN(Number(entry.amount)))
+          .slice(-3)
+          .reverse()
+          .map(entry => ({ label: entry.date, value: `${Number(entry.amount).toLocaleString('ko-KR')}원` }))
+        : [];
+      stats.push({
+        label: "최근 배당 (우선주)",
+        value: recentDividendRows.length ? renderComboRows(recentDividendRows) : "-",
+      });
+    }
 
     const statsEl = document.getElementById("statsRow");
     statsEl.innerHTML = stats.map(item => `<div class="stat-box"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
@@ -3315,6 +3487,37 @@ td.numeric .bar-cell {
 
     // X axis labels
     drawXAxis(ctx, pad, cH, cW, H, hist, scale);
+
+    // 통계 밴드: 전체 히스토리 기준 평균(μ)과 ±1σ/±2σ 수평선 (보이는 범위만)
+    const bandStats = calculateMeanStd(fullHist.map(entry => entry.spread));
+    if (bandStats) {
+      const drawStatBandLine = (value, label, isMean) => {
+        if (value == null || Number.isNaN(value) || value < minS || value > maxS) return;
+        const y = pad.top + cH - ((value - minS) / rangeS * cH);
+        ctx.save();
+        if (!isMean) ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = theme.avgLine;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 6]);
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(W - pad.right, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.fillStyle = theme.avgLabel;
+        ctx.textAlign = 'left';
+        ctx.fillText(label, pad.left + 4, y - 3);
+        ctx.restore();
+      };
+      drawStatBandLine(bandStats.mean, `μ ${bandStats.mean.toFixed(1)}%`, true);
+      if (bandStats.std > 0) {
+        drawStatBandLine(bandStats.mean + bandStats.std, '±1σ', false);
+        drawStatBandLine(bandStats.mean - bandStats.std, '±1σ', false);
+        drawStatBandLine(bandStats.mean + 2 * bandStats.std, '±2σ', false);
+        drawStatBandLine(bandStats.mean - 2 * bandStats.std, '±2σ', false);
+      }
+    }
 
     // Gradient fill
     const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + cH);
@@ -3421,6 +3624,9 @@ td.numeric .bar-cell {
     const detailLabels = isAvg ? null : getDetailLabels(p);
     if (hist.length < 2) return;
 
+    const dividendEntries = isAvg ? null : dividendHistories?.[p.id]?.preferred;
+    const hasDividendMarks = Array.isArray(dividendEntries) && dividendEntries.length > 0;
+
     // Title & legend
     const titleEl = document.getElementById('priceChartTitle');
     const legendEl = document.getElementById('priceLegend');
@@ -3429,7 +3635,7 @@ td.numeric .bar-cell {
       legendEl.innerHTML = '<span class="leg-kospi">KOSPI</span>';
     } else {
       titleEl.innerHTML = `${renderPreferredInlineLabel(p, p.name)} 시세 추이`;
-      legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${renderPreferredInlineLabel(p, detailLabels.preferred)}</span>`;
+      legendEl.innerHTML = `<span class="leg-common">${detailLabels.common}</span><span class="leg-preferred">${renderPreferredInlineLabel(p, detailLabels.preferred)}</span>${hasDividendMarks ? '<span class="leg-dividend">배당(우)</span>' : ''}`;
     }
 
     const canvas = document.getElementById('priceChart');
@@ -3486,6 +3692,22 @@ td.numeric .bar-cell {
       drawXAxis(ctx, pad, cH, cW, H, hist, scale);
       drawLine(ctx, pad, cW, cH, hist, scale, d => d.commonPrice, minP, rangeP, theme.accent, false);
       drawLine(ctx, pad, cW, cH, hist, scale, d => d.preferredPrice, minP, rangeP, theme.up, false);
+
+      // 배당(우선주) 마커: 표시 구간 내 배당 일자를 차트 하단에 점으로 표시
+      if (hasDividendMarks) {
+        const firstDate = hist[0]?.date || '';
+        const lastDate = hist[hist.length - 1]?.date || '';
+        ctx.fillStyle = theme.green;
+        dividendEntries.forEach(entry => {
+          if (!entry?.date || entry.date < firstDate || entry.date > lastDate) return;
+          const time = getHistoryDateMs(entry.date);
+          if (time == null) return;
+          const x = pad.left + (((time - scale.minTime) / scale.rangeTime) * cW);
+          ctx.beginPath();
+          ctx.arc(x, pad.top + cH - 4, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
 
       // Tooltip
       setupPriceTooltip(canvas, pad, W, cW, cH, hist, scale, (d) => {
@@ -3740,6 +3962,7 @@ td.numeric .bar-cell {
       const button = event.target.closest('button[data-card-sort]');
       if (!button || !controls.contains(button)) return;
       cardSortMode = button.dataset.cardSort || 'spread';
+      writeStoredValue(CARD_SORT_STORAGE_KEY, cardSortMode);
       controls.querySelectorAll('button').forEach(item => {
         item.classList.toggle('active', item === button);
       });
@@ -3755,6 +3978,7 @@ td.numeric .bar-cell {
       this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       periodDays = parseInt(e.target.dataset.days);
+      writeStoredValue(PERIOD_DAYS_STORAGE_KEY, String(periodDays));
       resetZoomWindow({ render: false });
       renderZoomPanel();
       renderTable();
@@ -3780,6 +4004,41 @@ td.numeric .bar-cell {
     endInput.addEventListener('input', () => handleInput('end'));
     resetBtn.addEventListener('click', () => resetZoomWindow());
     bindZoomControls._bound = true;
+  }
+
+  // --- CSV 내보내기 ---
+  function buildHistoryCsv(hist, { includeKospi = false } = {}) {
+    const header = ['date', 'commonPrice', 'preferredPrice', 'spread', ...(includeKospi ? ['kospiPrice'] : [])];
+    const lines = hist.map(entry => {
+      const cells = [entry.date ?? '', entry.commonPrice ?? '', entry.preferredPrice ?? '', entry.spread ?? ''];
+      if (includeKospi) cells.push(entry.kospiPrice ?? '');
+      return cells.join(',');
+    });
+    return '\ufeff' + [header.join(','), ...lines].join('\n'); // UTF-8 BOM (엑셀 한글 호환)
+  }
+
+  function exportSelectedPairCsv() {
+    const pair = pairs[selectedIdx];
+    if (!pair) return;
+    const hist = getFilteredHistory(pair) || [];
+    if (!hist.length) return;
+    const csv = buildHistoryCsv(hist, { includeKospi: !!pair.isAverage });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${pair.id}_${hist[0].date}_${hist[hist.length - 1].date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function bindCsvExportButton() {
+    const button = document.getElementById('csvExportBtn');
+    if (!button || bindCsvExportButton._bound) return;
+    button.addEventListener('click', exportSelectedPairCsv);
+    bindCsvExportButton._bound = true;
   }
 
   // --- Helpers ---
@@ -4077,6 +4336,23 @@ td.numeric .bar-cell {
     });
 
     return series;
+  }
+
+  function calculateMeanStd(values) {
+    if (!Array.isArray(values)) return null;
+    const valid = values.filter(value => value != null && !Number.isNaN(value));
+    if (valid.length < 2) return null;
+    const mean = valid.reduce((sum, value) => sum + value, 0) / valid.length;
+    const variance = valid.reduce((sum, value) => sum + ((value - mean) * (value - mean)), 0) / valid.length;
+    return { mean, std: Math.sqrt(variance) };
+  }
+
+  function calculatePercentileRank(values, current) {
+    if (current == null || Number.isNaN(current) || !Array.isArray(values)) return null;
+    const valid = values.filter(value => value != null && !Number.isNaN(value));
+    if (!valid.length) return null;
+    const below = valid.filter(value => value <= current).length;
+    return below / valid.length * 100;
   }
 
   function calculateLiveMarketCap(price, sharesOutstanding, fallbackMarketCap = null) {
