@@ -1100,6 +1100,9 @@ def merge_external_backfill(yahoo_close, yahoo_vol, external_history, ticker, so
 
 
 def merge_naver_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
+    # 비활성 시 외부 수집 호출 자체를 막는다 (인자 즉시 평가로 인한 불필요 크롤 방지)
+    if not enabled or yahoo_close.empty:
+        return yahoo_close, yahoo_vol, None
     return merge_external_backfill(
         yahoo_close,
         yahoo_vol,
@@ -1111,6 +1114,9 @@ def merge_naver_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
 
 
 def merge_proxy_backfill(yahoo_close, yahoo_vol, ticker, enabled=False):
+    # 비활성 시 외부 수집 호출 자체를 막는다 (백필 대상이 아닌 전 티커가 매 실행 프록시를 크롤하던 버그)
+    if not enabled or yahoo_close.empty:
+        return yahoo_close, yahoo_vol, None
     return merge_external_backfill(
         yahoo_close,
         yahoo_vol,
