@@ -9,7 +9,7 @@ import {
   LIVE_FETCH_TIMEOUT_MS,
   LIVE_HANKYUNG_FUTURES_URL,
   LIVE_NIGHT_FUTURES_URL,
-  LIVE_PROXY_URL,
+  LIVE_PROXY_URLS,
   LIVE_REFRESH_FORCE_ATTEMPTS,
   LIVE_REFRESH_MAX_AGE_MS,
   LIVE_REFRESH_RETRY_ATTEMPTS,
@@ -87,13 +87,14 @@ export function withCacheBustingParam(url) {
   return `${url}${separator}_ts=${Date.now()}`;
 }
 
-export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+let preferredProxyIndex = 0;
+
+async function fetchViaProxy(proxyBase, url, responseType, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const proxiedUrl = LIVE_PROXY_URL + encodeURIComponent(withCacheBustingParam(url));
-    const resp = await fetch(proxiedUrl, {
+    const resp = await fetch(proxyBase + encodeURIComponent(withCacheBustingParam(url)), {
       signal: controller.signal,
       cache: 'no-store',
     });
@@ -109,6 +110,22 @@ export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = L
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+  // 단일 CORS 프록시 장애에 대비해 순차 폴백하고, 성공한 프록시를 다음 호출에 우선 사용한다.
+  let lastError = null;
+  for (let i = 0; i < LIVE_PROXY_URLS.length; i += 1) {
+    const index = (preferredProxyIndex + i) % LIVE_PROXY_URLS.length;
+    try {
+      const result = await fetchViaProxy(LIVE_PROXY_URLS[index], url, responseType, timeoutMs);
+      preferredProxyIndex = index;
+      return result;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('실시간 조회 실패');
 }
 
 export async function runWithTimeout(task, timeoutMs, errorMessage) {
