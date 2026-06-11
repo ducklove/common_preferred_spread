@@ -1,6 +1,7 @@
 {
   "completedPairIds": [
     "cj_4pref",
+    "daeduck_electronics",
     "dl_enc_2pref",
     "dl_enc_pref",
     "samsung_elec"
@@ -32,6 +33,13 @@
       "attemptedAt": "2026-06-11 06:50:39",
       "beforeStart": "2021-01-25",
       "afterStart": "2021-01-25",
+      "extended": false
+    },
+    {
+      "pairId": "daeduck_electronics",
+      "attemptedAt": "2026-06-11 09:51:09",
+      "beforeStart": "2020-05-21",
+      "afterStart": "2020-05-21",
       "extended": false
     }
   ]
