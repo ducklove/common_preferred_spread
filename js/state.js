@@ -33,6 +33,7 @@ export const TABLE_SORT_DEFAULT_DIRECTION = {
   commonMarketCap: 'desc',
   preferredMarketCap: 'desc',
   preferredRatio: 'desc',
+  divYieldGap: 'desc',
   spreadChange: 'desc',
   spread: 'desc',
 };
@@ -43,6 +44,7 @@ export const TABLE_HEADER_CONFIG = [
   { key: 'commonMarketCap', label: '\uBCF4\uD1B5\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
   { key: 'preferredMarketCap', label: '\uC6B0\uC120\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
   { key: 'preferredRatio', label: '\uC6B0\uC120\uC8FC \uBE44\uC728', sortable: true, numeric: true },
+  { key: 'divYieldGap', label: '\uBC30\uB2F9\uCC28', sortable: true, numeric: true },
   { key: 'spreadChange', label: '\uBCC0\uB3D9', sortable: true, numeric: true },
   { key: 'spread', label: '\uAD34\uB9AC\uC728', sortable: true, numeric: true },
 ];

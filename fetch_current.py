@@ -7,6 +7,7 @@ with safe fallbacks for unsupported or temporarily unavailable metrics.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -32,6 +33,7 @@ KST = timezone(timedelta(hours=9))
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
 OUTPUT_PATH = Path(__file__).parent / "current.json"
+SUMMARY_PATH = Path(__file__).parent / "data" / "summary.json"
 
 KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
 KIS_TOKEN_URL = f"{KIS_BASE_URL}/oauth2/tokenP"
@@ -1723,6 +1725,123 @@ def build_market_summary(market_quote, extras=None, night_future=None):
     return market_summary
 
 
+def coerce_finite_float(value):
+    """숫자로 변환 가능한 유한값만 float로 돌려주고, 그 외(None/비숫자/NaN/inf)는 None."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def compute_sqrt_index_spread(entries):
+    """entries: [{"commonName": str, "spread": float|None, "preferredMarketCap": float|None}]
+    발행사 내 우선주 시총 가중평균 -> 발행사 간 sqrt(시총합) 가중평균. 유효 표본 없으면 None.
+
+    일별 배치(data.js/summary.json의 _average)와 동일한 sqrt 우선주 시총가중 괴리율 지수.
+    spread가 None/비숫자이거나 preferredMarketCap이 None/<=0인 entry는 제외하고,
+    발행사 시총합<=0인 발행사도 제외한다. 결과는 round(..., 2).
+    """
+    issuer_inputs = defaultdict(list)
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        spread = coerce_finite_float(entry.get("spread"))
+        market_cap = coerce_finite_float(entry.get("preferredMarketCap"))
+        if spread is None or market_cap is None or market_cap <= 0:
+            continue
+        issuer_inputs[entry.get("commonName") or ""].append((spread, market_cap))
+
+    weighted_total = 0.0
+    weight_total = 0.0
+    for inputs in issuer_inputs.values():
+        issuer_market_cap = sum(market_cap for _, market_cap in inputs)
+        if issuer_market_cap <= 0:
+            continue
+        issuer_spread = (
+            sum(spread * market_cap for spread, market_cap in inputs) / issuer_market_cap
+        )
+        weight = math.sqrt(issuer_market_cap)
+        weighted_total += issuer_spread * weight
+        weight_total += weight
+
+    if weight_total <= 0:
+        return None
+    return round(weighted_total / weight_total, 2)
+
+
+def load_pair_meta_from_summary(path=SUMMARY_PATH):
+    """data/summary.json에서 지수 계산용 pair 메타와 전일 배치 지수를 읽는다.
+
+    Returns:
+        (pair_meta, prev_index_spread) 튜플.
+        pair_meta: {pairId: {"commonName", "preferredSharesOutstanding", "preferredMarketCap"}}
+        prev_index_spread: _average pair의 current.spread (= 전일 배치 괴리율 지수)
+        파일 없음/파싱 실패 시 ({}, None) 안전 폴백.
+    """
+    payload = read_json_file(Path(path))
+    pair_meta = {}
+    prev_index_spread = None
+    pairs = payload.get("pairs") if isinstance(payload, dict) else None
+    if not isinstance(pairs, list):
+        pairs = []
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            continue
+        pair_id = pair.get("id")
+        current = pair.get("current")
+        if not isinstance(current, dict):
+            current = {}
+        if pair.get("isAverage") or pair_id == "_average":
+            if prev_index_spread is None:
+                prev_index_spread = coerce_finite_float(current.get("spread"))
+            continue
+        if not pair_id:
+            continue
+        pair_meta[pair_id] = {
+            "commonName": pair.get("commonName"),
+            "preferredSharesOutstanding": coerce_finite_float(
+                current.get("preferredSharesOutstanding")
+            ),
+            "preferredMarketCap": coerce_finite_float(current.get("preferredMarketCap")),
+        }
+    return pair_meta, prev_index_spread
+
+
+def build_index_entries(prices, pair_meta, pairs=None):
+    """현재가 스냅샷(prices)과 summary 메타로 compute_sqrt_index_spread 입력을 만든다.
+
+    preferredMarketCap = preferredPrice × preferredSharesOutstanding (둘 다 유효 시),
+    아니면 summary의 preferredMarketCap 폴백.
+    """
+    entries = []
+    for pair in PAIRS if pairs is None else pairs:
+        price = prices.get(pair["id"]) or {}
+        meta = pair_meta.get(pair["id"]) or {}
+        preferred_price = coerce_finite_float(price.get("preferredPrice"))
+        preferred_shares = coerce_finite_float(meta.get("preferredSharesOutstanding"))
+        market_cap = (
+            preferred_price * preferred_shares
+            if preferred_price is not None
+            and preferred_price > 0
+            and preferred_shares is not None
+            and preferred_shares > 0
+            else None
+        )
+        if market_cap is None or market_cap <= 0:
+            market_cap = meta.get("preferredMarketCap")
+        entries.append(
+            {
+                "commonName": pair.get("commonName") or meta.get("commonName"),
+                "spread": price.get("spread"),
+                "preferredMarketCap": market_cap,
+            }
+        )
+    return entries
+
+
 def build_summary(prices, market_summary=None):
     groups = defaultdict(list)
     for pair in PAIRS:
@@ -1977,6 +2096,15 @@ def main():
         else:
             print(f"  WARNING: {pair['name']} 현재가 조회 실패: 이전 값 없음")
 
+    # 일별 배치와 동일한 sqrt 우선주 시총가중 괴리율 지수 (summary.json 메타 기반)
+    pair_meta, prev_index_spread = load_pair_meta_from_summary()
+    index_spread = compute_sqrt_index_spread(build_index_entries(prices, pair_meta))
+    index_spread_change = (
+        round(index_spread - prev_index_spread, 2)
+        if index_spread is not None and prev_index_spread is not None
+        else None
+    )
+
     market_summary = build_market_summary(market_quote, market_extras, night_future_metric)
     summary = build_summary(prices, market_summary)
     avg_spread = summary["averageSpread"] if summary else None
@@ -2007,6 +2135,8 @@ def main():
         "market": market_summary,
         "averageSpread": avg_spread,
         "averageSpreadChange": avg_spread_change,
+        "indexSpread": index_spread,
+        "indexSpreadChange": index_spread_change,
         "summary": summary,
     }
 
@@ -2014,7 +2144,8 @@ def main():
 
     print(
         "current.json 갱신 완료 "
-        f"({len(prices)}개 종목, 평균 괴리율 {avg_spread}%, 전일비 {avg_spread_change}%p)"
+        f"({len(prices)}개 종목, 평균 괴리율 {avg_spread}%, 전일비 {avg_spread_change}%p, "
+        f"괴리율 지수 {index_spread}%, 지수 전일비 {index_spread_change}%p)"
     )
 
 

@@ -1,0 +1,13 @@
+# Ruff 린트 설정 (ruff 0.15.x 기준) — 대상: 루트 *.py, tests/, analysis/
+# 실행: ruff check .  (현재 코드 기준 위반 0건)
+
+target-version = "py311"
+
+# 줄 길이 검사는 사용하지 않음(E501 미선택). 도구 기본값만 넉넉하게 지정.
+line-length = 140
+
+[lint]
+# 기본 규칙셋을 명시적으로 고정: pycodestyle 오류(E4/E7/E9) + pyflakes(F).
+# F401/F841(미사용 import/변수) 포함 — 현재 코드에 위반이 없어 ignore 불필요.
+select = ["E4", "E7", "E9", "F"]
+ignore = []

@@ -22,6 +22,7 @@ import {
 } from './views.js';
 import { bindZoomControls, renderChart, renderPriceChart, renderZoomPanel } from './charts.js';
 import { bindHeatmapControls, renderHeatmap } from './heatmap.js';
+import { bindStrategyControls, renderStrategySection } from './strategy.js';
 import { bindAutoRefresh, bindRefreshButton, fetchCurrentPrices } from './live.js';
 
 // --- Init ---
@@ -68,6 +69,8 @@ export async function initializeDashboard() {
   }
   bindRefreshButton();
   bindAutoRefresh();
+  bindStrategyControls();
+  renderStrategySection();
   fetchCurrentPrices();
 }
 
@@ -83,4 +86,5 @@ window.addEventListener('resize', () => {
   renderChart();
   renderPriceChart();
   renderHeatmap();
+  renderStrategySection(); // 로드 완료 상태에서만 차트를 다시 그림 (내부 가드)
 });
