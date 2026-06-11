@@ -647,7 +647,7 @@ export function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
 
   let resolvedIndexSpreadChange = null;
   const avgPair = getAveragePair();
-  if (avgPair && (cur.averageSpread != null || nextSummary?.averageSpread != null)) {
+  if (avgPair && (cur.averageSpread != null || cur.indexSpread != null || nextSummary?.averageSpread != null)) {
     const uniqueHistoryDates = [...new Set(appliedHistoryDates)].sort();
     const averageHistoryDate = (
       normalizeDateText(cur.date || cur.tradeDate || cur.priceDate)
@@ -655,15 +655,15 @@ export function applyCurrentSnapshot(cur, fallbackSource = '네이버 증권') {
       || (!isWeekendDateText(snapshotDate) ? snapshotDate : null)
     );
     const prev = averageHistoryDate ? getPrevDaySpread(avgPair, averageHistoryDate) : null;
-    // current.json의 averageSpread는 대표종목 단순평균이므로, sqrt 시총가중 지수(nextSummary)를 우선한다.
-    const averageSpread = nextSummary?.averageSpread ?? cur.averageSpread;
-    // 전일비도 같은 방식 우선: sqrt 지수 → 전일 지수 대비 직접 계산 → 단순평균 변화 순.
+    // current.json의 averageSpread는 대표종목 단순평균이므로, sqrt 시총가중 지수(프런트 nextSummary → 서버 indexSpread)를 우선한다.
+    const averageSpread = nextSummary?.averageSpread ?? cur.indexSpread ?? cur.averageSpread;
+    // 전일비도 같은 방식 우선: sqrt 지수 → 전일 지수 대비 직접 계산 → 서버 indexSpreadChange → 단순평균 변화 순.
     let averageSpreadChange = nextSummary?.averageSpreadChange;
     if (averageSpreadChange == null && prev !== null && averageSpread != null) {
       averageSpreadChange = +(averageSpread - prev).toFixed(2);
     }
     if (averageSpreadChange == null) {
-      averageSpreadChange = cur.averageSpreadChange;
+      averageSpreadChange = cur.indexSpreadChange ?? cur.averageSpreadChange;
     }
 
     avgPair.current.spread = averageSpread;
