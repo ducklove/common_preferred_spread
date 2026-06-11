@@ -2,8 +2,8 @@ name: Update Stock Data (Daily)
 
 on:
   schedule:
-    # 매일 한국시간 오전 5시 (UTC 20시) - 장마감 후 일일 데이터 갱신
-    - cron: "0 20 * * *"
+    # 매일 한국시간 오전 5시 13분 (UTC 20:13) - 장마감 후 일일 데이터 갱신 (정각 드랍 회피 오프셋)
+    - cron: "13 20 * * *"
   workflow_dispatch:
     inputs:
       full:
