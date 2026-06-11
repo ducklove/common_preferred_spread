@@ -644,7 +644,9 @@ body {
   min-width: 6.8ch;
   text-align: right;
 }
-.card .div-yield {
+.card .div-yield,
+.table-section .div-yield,
+.stat-box .div-yield {
   color: var(--green);
   font-weight: 600;
 }
