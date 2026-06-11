@@ -88,6 +88,9 @@ python fetch_data.py --proxy-backfill samsung_elec cj_4pref   # 특정 pair 프�
 python fetch_current.py                                # 현재가 갱신 (KIS_* 환경변수 필요)
 
 python -m http.server 8000                             # http://localhost:8000/ 에서 대시보드 확인
+
+ruff check .                                           # Python 린트 (ruff.toml, CI와 동일)
+npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js"   # JS 린트 (eslint.config.mjs, CI와 동일)
 ```
 
 ## 데이터 복구/백필 절차

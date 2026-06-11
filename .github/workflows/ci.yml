@@ -32,6 +32,11 @@ jobs:
           pip install pytest
           python -m pytest -q
 
+      - name: Ruff lint
+        run: |
+          pip install ruff==0.15.16
+          ruff check .
+
       # ubuntu-latest 러너에 기본 설치된 node 사용 (setup-node 불필요)
       - name: Frontend syntax (node --check)
         run: |
@@ -52,3 +57,6 @@ jobs:
             node --check "$mjs"
           done
           rm -rf "$tmpdir"
+
+      - name: ESLint
+        run: npx --yes eslint@9.39.4 --config eslint.config.mjs "js/**/*.js"
