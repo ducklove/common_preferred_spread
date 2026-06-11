@@ -796,53 +796,95 @@ export function renderCards() {
 }
 
 export function renderTableHeaders() {
-  const headers = document.querySelectorAll('.table-section thead th');
-  headers.forEach((th, index) => {
-    const config = TABLE_HEADER_CONFIG[index];
-    if (!config) return;
-    th.textContent = config.label;
-    th.dataset.sortKey = config.sortable ? config.key : '';
-    th.tabIndex = config.sortable ? 0 : -1;
-    th.classList.toggle('sortable', !!config.sortable);
-    th.classList.toggle('numeric', !!config.numeric);
-    th.classList.toggle('sorted-asc', app.tableSortState.key === config.key && app.tableSortState.direction === 'asc');
-    th.classList.toggle('sorted-desc', app.tableSortState.key === config.key && app.tableSortState.direction === 'desc');
-    th.setAttribute('aria-sort', config.sortable
-      ? (app.tableSortState.key === config.key
-        ? (app.tableSortState.direction === 'asc' ? 'ascending' : 'descending')
-        : 'none')
-      : 'none');
-  });
+  // index.html의 정적 th 수와 무관하게 TABLE_HEADER_CONFIG로부터 헤더 행을 완전 생성한다.
+  const headRow = document.querySelector('.table-section thead tr');
+  if (!headRow) return;
+  // th가 재생성되므로 정렬 헤더에 있던 키보드 포커스는 동일 키 th로 복원한다.
+  const activeSortKey = document.activeElement && headRow.contains(document.activeElement)
+    ? document.activeElement.dataset?.sortKey || ''
+    : '';
+  headRow.innerHTML = TABLE_HEADER_CONFIG.map(config => {
+    const isSorted = !!config.sortable && app.tableSortState.key === config.key;
+    const classes = [
+      config.sortable ? 'sortable' : '',
+      config.numeric ? 'numeric' : '',
+      isSorted && app.tableSortState.direction === 'asc' ? 'sorted-asc' : '',
+      isSorted && app.tableSortState.direction === 'desc' ? 'sorted-desc' : '',
+    ].filter(Boolean).join(' ');
+    const ariaSort = isSorted
+      ? (app.tableSortState.direction === 'asc' ? 'ascending' : 'descending')
+      : 'none';
+    // 괴리율 컬럼은 정적 마크업에 있던 min-width(바 셀 폭 확보)를 유지한다.
+    const style = config.key === 'spread' ? ' style="min-width:120px"' : '';
+    return `<th${classes ? ` class="${classes}"` : ''} data-sort-key="${config.sortable ? config.key : ''}"`
+      + ` tabindex="${config.sortable ? 0 : -1}" aria-sort="${ariaSort}"${style}>${escapeHtml(config.label)}</th>`;
+  }).join('');
+  if (activeSortKey) {
+    headRow.querySelector(`th[data-sort-key="${activeSortKey}"]`)?.focus();
+  }
 }
 
 export function bindTableSortHeaders() {
-  document.querySelectorAll('.table-section thead th').forEach((th, index) => {
-    if (th.dataset.sortBound === '1') return;
-    th.dataset.sortBound = '1';
-    const handleSort = () => {
-      const config = TABLE_HEADER_CONFIG[index];
-      if (!config?.sortable) return;
-      if (app.tableSortState.key === config.key) {
-        app.tableSortState.direction = app.tableSortState.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        app.tableSortState = {
-          key: config.key,
-          direction: TABLE_SORT_DEFAULT_DIRECTION[config.key] || 'desc',
-        };
-      }
-      renderTable();
-    };
-    th.addEventListener('click', handleSort);
-    th.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      handleSort();
-    });
+  // th가 매 렌더마다 재생성되므로 th 개별 바인딩 대신 thead 위임 리스너로 처리한다.
+  const tableHead = document.querySelector('.table-section thead');
+  if (!tableHead || bindTableSortHeaders._bound) return;
+  bindTableSortHeaders._bound = true;
+  const findSortHeader = event => {
+    const th = event.target.closest?.('th[data-sort-key]');
+    return th && tableHead.contains(th) ? th : null;
+  };
+  const applySort = th => {
+    const config = TABLE_HEADER_CONFIG.find(item => item.key === th.dataset.sortKey);
+    if (!config?.sortable) return;
+    if (app.tableSortState.key === config.key) {
+      app.tableSortState.direction = app.tableSortState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      app.tableSortState = {
+        key: config.key,
+        direction: TABLE_SORT_DEFAULT_DIRECTION[config.key] || 'desc',
+      };
+    }
+    renderTable();
+  };
+  tableHead.addEventListener('click', event => {
+    const th = findSortHeader(event);
+    if (th) applySort(th);
+  });
+  tableHead.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const th = findSortHeader(event);
+    if (!th) return;
+    event.preventDefault();
+    applySort(th);
   });
 }
 
 export function getPairTableName(pair) {
   return pair?.preferredName || pair?.name || pair?.commonName || '';
+}
+
+// 배당차(실효 괴리 보정) = 우선주 배당수익률 − 보통주 배당수익률 (%p)
+export function getDivYieldGap(current) {
+  const preferredDivYield = current?.preferredDivYield;
+  const commonDivYield = current?.commonDivYield;
+  return Number.isFinite(preferredDivYield) && Number.isFinite(commonDivYield)
+    ? preferredDivYield - commonDivYield
+    : null;
+}
+
+export function formatDivYieldGap(value) {
+  if (value == null || Number.isNaN(value)) return '-';
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%p`;
+}
+
+// 괴리 회수 추정: 괴리율이 그대로여도 추가 배당수익률 차이만으로 현재 괴리만큼 회수하는 데 걸리는 연수.
+export function formatSpreadRecoveryYears(spread, divYieldGap) {
+  if (spread == null || Number.isNaN(spread)) return '-';
+  if (divYieldGap == null || Number.isNaN(divYieldGap) || divYieldGap <= 0.05) return '-';
+  const years = spread / divYieldGap;
+  if (!Number.isFinite(years) || years < 0) return '-';
+  if (years > 99) return '99+년';
+  return `${years.toFixed(1)}년`;
 }
 
 export function getTableRowMetrics(pair) {
@@ -863,6 +905,7 @@ export function getTableRowMetrics(pair) {
     commonMarketCap,
     preferredMarketCap,
     preferredRatio: calculatePreferredRatio(commonMarketCap, preferredMarketCap),
+    divYieldGap: getDivYieldGap(current),
     spread: pair.current.spread,
     spreadChange: pair.current.spreadChange,
   };
@@ -910,13 +953,11 @@ export function renderTable() {
     const textColorClass = getTextColorClass(c.spreadChange);
     const barW = (c.spread / maxSpread * 100).toFixed(1);
     if (p.isAverage) {
+      // 평균 행은 종목/변동/괴리율만 값이 있고, 나머지는 헤더 config 길이에 맞춰 빈 셀로 채운다.
+      const emptyCells = '<td class="numeric"></td>'.repeat(Math.max(0, TABLE_HEADER_CONFIG.length - 3));
       return `<tr style="border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--surface2)">
         <td><strong>${p.name}</strong></td>
-        <td class="numeric"></td>
-        <td class="numeric"></td>
-        <td class="numeric"></td>
-        <td class="numeric"></td>
-        <td class="numeric"></td>
+        ${emptyCells}
         <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
         <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
       </tr>`;
@@ -926,6 +967,7 @@ export function renderTable() {
     const commonMarketCap = row?.commonMarketCap ?? null;
     const preferredMarketCap = row?.preferredMarketCap ?? null;
     const preferredRatio = row?.preferredRatio ?? null;
+    const divYieldGap = row?.divYieldGap ?? null;
     return `<tr>
       <td><strong>${renderPreferredInlineLabel(p, displayName)}</strong></td>
       <td class="numeric">${formatPrice(c.commonPrice)}</td>
@@ -933,6 +975,7 @@ export function renderTable() {
       <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
       <td class="numeric">${formatMarketCap(preferredMarketCap)}</td>
       <td class="numeric">${formatRatioPercent(preferredRatio)}</td>
+      <td class="numeric${divYieldGap > 0 ? ' div-yield' : ''}">${formatDivYieldGap(divYieldGap)}</td>
       <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
       <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
     </tr>`;
@@ -981,6 +1024,24 @@ export function renderStats() {
     </div>
   `).join('')}</div>`;
 
+  const dividendYieldRows = [
+    { label: renderPreferredYieldLabel(p), value: formatYield(p.current.preferredDivYield) },
+    { label: "보통주", value: formatYield(p.current.commonDivYield) },
+  ];
+  if (!p.isAverage) {
+    // 실효 괴리율(배당 보정): 배당수익률 차이(우선주 − 보통주)와, 괴리율이 그대로여도
+    // 그 차이만으로 현재 괴리만큼 회수하는 데 걸리는 연수 추정.
+    const divYieldGap = getDivYieldGap(p.current);
+    const divYieldGapText = formatDivYieldGap(divYieldGap);
+    dividendYieldRows.push(
+      {
+        label: "차이",
+        value: divYieldGap > 0 ? `<span class="div-yield">${divYieldGapText}</span>` : divYieldGapText,
+      },
+      { label: "괴리 회수 추정", value: formatSpreadRecoveryYears(current, divYieldGap) },
+    );
+  }
+
   const stats = [
     { label: "현재 괴리율", value: current == null ? "-" : `${current.toFixed(2)}%` },
     { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
@@ -1024,10 +1085,7 @@ export function renderStats() {
     { label: "거래액 (최근 1개월 평균)", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
     {
       label: "배당수익률",
-      value: renderComboRows([
-        { label: renderPreferredYieldLabel(p), value: formatYield(p.current.preferredDivYield) },
-        { label: "보통주", value: formatYield(p.current.commonDivYield) },
-      ]),
+      value: renderComboRows(dividendYieldRows),
     },
   ];
 
