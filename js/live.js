@@ -4,12 +4,11 @@ import {
   app,
   AUTO_REFRESH_INTERVAL_MS,
   LIVE_ESIGNAL_NIGHT_SOCKET_URL,
-  LIVE_FETCH_BATCH_CONCURRENCY,
-  LIVE_FETCH_BATCH_SIZE,
   LIVE_FETCH_TIMEOUT_MS,
-  LIVE_HANKYUNG_FUTURES_URL,
-  LIVE_NIGHT_FUTURES_URL,
-  LIVE_PROXY_URLS,
+  LIVE_INTERNAL_PROXY_BASE_URL,
+  LIVE_INTERNAL_STOCK_BATCH_SIZE,
+  LIVE_INTERNAL_STOCK_CONCURRENCY,
+  LIVE_INTERNAL_STOCK_MARKET,
   LIVE_REFRESH_FORCE_ATTEMPTS,
   LIVE_REFRESH_MAX_AGE_MS,
   LIVE_REFRESH_RETRY_ATTEMPTS,
@@ -27,7 +26,6 @@ import {
   getCurrentKstNightSessionDateString,
   getCurrentKstNightSessionDayMonth,
   getTickerCode,
-  isCurrentKstNightSession,
   isWeekendDateText,
   normalizeDateText,
   parseSnapshotTimestamp,
@@ -87,14 +85,29 @@ export function withCacheBustingParam(url) {
   return `${url}${separator}_ts=${Date.now()}`;
 }
 
-let preferredProxyIndex = 0;
+export function encodePathSegment(value) {
+  return encodeURIComponent(String(value || ''));
+}
 
-async function fetchViaProxy(proxyBase, url, responseType, timeoutMs) {
+export function buildInternalProxyUrl(path, params = {}) {
+  const base = LIVE_INTERNAL_PROXY_BASE_URL.endsWith('/')
+    ? LIVE_INTERNAL_PROXY_BASE_URL
+    : `${LIVE_INTERNAL_PROXY_BASE_URL}/`;
+  const url = new URL(String(path || '').replace(/^\/+/, ''), base);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+  return url.toString();
+}
+
+export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const resp = await fetch(proxyBase + encodeURIComponent(withCacheBustingParam(url)), {
+    const resp = await fetch(withCacheBustingParam(url), {
       signal: controller.signal,
       cache: 'no-store',
     });
@@ -112,20 +125,8 @@ async function fetchViaProxy(proxyBase, url, responseType, timeoutMs) {
   }
 }
 
-export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
-  // 단일 CORS 프록시 장애에 대비해 순차 폴백하고, 성공한 프록시를 다음 호출에 우선 사용한다.
-  let lastError = null;
-  for (let i = 0; i < LIVE_PROXY_URLS.length; i += 1) {
-    const index = (preferredProxyIndex + i) % LIVE_PROXY_URLS.length;
-    try {
-      const result = await fetchViaProxy(LIVE_PROXY_URLS[index], url, responseType, timeoutMs);
-      preferredProxyIndex = index;
-      return result;
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  throw lastError || new Error('실시간 조회 실패');
+export async function fetchInternalProxyJson(path, params = {}, timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
+  return fetchWithTimeout(buildInternalProxyUrl(path, params), 'json', timeoutMs);
 }
 
 export async function runWithTimeout(task, timeoutMs, errorMessage) {
@@ -207,6 +208,88 @@ export function pickDefined(...values) {
   return null;
 }
 
+export function applySignedDirection(value, sign, referencePct = null) {
+  const parsed = parseRawNumber(value);
+  if (parsed == null) return null;
+  const signText = String(sign || '').toUpperCase();
+  if (['4', '5', 'FALLING', 'LOWER_LIMIT'].includes(signText)) return -Math.abs(parsed);
+  if (['1', '2', 'RISING', 'UPPER_LIMIT'].includes(signText)) return Math.abs(parsed);
+  const pct = parseRawNumber(referencePct);
+  if (pct < 0) return -Math.abs(parsed);
+  if (pct > 0) return Math.abs(parsed);
+  if (pct === 0) return 0;
+  return parsed;
+}
+
+export function getProxyTimestamp(payload) {
+  const raw = payload?.raw || {};
+  const tradedAt = raw.nxtOverMarketPriceInfo?.localTradedAt || raw.overMarketPriceInfo?.localTradedAt;
+  if (tradedAt) return tradedAt;
+  const polledAt = parseRawNumber(payload?.meta?.polled_at);
+  if (polledAt != null) return formatKstTimestamp(new Date(polledAt));
+  return null;
+}
+
+export function buildInternalStockQuote(payload, code) {
+  if (!payload) return null;
+  const summary = payload.summary || {};
+  const raw = payload.raw || {};
+  const sign = raw.prdy_vrss_sign || raw.rf || raw.compareToPreviousPrice?.code;
+  const rawChangePct = pickDefined(summary.change_rate, summary.change_pct, raw.prdy_ctrt, raw.cr);
+  const changePct = applySignedDirection(rawChangePct, sign, rawChangePct);
+  const rawChange = pickDefined(summary.change, raw.prdy_vrss, raw.cv);
+  const change = applySignedDirection(rawChange, sign, changePct);
+  const price = parseRawNumber(pickDefined(summary.current_price, raw.stck_prpr, raw.nv));
+  const tradedAt = getProxyTimestamp(payload);
+  const tradeDate = normalizeDateText(tradedAt) || getCurrentKstDateString();
+
+  if (price == null) return null;
+  return {
+    itemCode: code || payload.symbol || summary.symbol || raw.cd,
+    stockName: summary.name || raw.nm || code,
+    closePriceRaw: price,
+    closePrice: price,
+    compareToPreviousClosePriceRaw: change,
+    compareToPreviousClosePrice: change,
+    fluctuationsRatioRaw: changePct,
+    fluctuationsRatio: changePct,
+    marketStatus: summary.market_state || raw.ms || null,
+    date: tradeDate,
+    tradeDate,
+    localTradedAt: tradedAt,
+  };
+}
+
+export async function fetchInternalStockQuote(code) {
+  try {
+    const payload = await fetchInternalProxyJson(
+      `/v1/stocks/${encodePathSegment(code)}/quote`,
+      { market: LIVE_INTERNAL_STOCK_MARKET },
+      6000,
+    );
+    const quote = buildInternalStockQuote(payload, code);
+    if (quote) return quote;
+  } catch (e) {
+    // KIS 프록시 실패 시 네이버 금융 프록시로 폴백한다.
+  }
+
+  const payload = await fetchInternalProxyJson(`/v1/naverfinance/stocks/${encodePathSegment(code)}/quote`, {}, 6000);
+  return buildInternalStockQuote(payload, code);
+}
+
+export async function fetchInternalNaverStockQuotes(codes) {
+  if (!codes.length) return [];
+  const payload = await fetchInternalProxyJson(
+    '/v1/naverfinance/stocks/quotes',
+    { symbols: codes.join(',') },
+    8000,
+  );
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  return items
+    .map(item => buildInternalStockQuote(item, item?.symbol))
+    .filter(Boolean);
+}
+
 export async function fetchLiveJson(url, timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
   return fetchWithTimeout(url, 'json', timeoutMs);
 }
@@ -244,51 +327,86 @@ export function chunkArray(items, size) {
 export async function fetchLiveStockQuoteMap(codes) {
   if (!codes.length) return new Map();
 
-  async function fetchBatch(batchCodes) {
-    const payload = await fetchLiveJson(
-      `https://polling.finance.naver.com/api/realtime/domestic/stock/${batchCodes.join(',')}`,
-    );
-    return Array.isArray(payload?.datas) ? payload.datas : [];
-  }
-
-  try {
-    const quotes = await fetchBatch(codes);
-    if (quotes.length) {
-      return new Map(quotes.map(quote => [quote.itemCode, quote]));
-    }
-  } catch (e) {
-    // Fall through to smaller batch requests.
-  }
-
+  const quoteMap = new Map();
   const batchResults = await mapWithConcurrency(
-    chunkArray(codes, LIVE_FETCH_BATCH_SIZE),
-    LIVE_FETCH_BATCH_CONCURRENCY,
+    chunkArray(codes, LIVE_INTERNAL_STOCK_BATCH_SIZE),
+    LIVE_INTERNAL_STOCK_CONCURRENCY,
     async batchCodes => {
       try {
-        return await fetchBatch(batchCodes);
+        return await fetchInternalNaverStockQuotes(batchCodes);
       } catch (e) {
         return [];
       }
     },
   );
+  batchResults.flat().forEach(quote => {
+    quoteMap.set(quote.itemCode, quote);
+  });
 
-  return new Map(
-    batchResults
-      .flat()
-      .filter(quote => quote?.itemCode)
-      .map(quote => [quote.itemCode, quote]),
+  const missingCodes = codes.filter(code => !quoteMap.has(code));
+  if (!missingCodes.length) return quoteMap;
+
+  const fallbackQuotes = await mapWithConcurrency(
+    missingCodes,
+    LIVE_INTERNAL_STOCK_CONCURRENCY,
+    async code => {
+      try {
+        return await fetchInternalStockQuote(code);
+      } catch (e) {
+        return null;
+      }
+    },
   );
+  fallbackQuotes
+    .filter(quote => quote?.itemCode)
+    .forEach(quote => {
+      quoteMap.set(quote.itemCode, quote);
+    });
+
+  return quoteMap;
 }
 
 export function buildLiveMarketMetric(quote, defaults = {}) {
   if (!quote) return null;
+  const summary = quote.summary || {};
+  const raw = quote.raw || {};
+  const sign = raw.prdy_vrss_sign || raw.rf || raw.compareToPreviousPrice?.code;
+  const rawChangePct = pickDefined(
+    quote.fluctuationsRatioRaw,
+    quote.fluctuationsRatio,
+    summary.change_rate,
+    summary.change_pct,
+    raw.bstp_nmix_prdy_ctrt,
+    raw.prdy_ctrt,
+    raw.cr,
+  );
+  const rawChange = pickDefined(
+    quote.compareToPreviousClosePriceRaw,
+    quote.compareToPreviousClosePrice,
+    summary.change,
+    raw.bstp_nmix_prdy_vrss,
+    raw.prdy_vrss,
+    raw.cv,
+  );
+  const price = parseRawNumber(pickDefined(
+    quote.closePriceRaw,
+    quote.closePrice,
+    summary.current_price,
+    summary.regular_market_price,
+    raw.bstp_nmix_prpr,
+    raw.stck_prpr,
+    raw.nv,
+  ));
+  const changePct = applySignedDirection(rawChangePct, sign, rawChangePct);
+  const change = applySignedDirection(rawChange, sign, changePct);
+  if (price == null && change == null && changePct == null) return null;
   return {
-    id: defaults.id || quote.itemCode || quote.symbolCode || quote.reutersCode,
-    name: defaults.name || quote.stockName || quote.indexName || defaults.id,
-    price: parseRawNumber(pickDefined(quote.closePriceRaw, quote.closePrice)),
-    change: parseRawNumber(pickDefined(quote.compareToPreviousClosePriceRaw, quote.compareToPreviousClosePrice)),
-    changePct: parseRawNumber(pickDefined(quote.fluctuationsRatioRaw, quote.fluctuationsRatio)),
-    marketStatus: quote.marketStatus || null,
+    id: defaults.id || quote.itemCode || quote.symbolCode || quote.reutersCode || quote.symbol || summary.symbol,
+    name: defaults.name || quote.stockName || quote.indexName || summary.name || summary.symbol || defaults.id,
+    price,
+    change,
+    changePct,
+    marketStatus: quote.marketStatus || summary.market_state || raw.ms || null,
     unit: defaults.unit || '',
     priceDecimals: defaults.priceDecimals == null ? 2 : defaults.priceDecimals,
   };
@@ -522,7 +640,6 @@ export async function buildLiveSnapshot() {
   if (!app.pairConfigMap.size) {
     throw new Error('config.json을 불러오지 못했습니다.');
   }
-  const isNightSession = isCurrentKstNightSession();
 
   const uniqueCodes = [...new Set(
     [...app.pairConfigMap.values()].flatMap(item => [
@@ -533,21 +650,18 @@ export async function buildLiveSnapshot() {
 
   const quoteMap = await fetchLiveStockQuoteMap(uniqueCodes);
 
-  const [marketPayload, kosdaqPayload, sp500Payload, marketIndexHtml, hankyungFuturesHtml, esignalNightFuture, nightFuturesHtml] = await Promise.all([
-    fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI').catch(() => null),
-    fetchLiveJson('https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ').catch(() => null),
-    fetchLiveJson('https://polling.finance.naver.com/api/realtime/worldstock/index/.INX').catch(() => null),
-    fetchLiveText('https://finance.naver.com/marketindex/').catch(() => null),
-    isNightSession ? Promise.resolve(null) : fetchLiveText(LIVE_HANKYUNG_FUTURES_URL, 5000).catch(() => null),
-    isNightSession ? fetchLiveEsignalNightFutureMetric(7000).catch(() => null) : Promise.resolve(null),
-    isNightSession ? fetchLiveText(LIVE_NIGHT_FUTURES_URL, 5000).catch(() => null) : Promise.resolve(null),
+  const [marketPayload, kosdaqPayload, usdKrwPayload, goldPayload, sp500Payload] = await Promise.all([
+    fetchInternalProxyJson('/v1/indexes/kospi/quote', {}, 6000).catch(() => null),
+    fetchInternalProxyJson('/v1/indexes/kosdaq/quote', {}, 6000).catch(() => null),
+    fetchInternalProxyJson(`/v1/yfinance/stocks/${encodePathSegment('USDKRW=X')}/quote`, {}, 6000).catch(() => null),
+    fetchInternalProxyJson(`/v1/yfinance/stocks/${encodePathSegment('GC=F')}/quote`, {}, 6000).catch(() => null),
+    fetchInternalProxyJson(`/v1/yfinance/stocks/${encodePathSegment('^GSPC')}/quote`, {}, 6000).catch(() => null),
   ]);
-  const marketQuote = marketPayload?.datas?.[0] || null;
   const marketExtras = [
-    buildLiveMarketMetric(kosdaqPayload?.datas?.[0] || null, { id: 'KOSDAQ', name: 'KOSDAQ', priceDecimals: 2 }),
-    extractMarketIndexMetricFromHtml(marketIndexHtml, 'usd', { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 }),
-    extractMarketIndexMetricFromHtml(marketIndexHtml, 'gold_inter', { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 2 }),
-    buildLiveMarketMetric(sp500Payload?.datas?.[0] || null, { id: 'SP500', name: 'S&P500', priceDecimals: 2 }),
+    buildLiveMarketMetric(kosdaqPayload, { id: 'KOSDAQ', name: 'KOSDAQ', priceDecimals: 2 }),
+    buildLiveMarketMetric(usdKrwPayload, { id: 'USDKRW', name: '환율', unit: '원', priceDecimals: 2 }),
+    buildLiveMarketMetric(goldPayload, { id: 'GOLD', name: '금가격 (COMEX)', unit: '', priceDecimals: 2 }),
+    buildLiveMarketMetric(sp500Payload, { id: 'SP500', name: 'S&P500', priceDecimals: 2 }),
   ].filter(Boolean);
 
   const prices = {};
@@ -590,12 +704,7 @@ export async function buildLiveSnapshot() {
     };
   }
 
-  const dayFuture = extractDayFutureMetricFromHankyungHtml(hankyungFuturesHtml);
-  const nightFuture = extractNightFutureMetricFromHtml(nightFuturesHtml);
-  const futureMetric = isNightSession
-    ? (esignalNightFuture || nightFuture)
-    : (dayFuture || nightFuture);
-  const market = buildLiveMarketSummary(marketQuote, marketExtras, futureMetric);
+  const market = buildLiveMarketSummary(marketPayload, marketExtras);
   const latestTime = new Date();
 
   if (!Object.keys(prices).length && !market) {
@@ -603,7 +712,7 @@ export async function buildLiveSnapshot() {
   }
 
   return {
-    source: '네이버 증권 실시간',
+    source: '내부 프록시 실시간',
     lastUpdated: formatKstTimestamp(latestTime),
     prices,
     market,
@@ -761,7 +870,7 @@ export async function refreshLivePricesIfNeeded(baseSnapshot, { forceRefresh = f
         LIVE_REFRESH_TIMEOUT_MS,
         '실시간 갱신 시간이 초과되었습니다.',
       );
-      return applyCurrentSnapshot(liveSnapshot, '네이버 증권 실시간');
+      return applyCurrentSnapshot(liveSnapshot, '내부 프록시 실시간');
     } catch (e) {
       // 실시간 프록시 갱신 실패 시 기존 스냅샷을 유지한다.
       return false;

@@ -17,16 +17,11 @@ export const LIVE_FETCH_TIMEOUT_MS = 2500;
 export const LIVE_REFRESH_TIMEOUT_MS = 15000;
 export const AUTO_REFRESH_INTERVAL_MS = 300 * 1000;
 export const NIGHT_FUTURE_FRESH_AGE_MS = 10 * 60 * 1000;
-export const LIVE_PROXY_URLS = [
-  'https://api.codetabs.com/v1/proxy?quest=',
-  'https://corsproxy.io/?url=',
-  'https://api.allorigins.win/raw?url=',
-];
-export const LIVE_HANKYUNG_FUTURES_URL = 'https://markets.hankyung.com/indices/kospi-future';
-export const LIVE_NIGHT_FUTURES_URL = 'https://kr.investing.com/indices/korea-200-futures';
+export const LIVE_INTERNAL_PROXY_BASE_URL = 'https://cantabile.tplinkdns.com:3298';
+export const LIVE_INTERNAL_STOCK_MARKET = 'UN';
+export const LIVE_INTERNAL_STOCK_BATCH_SIZE = 80;
+export const LIVE_INTERNAL_STOCK_CONCURRENCY = 8;
 export const LIVE_ESIGNAL_NIGHT_SOCKET_URL = 'wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket';
-export const LIVE_FETCH_BATCH_SIZE = 20;
-export const LIVE_FETCH_BATCH_CONCURRENCY = 2;
 export const EMA_ALPHA = 0.1;
 export const SELECTED_CODE_QUERY_KEY = 'code';
 export const PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES = {
