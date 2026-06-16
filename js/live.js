@@ -6,6 +6,7 @@ import {
   LIVE_ESIGNAL_NIGHT_SOCKET_URL,
   LIVE_FETCH_TIMEOUT_MS,
   LIVE_INTERNAL_PROXY_BASE_URL,
+  LIVE_INTERNAL_STOCK_BATCH_CONCURRENCY,
   LIVE_INTERNAL_STOCK_BATCH_SIZE,
   LIVE_INTERNAL_STOCK_CONCURRENCY,
   LIVE_INTERNAL_STOCK_MARKET,
@@ -112,7 +113,9 @@ export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = L
       cache: 'no-store',
     });
     if (!resp.ok) {
-      throw new Error(`실시간 조회 실패 (${resp.status})`);
+      const error = new Error(`실시간 조회 실패 (${resp.status})`);
+      error.status = resp.status;
+      throw error;
     }
     return responseType === 'text' ? resp.text() : resp.json();
   } catch (e) {
@@ -127,6 +130,10 @@ export async function fetchWithTimeout(url, responseType = 'json', timeoutMs = L
 
 export async function fetchInternalProxyJson(path, params = {}, timeoutMs = LIVE_FETCH_TIMEOUT_MS) {
   return fetchWithTimeout(buildInternalProxyUrl(path, params), 'json', timeoutMs);
+}
+
+export function isRateLimitError(error) {
+  return error?.status === 429;
 }
 
 export async function runWithTimeout(task, timeoutMs, errorMessage) {
@@ -270,6 +277,7 @@ export async function fetchInternalStockQuote(code) {
     const quote = buildInternalStockQuote(payload, code);
     if (quote) return quote;
   } catch (e) {
+    if (isRateLimitError(e)) throw e;
     // KIS 프록시 실패 시 네이버 금융 프록시로 폴백한다.
   }
 
@@ -330,11 +338,12 @@ export async function fetchLiveStockQuoteMap(codes) {
   const quoteMap = new Map();
   const batchResults = await mapWithConcurrency(
     chunkArray(codes, LIVE_INTERNAL_STOCK_BATCH_SIZE),
-    LIVE_INTERNAL_STOCK_CONCURRENCY,
+    LIVE_INTERNAL_STOCK_BATCH_CONCURRENCY,
     async batchCodes => {
       try {
         return await fetchInternalNaverStockQuotes(batchCodes);
       } catch (e) {
+        if (isRateLimitError(e)) throw e;
         return [];
       }
     },
