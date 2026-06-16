@@ -28,6 +28,24 @@ PORTFOLIO_SIZE = 3
 KOSPI_CACHE_PATH = ROOT / ".cache" / "naver_index" / "KOSPI.csv"
 NAVER_INDEX_WORKERS = 8
 
+# Shares held through these Hyundai E&C preferred stock capital reductions are
+# reduced by the reverse-split ratio.  This keeps mark-to-market values from
+# treating the post-relisting price jump as a portfolio gain.
+CORPORATE_ACTIONS = [
+    {
+        "date": pd.Timestamp("2001-06-20"),
+        "pairId": "hyundai_eandc",
+        "shareRatio": 0.16694,
+        "description": "Hyundai E&C 2001 capital reduction",
+    },
+    {
+        "date": pd.Timestamp("2004-01-13"),
+        "pairId": "hyundai_eandc",
+        "shareRatio": 0.1105,
+        "description": "Hyundai E&C 2004 capital reduction",
+    },
+]
+
 
 @dataclass
 class PendingSwap:
@@ -197,6 +215,57 @@ def compute_equity(
     return total, position_values
 
 
+def apply_corporate_actions(
+    current_date: pd.Timestamp,
+    cash: float,
+    positions: dict[str, int],
+    latest_prices: dict[str, float],
+    pair_frames: dict[str, dict],
+) -> tuple[float, list[dict]]:
+    logs = []
+    for action in CORPORATE_ACTIONS:
+        if current_date != action["date"]:
+            continue
+
+        pair_id = action["pairId"]
+        old_shares = positions.get(pair_id, 0)
+        share_ratio = float(action["shareRatio"])
+        if old_shares <= 0 or share_ratio <= 0:
+            continue
+
+        old_price = latest_prices.get(pair_id)
+        adjusted_reference_price = float(old_price) / share_ratio if old_price is not None else np.nan
+        exact_new_shares = old_shares * share_ratio
+        new_shares = int(math.floor(exact_new_shares + 1e-9))
+        fractional_shares = exact_new_shares - new_shares
+        cash_in_lieu = 0.0 if pd.isna(adjusted_reference_price) else fractional_shares * adjusted_reference_price
+
+        if new_shares > 0:
+            positions[pair_id] = new_shares
+        else:
+            positions.pop(pair_id, None)
+        if not pd.isna(adjusted_reference_price):
+            latest_prices[pair_id] = adjusted_reference_price
+        cash += cash_in_lieu
+
+        logs.append(
+            {
+                "date": current_date.strftime("%Y-%m-%d"),
+                "pairId": pair_id,
+                "pairName": pair_frames[pair_id]["name"],
+                "description": action["description"],
+                "shareRatio": share_ratio,
+                "oldShares": old_shares,
+                "newShares": new_shares,
+                "fractionalShares": fractional_shares,
+                "referencePrice": adjusted_reference_price,
+                "cashInLieu": cash_in_lieu,
+                "cashAfter": cash,
+            }
+        )
+    return cash, logs
+
+
 def pick_initial_top3(quotes: dict[str, dict]) -> list[str]:
     ranked = sorted(quotes.items(), key=lambda item: item[1]["spread"], reverse=True)
     return [pair_id for pair_id, _ in ranked[:PORTFOLIO_SIZE]]
@@ -325,10 +394,14 @@ def run_backtest() -> dict:
     pending_swap: PendingSwap | None = None
     trade_log: list[dict] = []
     dividend_log: list[dict] = []
+    corporate_action_log: list[dict] = []
     daily_records: list[dict] = []
     cumulative_dividends = 0.0
 
     for current_date in calendar:
+        cash, action_logs = apply_corporate_actions(current_date, cash, positions, latest_prices, pair_frames)
+        corporate_action_log.extend(action_logs)
+
         quotes = quotes_by_date.get(current_date, {})
         for pair_id, quote in quotes.items():
             latest_prices[pair_id] = float(quote["preferredPrice"])
@@ -466,6 +539,7 @@ def run_backtest() -> dict:
     daily_df = pd.DataFrame(daily_records)
     trade_df = pd.DataFrame(trade_log)
     dividend_df = pd.DataFrame(dividend_log)
+    corporate_action_df = pd.DataFrame(corporate_action_log)
 
     kospi_series = fetch_kospi_history()
     kospi_series = kospi_series[kospi_series.index >= initial_exec_date]
@@ -539,6 +613,7 @@ def run_backtest() -> dict:
         "finalCash": float(daily_df["cash"].iloc[-1]),
         "totalDividendsReceived": float(cumulative_dividends),
         "dividendEventCount": int(len(dividend_df)),
+        "corporateActionCount": int(len(corporate_action_df)),
     }
 
     return {
@@ -547,6 +622,7 @@ def run_backtest() -> dict:
         "daily": merged,
         "trades": trade_df,
         "dividends": dividend_df,
+        "corporateActions": corporate_action_df,
         "pairFrames": pair_frames,
     }
 
@@ -650,11 +726,17 @@ def main() -> None:
     results["trades"].to_csv(OUTPUT_DIR / "top3_spread_strategy_trades.csv", index=False, encoding="utf-8-sig")
     results["daily"].to_csv(OUTPUT_DIR / "top3_spread_strategy_daily.csv", index=False, encoding="utf-8-sig")
     results["dividends"].to_csv(OUTPUT_DIR / "top3_spread_strategy_dividends.csv", index=False, encoding="utf-8-sig")
+    results["corporateActions"].to_csv(
+        OUTPUT_DIR / "top3_spread_strategy_corporate_actions.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
     write_report(results)
 
     print(f"report: {REPORT_PATH}")
     print(f"annual rows: {len(results['annual'])}")
     print(f"trade rows: {len(results['trades'])}")
+    print(f"corporate action rows: {len(results['corporateActions'])}")
     print(f"final strategy: {results['summary']['finalStrategyValue']:.0f}")
     print(f"final kospi: {results['summary']['finalKospiValue']:.0f}")
 

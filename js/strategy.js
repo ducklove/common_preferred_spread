@@ -13,6 +13,7 @@ export const STRATEGY_COLLAPSED_STORAGE_KEY = 'strategyCollapsed';
 const STRATEGY_DAILY_CSV_URL = 'analysis/outputs/top3_spread_strategy_daily.csv';
 const STRATEGY_ANNUAL_CSV_URL = 'analysis/outputs/top3_spread_strategy_annual.csv';
 const STRATEGY_POOLED_CSV_URL = 'analysis/outputs/pooled_summary.csv';
+const STRATEGY_DATA_VERSION = '2026-06-16-corporate-actions';
 const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
 const LOAD_ERROR_HTML = '<div class="strategy-data-error">데이터를 불러올 수 없습니다</div>';
 // 이벤트 스터디 1차 스펙(5일 신호·20일 성과)과 가설별 측정 지표 (H1/H2=보통주, H3=우선주 수익률)
@@ -67,8 +68,9 @@ export function csvRowsToObjects(rows) {
 }
 
 async function fetchStrategyCsv(url) {
+  const versionedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${STRATEGY_DATA_VERSION}`;
   try {
-    const res = await fetch(url);
+    const res = await fetch(versionedUrl);
     if (!res.ok) return null;
     return csvRowsToObjects(parseCsv(await res.text()));
   } catch (e) {
