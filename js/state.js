@@ -4,6 +4,7 @@ import { normalizeDateText } from './format.js';
 export const DATA_SUMMARY_URL = 'data/summary.json';
 export const LEGACY_DATA_JS_URL = 'data.js';
 export const DATA_DIVIDENDS_URL = 'data/dividends.json';
+export const DATA_PREFERRED_TERMS_URL = 'data/preferred_terms.json';
 export const THEME_STORAGE_KEY = 'theme';
 export const PINNED_PAIRS_STORAGE_KEY = 'pinnedPairIds';
 export const CARD_SORT_STORAGE_KEY = 'cardSortMode';
@@ -84,6 +85,11 @@ export const app = {
   lastCurrentPricesFetchStartedAt: 0,
   refreshButtonBusy: false,
   pairConfigMap: new Map(),
+  preferredTermProfiles: {},
+  preferredTermSources: {},
+  preferredTermsById: new Map(),
+  preferredTermsLoadPromise: null,
+  preferredTermsMeta: null,
   indexWeightModalLastFocus: null,
   tableSortState: {
     key: 'name',
@@ -213,6 +219,56 @@ export function ensureDividends() {
       return app.dividendHistories;
     });
   return app.dividendLoadPromise;
+}
+
+export function resolvePreferredTerm(raw, profiles = {}) {
+  if (!raw || typeof raw !== 'object') return null;
+  const profile = raw.profile ? profiles[raw.profile] || {} : {};
+  return {
+    ...profile,
+    ...raw,
+    profile: raw.profile || null,
+  };
+}
+
+export function loadPreferredTerms() {
+  if (app.preferredTermsLoadPromise) return app.preferredTermsLoadPromise;
+  app.preferredTermsLoadPromise = fetch(`${DATA_PREFERRED_TERMS_URL}?t=${Date.now()}`, { cache: 'no-store' })
+    .then(resp => {
+      if (!resp.ok) throw new Error(`preferred terms ${resp.status}`);
+      return resp.json();
+    })
+    .then(payload => {
+      const profiles = payload?.profiles || {};
+      const entries = payload?.byId || {};
+      app.preferredTermProfiles = profiles;
+      app.preferredTermSources = payload?.sources || {};
+      app.preferredTermsMeta = {
+        schemaVersion: payload?.schemaVersion || null,
+        lastReviewed: payload?.lastReviewed || '',
+        method: payload?.method || '',
+      };
+      app.preferredTermsById = new Map(
+        Object.entries(entries)
+          .map(([id, raw]) => [id, resolvePreferredTerm(raw, profiles)])
+          .filter(([, term]) => term),
+      );
+      return app.preferredTermsById;
+    })
+    .catch(e => {
+      console.warn('우선주 조건 로드 실패:', e);
+      app.preferredTermProfiles = {};
+      app.preferredTermSources = {};
+      app.preferredTermsMeta = null;
+      app.preferredTermsById = new Map();
+      return app.preferredTermsById;
+    });
+  return app.preferredTermsLoadPromise;
+}
+
+export function getPreferredTerm(pairOrId) {
+  const pairId = typeof pairOrId === 'string' ? pairOrId : pairOrId?.id;
+  return pairId ? app.preferredTermsById.get(pairId) || null : null;
 }
 
 export function getCardSortMetric(pair, mode = app.cardSortMode) {

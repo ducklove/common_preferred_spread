@@ -71,6 +71,7 @@ import {
   getDetailLabels,
   getPreferredShortLabel,
   renderPreferredInlineLabel,
+  renderPreferredTermSummary,
   renderPreferredYieldLabel,
 } from './labels.js';
 import {
@@ -1090,6 +1091,12 @@ export function renderStats() {
   ];
 
   if (!p.isAverage) {
+    stats.push({
+      label: "배당 조건",
+      value: renderPreferredTermSummary(p),
+      wide: true,
+    });
+
     const dividendEntries = app.dividendHistories?.[p.id]?.preferred;
     const recentDividendRows = Array.isArray(dividendEntries)
       ? dividendEntries
@@ -1105,7 +1112,7 @@ export function renderStats() {
   }
 
   const statsEl = document.getElementById("statsRow");
-  statsEl.innerHTML = stats.map(item => `<div class="stat-box"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
+  statsEl.innerHTML = stats.map(item => `<div class="stat-box${item.wide ? ' wide' : ''}"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
 }
 
 export function bindCardSortControls() {

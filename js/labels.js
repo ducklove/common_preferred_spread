@@ -1,5 +1,10 @@
 // js/labels.js — 종목 라벨/배지 HTML 헬퍼 (charts/views 공용)
-import { PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES, getGroupItemsByPairId } from './state.js';
+import {
+  PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES,
+  app,
+  getGroupItemsByPairId,
+  getPreferredTerm,
+} from './state.js';
 import { escapeHtml, toFiniteNumber } from './format.js';
 
 export function getPreferredShortLabel(pair) {
@@ -68,4 +73,79 @@ export function renderPreferredInlineLabel(pair, fallbackLabel = null) {
 export function renderPreferredYieldLabel(pair) {
   const dividendBadge = renderAdditionalDividendBadge(pair);
   return `우선주${dividendBadge ? ` ${dividendBadge}` : ''}`;
+}
+
+export function formatPreferredTermConfidence(confidence) {
+  if (confidence === 'high') return '높음';
+  if (confidence === 'medium') return '중간';
+  if (confidence === 'low') return '낮음';
+  return '확인중';
+}
+
+export function formatPreferredTermShort(value, trueLabel, falseLabel) {
+  if (value === true) return trueLabel;
+  if (value === false) return falseLabel;
+  return '확인중';
+}
+
+export function formatMinimumDividendLabel(term) {
+  const raw = term?.minimumDividend || '';
+  const label = raw
+    .replace(/^액면가 기준\s*/, '')
+    .replace(/^보통주 대비\s*/, '')
+    .trim();
+  return label ? `최저 ${label}` : '';
+}
+
+export function renderPreferredTermBadges(pair) {
+  const term = getPreferredTerm(pair);
+  if (!term) return '<span class="preferred-condition-empty">조건 정보 없음</span>';
+  const badges = [
+    {
+      className: term.cumulative === true ? 'positive' : 'neutral',
+      label: formatPreferredTermShort(term.cumulative, '누적', '비누적'),
+    },
+    {
+      className: term.participating === true ? 'positive' : 'neutral',
+      label: formatPreferredTermShort(term.participating, '참가', '비참가'),
+    },
+  ];
+  if (term.convertible) badges.push({ className: 'convertible', label: '전환' });
+  if (term.redeemable) badges.push({ className: 'redeemable', label: '상환' });
+  const minimumLabel = formatMinimumDividendLabel(term);
+  if (minimumLabel) badges.push({ className: 'minimum', label: minimumLabel });
+
+  return `<div class="preferred-condition-badges">${badges.map(badge => (
+    `<span class="preferred-badge condition ${escapeHtml(badge.className)}">${escapeHtml(badge.label)}</span>`
+  )).join('')}</div>`;
+}
+
+export function renderPreferredTermSummary(pair) {
+  const term = getPreferredTerm(pair);
+  if (!term) return '-';
+  const source = term.sourceKey ? app.preferredTermSources?.[term.sourceKey] : null;
+  const rows = [
+    { label: '종류', value: term.classText || '-' },
+    {
+      label: '배당',
+      value: [
+        formatPreferredTermShort(term.cumulative, '누적', '비누적'),
+        formatPreferredTermShort(term.participating, '참가', '비참가'),
+      ].join(' / '),
+    },
+    { label: '우선배당', value: term.minimumDividend || term.additionalDividend || '-' },
+    { label: '신뢰도', value: formatPreferredTermConfidence(term.confidence) },
+  ];
+
+  return `<div class="preferred-term-summary">
+    ${renderPreferredTermBadges(pair)}
+    <div class="preferred-term-lines">
+      ${rows.map(row => `<div class="preferred-term-row">
+        <span>${escapeHtml(row.label)}</span>
+        <strong>${escapeHtml(row.value)}</strong>
+      </div>`).join('')}
+    </div>
+    ${term.note ? `<div class="preferred-term-note">${escapeHtml(term.note)}</div>` : ''}
+    ${source?.url ? `<a class="preferred-term-source" href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.label || '근거 보기')}</a>` : ''}
+  </div>`;
 }

@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "lastReviewed": "2026-06-20",
+  "method": "공시·정관·사업보고서·투자설명서의 종류주식 조건 문구를 우선 사용하고, 구형 우선주는 회사별 공시에서 반복되는 일반 조건(비누적·비참가, 보통주 대비 액면 기준 추가배당)을 별도 프로필로 분류했습니다.",
+  "profiles": {
+    "old_standard": {
+      "classText": "구형 우선주",
+      "cumulative": false,
+      "participating": false,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": null,
+      "additionalDividend": "보통주 대비 액면 기준 우선배당",
+      "confidence": "medium",
+      "sourceKey": "old_preferred_general",
+      "note": "상장 구형 우선주에 일반적으로 적용되는 비누적·비참가 배당우선 구조입니다. 회사별 정관 문구가 상이할 수 있어 중간 신뢰도로 표시합니다."
+    },
+    "old_standard_high": {
+      "classText": "구형 우선주",
+      "cumulative": false,
+      "participating": false,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": null,
+      "additionalDividend": "보통주 대비 액면 기준 우선배당",
+      "confidence": "high",
+      "sourceKey": "old_preferred_general",
+      "note": "공시·정관에서 비누적·비참가 성격을 확인한 구형 우선주입니다."
+    },
+    "hyundai_old": {
+      "classText": "구형 우선주",
+      "cumulative": false,
+      "participating": false,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": null,
+      "additionalDividend": "액면가 기준 +1%",
+      "confidence": "high",
+      "sourceKey": "hyundai_report",
+      "note": "현대차우는 누적권과 참가권이 없는 구형 우선주로 분류됩니다."
+    },
+    "hyundai_2pref": {
+      "classText": "신형 우선주",
+      "cumulative": false,
+      "participating": true,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 2%",
+      "additionalDividend": "최저우선배당 100원",
+      "confidence": "high",
+      "sourceKey": "hyundai_report",
+      "note": "현대차2우B는 비누적·참가적이며 액면가 기준 최저우선배당률 2% 조건입니다."
+    },
+    "hyundai_3pref": {
+      "classText": "신형 우선주",
+      "cumulative": false,
+      "participating": true,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 1%",
+      "additionalDividend": "최저우선배당 50원",
+      "confidence": "high",
+      "sourceKey": "hyundai_report",
+      "note": "현대차3우B는 비누적·참가적이며 액면가 기준 최저우선배당률 1% 조건입니다."
+    },
+    "modern_nonpart_noncum": {
+      "classText": "신형 우선주",
+      "cumulative": false,
+      "participating": false,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 1% 이상",
+      "additionalDividend": "보통주 대비 액면 기준 우선배당",
+      "confidence": "high",
+      "sourceKey": "kind_filings",
+      "note": "사업보고서·투자설명서에서 비누적·비참가 배당우선 조건을 확인했습니다."
+    },
+    "modern_part_noncum": {
+      "classText": "신형 우선주",
+      "cumulative": false,
+      "participating": true,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 우선배당률",
+      "additionalDividend": "참가적 배당",
+      "confidence": "high",
+      "sourceKey": "kind_filings",
+      "note": "사업보고서·정관에서 비누적·참가 조건을 확인했습니다."
+    },
+    "modern_cum_nonpart": {
+      "classText": "신형 우선주",
+      "cumulative": true,
+      "participating": false,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 우선배당률",
+      "additionalDividend": "비참가적 우선배당",
+      "confidence": "medium",
+      "sourceKey": "preferred_research",
+      "note": "공시·리서치 자료에서 누적 조건을 확인했고, 참가 여부는 비참가로 분류했습니다."
+    },
+    "modern_cum_part": {
+      "classText": "신형 우선주",
+      "cumulative": true,
+      "participating": true,
+      "convertible": false,
+      "redeemable": false,
+      "minimumDividend": "액면가 기준 우선배당률",
+      "additionalDividend": "참가적 배당",
+      "confidence": "high",
+      "sourceKey": "preferred_research",
+      "note": "공시·사업보고서에서 누적·참가 조건을 확인했습니다."
+    },
+    "convertible_cum_part": {
+      "classText": "전환우선주",
+      "cumulative": true,
+      "participating": true,
+      "convertible": true,
+      "redeemable": false,
+      "minimumDividend": "발행조건상 우선배당률",
+      "additionalDividend": "참가적 배당",
+      "confidence": "high",
+      "sourceKey": "convertible_filings",
+      "note": "전환권이 있는 누적·참가 우선주입니다."
+    }
+  },
+  "sources": {
+    "old_preferred_general": {
+      "label": "구형 우선주 일반 조건 및 회사별 정관",
+      "url": "https://www.mt.co.kr/stock/2007/07/31/2007073111073862005"
+    },
+    "samsung_articles": {
+      "label": "삼성전자 정관",
+      "url": "https://www.samsung.com/sec/ir/governance-csr/articles-of-incorporation/"
+    },
+    "hyundai_report": {
+      "label": "현대차 우선주 조건 자료",
+      "url": "https://www.hanaw.com/download/research/FileServer/WEB/industry/enterprise/2023/02/08/hyundai_230208.pdf"
+    },
+    "mirae_audit": {
+      "label": "미래에셋증권 감사보고서/정관",
+      "url": "https://securities.miraeasset.com/newir/common/download.jsp?f=%2Fpublic%2Fnewir%2Fdisclosure%2F2025%2F03%2F20%2F1742427001462.pdf&o=1742427001435.pdf"
+    },
+    "hanwha_kind": {
+      "label": "한화 3우B 공시",
+      "url": "https://kind.krx.co.kr/common/disclsviewer.do?acptno=20241203000042&langTpCd=0&method=search"
+    },
+    "amoreg_kind": {
+      "label": "아모레G 3우 전환우선주 투자설명서",
+      "url": "https://kind.krx.co.kr/common/disclsviewer.do?acptno=20191203000090&langTpCd=0&method=search"
+    },
+    "solus_kind": {
+      "label": "솔루스첨단소재 종류주식 공시",
+      "url": "https://kind.krx.co.kr/common/disclsviewer.do?acptno=20260319000870&docno=&method=search&viewerhost="
+    },
+    "doosan_fuelcell": {
+      "label": "두산퓨얼셀 종류주식 조건",
+      "url": "https://electric-nomad.tistory.com/entry/%EB%91%90%EC%82%B0%ED%93%A8%EC%96%BC%EC%85%80-%EC%A3%BC%EA%B0%80-2020%EB%85%84%EC%97%90%EB%A7%8C-15%EB%B0%B0-%EC%88%98%EC%9D%B5%EB%8B%A4%EA%B0%80%EC%98%A4%EB%8A%94-%EC%88%98%EC%86%8C%EC%8B%9C%EB%8C%80"
+    },
+    "dl_enc": {
+      "label": "DL이앤씨 2우 전환우선주 조건",
+      "url": "https://survivalinvestment.tistory.com/116"
+    },
+    "cj4": {
+      "label": "CJ4우 전환우선주 조건",
+      "url": "https://giocatore.tistory.com/25"
+    },
+    "preferred_research": {
+      "label": "신형 우선주 조건 리서치 및 공시",
+      "url": "https://www.hanwhawm.com/main/common/common_file/fileView.cmd?bldid=bbs10031&category=2&depth3_id=rpt_m1&key1=49578&key2=1"
+    },
+    "kind_filings": {
+      "label": "KIND/DART 사업보고서·투자설명서",
+      "url": "https://kind.krx.co.kr"
+    },
+    "convertible_filings": {
+      "label": "전환우선주 발행공시·투자설명서",
+      "url": "https://kind.krx.co.kr"
+    }
+  },
+  "byId": {
+    "samsung_elec": { "profile": "old_standard_high", "sourceKey": "samsung_articles", "additionalDividend": "액면가 기준 +1%" },
+    "hyundai_motor": { "profile": "hyundai_2pref" },
+    "hyundai_motor_pref": { "profile": "hyundai_old" },
+    "hyundai_motor_3pref": { "profile": "hyundai_3pref" },
+    "lg_elec": { "profile": "old_standard" },
+    "lg_chem": { "profile": "old_standard" },
+    "samsung_sdi": { "profile": "old_standard" },
+    "amorepacific": { "profile": "old_standard" },
+    "samsung_fire": { "profile": "old_standard" },
+    "daishin_sec": { "profile": "old_standard" },
+    "daishin_sec_2pref": { "profile": "modern_cum_nonpart", "minimumDividend": "액면가 기준 1%", "sourceKey": "preferred_research" },
+    "lg_household": { "profile": "old_standard" },
+    "doosan": { "profile": "old_standard" },
+    "doosan_2pref": { "profile": "modern_cum_nonpart", "minimumDividend": "액면가 기준 2%", "sourceKey": "preferred_research" },
+    "korea_investment": { "profile": "old_standard" },
+    "samsung_electro": { "profile": "old_standard" },
+    "nh_investment": { "profile": "old_standard" },
+    "kumho_petro": { "profile": "old_standard" },
+    "cj_cheiljedang": { "profile": "old_standard" },
+    "s_oil": { "profile": "old_standard" },
+    "lg": { "profile": "old_standard" },
+    "cj": { "profile": "old_standard" },
+    "cj_4pref": { "profile": "convertible_cum_part", "minimumDividend": "액면가 기준 2%", "additionalDividend": "보통주 배당 참가 + 우선배당", "sourceKey": "cj4" },
+    "doosan_fuelcell": { "profile": "modern_nonpart_noncum", "sourceKey": "doosan_fuelcell", "additionalDividend": "보통주 대비 액면 기준 +1%" },
+    "doosan_fuelcell_2pref": { "profile": "modern_part_noncum", "sourceKey": "doosan_fuelcell", "minimumDividend": "액면가 기준 우선배당률", "additionalDividend": "참가적 배당" },
+    "byc": { "profile": "old_standard" },
+    "solus": { "profile": "modern_nonpart_noncum", "sourceKey": "solus_kind", "additionalDividend": "보통주 대비 액면 기준 +1%" },
+    "solus_2pref": { "profile": "modern_nonpart_noncum", "sourceKey": "solus_kind", "additionalDividend": "보통주 대비 액면 기준 +1%" },
+    "nexen_tire": { "profile": "modern_cum_part", "minimumDividend": "액면가 기준 5%", "sourceKey": "preferred_research" },
+    "sebang": { "profile": "old_standard" },
+    "hanjinkal": { "profile": "old_standard" },
+    "amore_holdings": { "profile": "old_standard" },
+    "sk_chemicals": { "profile": "old_standard" },
+    "sk": { "profile": "old_standard" },
+    "hanwha": { "profile": "modern_cum_nonpart", "minimumDividend": "주당발행가 기준 3%", "additionalDividend": "보통주 배당금+50원 조건과 비교", "sourceKey": "hanwha_kind", "confidence": "high" },
+    "mirae_asset": { "profile": "modern_cum_part", "minimumDividend": "주당발행가/액면가 × 2.4%", "additionalDividend": "보통주 주당배당금 이상", "sourceKey": "mirae_audit", "confidence": "high" },
+    "mirae_asset_pref": { "profile": "old_standard", "additionalDividend": "보통주 대비 추가배당" },
+    "amore_holdings_3pref": { "profile": "convertible_cum_part", "minimumDividend": "액면가 기준 3%", "additionalDividend": "보통주 배당금 + 액면가 기준 3% 조건", "sourceKey": "amoreg_kind" },
+    "korea_circuit": { "profile": "old_standard" },
+    "korea_circuit_2pref": { "profile": "old_standard", "classText": "우선주", "additionalDividend": "보통주 대비 추가배당", "confidence": "medium", "note": "최근 공시와 배당 이력 기준으로 별도 누적·참가 조건을 확인하지 못해 일반 배당우선 조건으로 분류했습니다." },
+    "samsung_ct": { "profile": "modern_cum_nonpart", "minimumDividend": "액면가 기준 1%", "sourceKey": "preferred_research" },
+    "bookook_sec": { "profile": "old_standard" },
+    "dl_enc_pref": { "profile": "old_standard" },
+    "dl_enc_2pref": { "profile": "convertible_cum_part", "sourceKey": "dl_enc", "minimumDividend": "발행조건상 우선배당률" },
+    "yuhan": { "profile": "old_standard" },
+    "gs": { "profile": "old_standard" },
+    "sk_innovation": { "profile": "old_standard" },
+    "kolon_industries": { "profile": "old_standard" },
+    "namyang_dairy": { "profile": "old_standard" },
+    "hyundai_eandc": { "profile": "old_standard" },
+    "hanwha_solutions": { "profile": "old_standard" },
+    "lotte_chilsung": { "profile": "old_standard" },
+    "yuhwa_sec": { "profile": "old_standard" },
+    "lx_hausys": { "profile": "old_standard" },
+    "daeduck_electronics": { "profile": "old_standard" },
+    "daeduck": { "profile": "old_standard" },
+    "daekyo": { "profile": "modern_cum_nonpart", "minimumDividend": "액면가 기준 9%", "sourceKey": "preferred_research" },
+    "yuanta_sec": { "profile": "old_standard" },
+    "sk_discovery": { "profile": "old_standard" }
+  }
+}

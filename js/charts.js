@@ -597,7 +597,7 @@ export function bindZoomControls() {
 
 // --- Helpers ---
 export function getPeriodFilteredHistory(pair) {
-  const hist = pair.history;
+  const hist = Array.isArray(pair?.history) ? pair.history : [];
   if (app.periodDays === 0) return hist;
   const cutStr = formatKstTimestamp(new Date(Date.now() - app.periodDays * 24 * 60 * 60 * 1000)).slice(0, 10);
   return hist.filter(h => h.date >= cutStr);

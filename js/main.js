@@ -1,5 +1,12 @@
 // js/main.js — initializeDashboard + resize 리스너 + 부트 호출
-import { app, configLoadPromise, ensureHistory, getAveragePair, loadSummaryData } from './state.js';
+import {
+  app,
+  configLoadPromise,
+  ensureHistory,
+  getAveragePair,
+  loadPreferredTerms,
+  loadSummaryData,
+} from './state.js';
 import { parseSnapshotTimestamp } from './format.js';
 import { buildTodaySummaryFromPairs, normalizeMarketExtras, stampMarketNightFutureMetric } from './market.js';
 import {
@@ -43,7 +50,7 @@ export async function initializeDashboard() {
   app.latestMarketExtras = normalizeMarketExtras(app.todayOverviewData?.market?.extras || []);
   app.latestNightFutureMetric = app.todayOverviewData?.market?.nightFuture || app.todayOverviewData?.market?.future || null;
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + app.STOCK_DATA.lastUpdated;
-  await configLoadPromise;
+  await Promise.all([configLoadPromise, loadPreferredTerms()]);
   const initialSelection = resolveSelectedPairIndexFromQuery();
   app.selectedIdx = initialSelection.idx;
   // 차트에 필요한 초기 히스토리: 지수(_average, 스파크라인용)와 선택 종목
