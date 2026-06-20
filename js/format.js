@@ -160,6 +160,11 @@ export function normalizeDateText(value) {
   return null;
 }
 
+export function formatDateShort(value) {
+  const normalized = normalizeDateText(value);
+  return normalized ? normalized.replaceAll('-', '.') : '-';
+}
+
 export function isWeekendDateText(dateText) {
   const normalized = normalizeDateText(dateText);
   if (!normalized) return false;

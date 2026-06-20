@@ -1,0 +1,410 @@
+{
+  "schemaVersion": 1,
+  "lastReviewed": "2026-06-20",
+  "method": "보통주 상장일은 FnGuide 기업개요의 회사 상장일을 사용했습니다. 우선주 날짜는 DART 사업보고서의 회사의 개요 > 주식의 총수 등에서 종류주식 발행현황의 발행일자/상장연혁을 우선 확인했고, 발행일과 거래 시작일이 분리되는 최근 우선주는 KRX/KIND 확인값 또는 보유 가격 이력의 최초 거래일로 보완했습니다.",
+  "sources": {
+    "dart_annual_reports": {
+      "label": "DART 사업보고서 - 회사의 개요 - 주식의 총수 등",
+      "url": "https://dart.fss.or.kr"
+    },
+    "fnguide_company_overview": {
+      "label": "FnGuide 기업개요",
+      "url": "https://navercomp.wisereport.co.kr"
+    },
+    "daishin_cj4_listing": {
+      "label": "대신증권 CJ 전환 우선주 상장 리포트",
+      "url": "https://money2.daishin.com/PDF/Out/intranet_data/product/researchcenter/report/2019/08/34112_cj_preferred_stock_issue.pdf"
+    },
+    "ceoscore_cj4_conversion": {
+      "label": "CEO스코어 CJ4우 전환일 기사",
+      "url": "https://www.ceoscoredaily.com/page/view/2025091216041584823"
+    },
+    "kind_amoreg_listing": {
+      "label": "KRX KIND 아모레G3우 신규상장 내역",
+      "url": "https://kind.krx.co.kr/external/2019/12/24/000125/20191224000343/68157.htm"
+    },
+    "kind_amoreg_report": {
+      "label": "KRX KIND 아모레퍼시픽홀딩스 분기보고서",
+      "url": "https://kind.krx.co.kr/common/disclsviewer.do?acptno=20251114001207&docno=&method=search&viewerhost="
+    },
+    "dl_enc_report": {
+      "label": "DL이앤씨 사업보고서/KIND 공시",
+      "url": "https://kind.krx.co.kr/common/disclsviewer.do?acptNo=20260317001290&docno=&method=searchInitInfo"
+    },
+    "dl_enc_listing": {
+      "label": "DL이앤씨2우 신규상장 정리",
+      "url": "https://freedompark.tistory.com/61"
+    }
+  },
+  "byId": {
+    "samsung_elec": {
+      "listing": {
+        "common": "1975-06-11",
+        "preferred": "1989-08-25"
+      }
+    },
+    "hyundai_motor": {
+      "listing": {
+        "common": "1974-06-28",
+        "preferred": "1998-11-21"
+      }
+    },
+    "hyundai_motor_pref": {
+      "listing": {
+        "common": "1974-06-28",
+        "preferred": "1989-07-31"
+      }
+    },
+    "hyundai_motor_3pref": {
+      "listing": {
+        "common": "1974-06-28",
+        "preferred": "1999-03-31"
+      }
+    },
+    "lg_elec": {
+      "listing": {
+        "common": "2002-04-22",
+        "preferred": "2002-04-22"
+      }
+    },
+    "lg_chem": {
+      "listing": {
+        "common": "2001-04-25",
+        "preferred": "2001-04-25"
+      }
+    },
+    "samsung_sdi": {
+      "listing": {
+        "common": "1979-02-27",
+        "preferred": "1989-11-24"
+      }
+    },
+    "amorepacific": {
+      "listing": {
+        "common": "2006-06-29",
+        "preferred": "2006-06-29"
+      }
+    },
+    "samsung_fire": {
+      "listing": {
+        "common": "1975-06-30",
+        "preferred": "1990-03-17"
+      }
+    },
+    "daishin_sec": {
+      "listing": {
+        "common": "1975-10-01",
+        "preferred": "1975-10-01"
+      }
+    },
+    "daishin_sec_2pref": {
+      "listing": {
+        "common": "1975-10-01",
+        "preferred": "2007-11-12"
+      }
+    },
+    "lg_household": {
+      "listing": {
+        "common": "2001-04-25",
+        "preferred": "2001-04-25"
+      }
+    },
+    "doosan": {
+      "listing": {
+        "common": "1973-06-29",
+        "preferred": "1986-06-20"
+      }
+    },
+    "doosan_2pref": {
+      "listing": {
+        "common": "1973-06-29",
+        "preferred": "1999-11-12"
+      }
+    },
+    "korea_investment": {
+      "listing": {
+        "common": "2003-07-21",
+        "preferred": "2003-07-21"
+      }
+    },
+    "samsung_electro": {
+      "listing": {
+        "common": "1979-02-27",
+        "preferred": "1989-09-07"
+      }
+    },
+    "nh_investment": {
+      "listing": {
+        "common": "1975-09-30",
+        "preferred": "1988-08-20"
+      }
+    },
+    "kumho_petro": {
+      "listing": {
+        "common": "1988-01-22",
+        "preferred": "1988-09-22"
+      }
+    },
+    "cj_cheiljedang": {
+      "listing": {
+        "common": "2007-09-28",
+        "preferred": "2007-09-28"
+      }
+    },
+    "s_oil": {
+      "listing": {
+        "common": "1987-05-27",
+        "preferred": "1992-05-01"
+      }
+    },
+    "lg": {
+      "listing": {
+        "common": "1970-02-13",
+        "preferred": "1988-11-18"
+      }
+    },
+    "cj": {
+      "listing": {
+        "common": "1973-06-29",
+        "preferred": "1989-07-21"
+      }
+    },
+    "cj_4pref": {
+      "listing": {
+        "common": "1973-06-29",
+        "preferred": "2019-08-09"
+      },
+      "conversion": {
+        "scheduledDate": "2029-03-27",
+        "ratio": 1,
+        "sourceKey": "ceoscore_cj4_conversion"
+      }
+    },
+    "doosan_fuelcell": {
+      "listing": {
+        "common": "2019-10-18",
+        "preferred": "2019-10-18"
+      }
+    },
+    "doosan_fuelcell_2pref": {
+      "listing": {
+        "common": "2019-10-18",
+        "preferred": "2019-10-18"
+      }
+    },
+    "byc": {
+      "listing": {
+        "common": "1975-06-02",
+        "preferred": "1989-08-12"
+      }
+    },
+    "solus": {
+      "listing": {
+        "common": "2019-10-18",
+        "preferred": "2019-10-18"
+      }
+    },
+    "solus_2pref": {
+      "listing": {
+        "common": "2019-10-18",
+        "preferred": "2019-10-18"
+      }
+    },
+    "nexen_tire": {
+      "listing": {
+        "common": "1976-05-19",
+        "preferred": "1999-05-19"
+      }
+    },
+    "sebang": {
+      "listing": {
+        "common": "1977-05-19",
+        "preferred": "2000-04-08"
+      }
+    },
+    "hanjinkal": {
+      "listing": {
+        "common": "2013-09-16",
+        "preferred": "2013-09-16"
+      }
+    },
+    "amore_holdings": {
+      "listing": {
+        "common": "1973-04-30",
+        "preferred": "1989-06-01"
+      }
+    },
+    "sk_chemicals": {
+      "listing": {
+        "common": "2018-01-05",
+        "preferred": "2018-01-05"
+      }
+    },
+    "sk": {
+      "listing": {
+        "common": "2009-11-11",
+        "preferred": "2015-08-17"
+      }
+    },
+    "hanwha": {
+      "listing": {
+        "common": "1976-06-24",
+        "preferred": "2016-10-19"
+      }
+    },
+    "mirae_asset": {
+      "listing": {
+        "common": "1975-09-30",
+        "preferred": "2018-03-14"
+      }
+    },
+    "mirae_asset_pref": {
+      "listing": {
+        "common": "1975-09-30",
+        "preferred": "1983-12-22"
+      }
+    },
+    "amore_holdings_3pref": {
+      "listing": {
+        "common": "1973-04-30",
+        "preferred": "2019-12-26"
+      },
+      "conversion": {
+        "scheduledDate": "2029-12-14",
+        "ratio": 1,
+        "sourceKey": "kind_amoreg_report"
+      }
+    },
+    "korea_circuit": {
+      "listing": {
+        "common": "1985-09-09",
+        "preferred": "1989-06-05"
+      }
+    },
+    "korea_circuit_2pref": {
+      "listing": {
+        "common": "1985-09-09",
+        "preferred": "2013-06-17"
+      }
+    },
+    "samsung_ct": {
+      "listing": {
+        "common": "2014-12-18",
+        "preferred": "2015-09-02"
+      }
+    },
+    "bookook_sec": {
+      "listing": {
+        "common": "1988-07-19",
+        "preferred": "1989-10-11"
+      }
+    },
+    "dl_enc_pref": {
+      "listing": {
+        "common": "2021-01-25",
+        "preferred": "2021-01-25"
+      }
+    },
+    "dl_enc_2pref": {
+      "listing": {
+        "common": "2021-01-25",
+        "preferred": "2022-04-28"
+      },
+      "conversion": {
+        "scheduledDate": "2032-04-11",
+        "ratio": 1,
+        "sourceKey": "dl_enc_report"
+      }
+    },
+    "yuhan": {
+      "listing": {
+        "common": "1962-11-01",
+        "preferred": "1995-01-27"
+      }
+    },
+    "gs": {
+      "listing": {
+        "common": "2004-08-05",
+        "preferred": "2004-08-05"
+      }
+    },
+    "sk_innovation": {
+      "listing": {
+        "common": "2007-07-25",
+        "preferred": "2007-07-25"
+      }
+    },
+    "kolon_industries": {
+      "listing": {
+        "common": "2010-02-01",
+        "preferred": "2010-02-01"
+      }
+    },
+    "namyang_dairy": {
+      "listing": {
+        "common": "1978-06-24",
+        "preferred": "1988-12-29"
+      }
+    },
+    "hyundai_eandc": {
+      "listing": {
+        "common": "1984-12-22",
+        "preferred": "1989-08-31"
+      }
+    },
+    "hanwha_solutions": {
+      "listing": {
+        "common": "1974-06-19",
+        "preferred": "1989-10-26"
+      }
+    },
+    "lotte_chilsung": {
+      "listing": {
+        "common": "1973-06-21",
+        "preferred": "1989-09-01"
+      }
+    },
+    "yuhwa_sec": {
+      "listing": {
+        "common": "1987-08-24",
+        "preferred": "1990-01-19"
+      }
+    },
+    "lx_hausys": {
+      "listing": {
+        "common": "2009-04-20",
+        "preferred": "2009-04-20"
+      }
+    },
+    "daeduck_electronics": {
+      "listing": {
+        "common": "2020-05-21",
+        "preferred": "2020-05-21"
+      }
+    },
+    "daeduck": {
+      "listing": {
+        "common": "1989-01-26",
+        "preferred": "2018-12-19"
+      }
+    },
+    "daekyo": {
+      "listing": {
+        "common": "2004-02-03",
+        "preferred": "1993-10-06"
+      }
+    },
+    "yuanta_sec": {
+      "listing": {
+        "common": "1988-01-21",
+        "preferred": "1989-02-25"
+      }
+    },
+    "sk_discovery": {
+      "listing": {
+        "common": "1976-06-29",
+        "preferred": "1989-10-28"
+      }
+    }
+  }
+}

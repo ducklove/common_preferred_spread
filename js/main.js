@@ -4,6 +4,7 @@ import {
   configLoadPromise,
   ensureHistory,
   getAveragePair,
+  loadPairMeta,
   loadPreferredTerms,
   loadSummaryData,
 } from './state.js';
@@ -15,6 +16,7 @@ import {
   bindCsvExportButton,
   bindIndexWeightModal,
   bindPeriodBtns,
+  bindTableSelection,
   bindTableSortHeaders,
   bindThemeButton,
   queueDividendRender,
@@ -50,7 +52,7 @@ export async function initializeDashboard() {
   app.latestMarketExtras = normalizeMarketExtras(app.todayOverviewData?.market?.extras || []);
   app.latestNightFutureMetric = app.todayOverviewData?.market?.nightFuture || app.todayOverviewData?.market?.future || null;
   document.getElementById('lastUpdated').textContent = '최종 업데이트: ' + app.STOCK_DATA.lastUpdated;
-  await Promise.all([configLoadPromise, loadPreferredTerms()]);
+  await Promise.all([configLoadPromise, loadPreferredTerms(), loadPairMeta()]);
   const initialSelection = resolveSelectedPairIndexFromQuery();
   app.selectedIdx = initialSelection.idx;
   // 차트에 필요한 초기 히스토리: 지수(_average, 스파크라인용)와 선택 종목
@@ -60,6 +62,7 @@ export async function initializeDashboard() {
   bindHeatmapControls();
   renderHeatmap();
   renderTable();
+  bindTableSelection();
   bindIndexWeightModal();
   bindCardSortControls();
   bindZoomControls();

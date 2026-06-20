@@ -1222,7 +1222,8 @@ canvas { display: block; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .table-section h2 {
   font-size: 17px;
@@ -1234,6 +1235,9 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+}
+.table-section table {
+  min-width: 980px;
 }
 th {
   text-align: left;
@@ -1278,6 +1282,29 @@ th.sortable:hover {
 }
 tr:last-child td { border-bottom: none; }
 tr:hover { background: var(--surface2); }
+tr.selected-row {
+  background: rgba(108,140,255,0.08);
+}
+.table-name-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  max-width: 220px;
+  text-align: left;
+}
+.table-name-button:hover,
+.table-name-button:focus-visible {
+  color: var(--accent);
+}
+.table-name-button:focus-visible {
+  outline: 2px solid rgba(108,140,255,0.45);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
 .up-color { color: var(--up); }
 .down-color { color: var(--down); }
 .flat-color { color: var(--text-dim); }

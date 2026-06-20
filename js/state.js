@@ -5,6 +5,7 @@ export const DATA_SUMMARY_URL = 'data/summary.json';
 export const LEGACY_DATA_JS_URL = 'data.js';
 export const DATA_DIVIDENDS_URL = 'data/dividends.json';
 export const DATA_PREFERRED_TERMS_URL = 'data/preferred_terms.json';
+export const DATA_PAIR_META_URL = 'data/pair_meta.json';
 export const THEME_STORAGE_KEY = 'theme';
 export const PINNED_PAIRS_STORAGE_KEY = 'pinnedPairIds';
 export const CARD_SORT_STORAGE_KEY = 'cardSortMode';
@@ -35,6 +36,7 @@ export const TABLE_SORT_DEFAULT_DIRECTION = {
   preferredMarketCap: 'desc',
   preferredRatio: 'desc',
   divYieldGap: 'desc',
+  preferredListingDate: 'asc',
   spreadChange: 'desc',
   spread: 'desc',
 };
@@ -42,6 +44,7 @@ export const TABLE_HEADER_CONFIG = [
   { key: 'name', label: '\uC885\uBAA9', sortable: true, numeric: false },
   { key: 'commonPrice', label: '\uBCF4\uD1B5\uC8FC', sortable: false, numeric: true },
   { key: 'preferredPrice', label: '\uC6B0\uC120\uC8FC', sortable: false, numeric: true },
+  { key: 'preferredListingDate', label: '\uC6B0\uC120\uC8FC \uC0C1\uC7A5\uC77C', sortable: true, numeric: false },
   { key: 'commonMarketCap', label: '\uBCF4\uD1B5\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
   { key: 'preferredMarketCap', label: '\uC6B0\uC120\uC8FC \uC2DC\uCD1D', sortable: true, numeric: true },
   { key: 'preferredRatio', label: '\uC6B0\uC120\uC8FC \uBE44\uC728', sortable: true, numeric: true },
@@ -90,6 +93,9 @@ export const app = {
   preferredTermsById: new Map(),
   preferredTermsLoadPromise: null,
   preferredTermsMeta: null,
+  pairMetaById: new Map(),
+  pairMetaLoadPromise: null,
+  pairMetaMeta: null,
   indexWeightModalLastFocus: null,
   tableSortState: {
     key: 'name',
@@ -269,6 +275,62 @@ export function loadPreferredTerms() {
 export function getPreferredTerm(pairOrId) {
   const pairId = typeof pairOrId === 'string' ? pairOrId : pairOrId?.id;
   return pairId ? app.preferredTermsById.get(pairId) || null : null;
+}
+
+export function normalizePairMeta(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const listing = raw.listing || {};
+  const conversion = raw.conversion && typeof raw.conversion === 'object'
+    ? {
+        ...raw.conversion,
+        scheduledDate: normalizeDateText(raw.conversion.scheduledDate),
+        ratio: Number.isFinite(Number(raw.conversion.ratio)) ? Number(raw.conversion.ratio) : 1,
+      }
+    : null;
+  return {
+    ...raw,
+    listing: {
+      common: normalizeDateText(listing.common),
+      preferred: normalizeDateText(listing.preferred),
+    },
+    conversion,
+  };
+}
+
+export function loadPairMeta() {
+  if (app.pairMetaLoadPromise) return app.pairMetaLoadPromise;
+  app.pairMetaLoadPromise = fetch(`${DATA_PAIR_META_URL}?t=${Date.now()}`, { cache: 'no-store' })
+    .then(resp => {
+      if (!resp.ok) throw new Error(`pair meta ${resp.status}`);
+      return resp.json();
+    })
+    .then(payload => {
+      const entries = payload?.byId || {};
+      app.pairMetaMeta = {
+        schemaVersion: payload?.schemaVersion || null,
+        lastReviewed: payload?.lastReviewed || '',
+        method: payload?.method || '',
+        sources: payload?.sources || {},
+      };
+      app.pairMetaById = new Map(
+        Object.entries(entries)
+          .map(([id, raw]) => [id, normalizePairMeta(raw)])
+          .filter(([, meta]) => meta),
+      );
+      return app.pairMetaById;
+    })
+    .catch(e => {
+      console.warn('종목 메타데이터 로드 실패:', e);
+      app.pairMetaMeta = null;
+      app.pairMetaById = new Map();
+      return app.pairMetaById;
+    });
+  return app.pairMetaLoadPromise;
+}
+
+export function getPairMeta(pairOrId) {
+  const pairId = typeof pairOrId === 'string' ? pairOrId : pairOrId?.id;
+  return pairId ? app.pairMetaById.get(pairId) || null : null;
 }
 
 export function getCardSortMetric(pair, mode = app.cardSortMode) {

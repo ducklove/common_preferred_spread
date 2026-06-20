@@ -14,6 +14,8 @@ import {
   getAveragePair,
   getCardGroups,
   getGroupItemsByPairId,
+  getPairMeta,
+  getPreferredTerm,
   getRepresentativePairs,
   isGroupPinned,
   isHistoryLoaded,
@@ -25,6 +27,7 @@ import {
   buildHistoryCsv,
   escapeHtml,
   fmtChange,
+  formatDateShort,
   formatCompactMetricValue,
   formatIndexSpread,
   formatIndexWeightPercent,
@@ -256,6 +259,7 @@ export function selectPair(idx, { updateUrl = true, scrollToChart = false } = {}
   }
   renderTodayOverview();
   renderCards();
+  renderTable();
   queueDividendRender();
   const renderDetail = () => {
     if (app.selectedIdx !== idx) return; // 로드 중 다른 종목이 선택된 경우
@@ -861,6 +865,32 @@ export function bindTableSortHeaders() {
   });
 }
 
+export function bindTableSelection() {
+  const tableBody = document.getElementById('tableBody');
+  if (!tableBody || bindTableSelection._bound) return;
+  const findSelectButton = event => {
+    const button = event.target.closest?.('[data-table-select-idx]');
+    return button && tableBody.contains(button) ? button : null;
+  };
+  const applySelection = button => {
+    const idx = Number(button.dataset.tableSelectIdx);
+    if (Number.isNaN(idx)) return;
+    selectPair(idx, { scrollToChart: true });
+  };
+  tableBody.addEventListener('click', event => {
+    const button = findSelectButton(event);
+    if (button) applySelection(button);
+  });
+  tableBody.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const button = findSelectButton(event);
+    if (!button) return;
+    event.preventDefault();
+    applySelection(button);
+  });
+  bindTableSelection._bound = true;
+}
+
 export function getPairTableName(pair) {
   return pair?.preferredName || pair?.name || pair?.commonName || '';
 }
@@ -889,8 +919,41 @@ export function formatSpreadRecoveryYears(spread, divYieldGap) {
   return `${years.toFixed(1)}년`;
 }
 
+export const CONVERSION_RETURN_TOOLTIP = '현재 우선주 가격으로 매수해 전환 예정일에 보통주로 전환되고, 그 보통주가 현재 보통주 가격과 같다고 가정한 연환산 수익률입니다. 배당, 세금, 거래비용, 가격 변동은 반영하지 않습니다.';
+
+export function calculateAnnualizedConversionReturn(pair, conversion, now = new Date()) {
+  const scheduledDate = conversion?.scheduledDate || null;
+  const conversionDateMs = scheduledDate ? getHistoryDateMs(scheduledDate) : null;
+  const todayMs = getHistoryDateMs(formatKstTimestamp(now).slice(0, 10));
+  const commonPrice = toFiniteNumber(pair?.current?.commonPrice);
+  const preferredPrice = toFiniteNumber(pair?.current?.preferredPrice);
+  const ratio = toFiniteNumber(conversion?.ratio) ?? 1;
+  if (
+    conversionDateMs == null
+    || todayMs == null
+    || commonPrice == null
+    || preferredPrice == null
+    || preferredPrice <= 0
+    || ratio <= 0
+  ) {
+    return null;
+  }
+  const days = (conversionDateMs - todayMs) / (24 * 60 * 60 * 1000);
+  if (days <= 0) return null;
+  const grossReturn = (commonPrice * ratio) / preferredPrice;
+  if (grossReturn <= 0) return null;
+  return (Math.pow(grossReturn, 365 / days) - 1) * 100;
+}
+
+export function formatConversionReturn(value) {
+  if (value == null || Number.isNaN(value)) return '-';
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
 export function getTableRowMetrics(pair) {
   const current = pair.current || {};
+  const pairMeta = getPairMeta(pair);
+  const preferredListingDateText = pairMeta?.listing?.preferred || null;
   const commonMarketCap = calculateLiveMarketCap(
     current.commonPrice,
     current.commonSharesOutstanding,
@@ -908,6 +971,8 @@ export function getTableRowMetrics(pair) {
     preferredMarketCap,
     preferredRatio: calculatePreferredRatio(commonMarketCap, preferredMarketCap),
     divYieldGap: getDivYieldGap(current),
+    preferredListingDate: preferredListingDateText ? getHistoryDateMs(preferredListingDateText) : null,
+    preferredListingDateText,
     spread: pair.current.spread,
     spreadChange: pair.current.spreadChange,
   };
@@ -939,27 +1004,30 @@ export function renderTable() {
   renderTableHeaders();
 
   const stockRows = app.pairs
-    .filter(p => !p.isAverage)
-    .map(getTableRowMetrics)
+    .map((pair, idx) => ({ pair, idx }))
+    .filter(item => !item.pair.isAverage)
+    .map(item => ({ ...getTableRowMetrics(item.pair), idx: item.idx }))
     .sort(compareTableRows);
   const maxSpread = Math.max(1, ...stockRows.map(row => row.spread || 0));
-  const tablePairs = stockRows.map(row => row.pair);
   const stockMetricsById = new Map(stockRows.map(row => [row.pair.id, row]));
 
-  document.getElementById('tableBody').innerHTML = tablePairs.map(p => {
+  document.getElementById('tableBody').innerHTML = stockRows.map(row => {
+    const p = row.pair;
     const c = p.current;
     const textColorClass = getTextColorClass(c.spreadChange);
     const barW = (c.spread / maxSpread * 100).toFixed(1);
-    const row = stockMetricsById.get(p.id);
+    const metrics = stockMetricsById.get(p.id);
     const displayName = row?.name || getPairTableName(p);
-    const commonMarketCap = row?.commonMarketCap ?? null;
-    const preferredMarketCap = row?.preferredMarketCap ?? null;
-    const preferredRatio = row?.preferredRatio ?? null;
-    const divYieldGap = row?.divYieldGap ?? null;
-    return `<tr>
-      <td><strong>${renderPreferredInlineLabel(p, displayName)}</strong></td>
+    const commonMarketCap = metrics?.commonMarketCap ?? null;
+    const preferredMarketCap = metrics?.preferredMarketCap ?? null;
+    const preferredRatio = metrics?.preferredRatio ?? null;
+    const divYieldGap = metrics?.divYieldGap ?? null;
+    const isSelected = row.idx === app.selectedIdx;
+    return `<tr${isSelected ? ' class="selected-row"' : ''}>
+      <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)}</strong></button></td>
       <td class="numeric">${formatPrice(c.commonPrice)}</td>
       <td class="numeric">${formatPrice(c.preferredPrice)}</td>
+      <td>${formatDateShort(metrics?.preferredListingDateText)}</td>
       <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
       <td class="numeric">${formatMarketCap(preferredMarketCap)}</td>
       <td class="numeric">${formatRatioPercent(preferredRatio)}</td>
@@ -1000,6 +1068,7 @@ export function renderStats() {
     p.current.preferredSharesOutstanding,
     p.current.preferredMarketCap,
   );
+  const pairMeta = getPairMeta(p);
 
   const renderChangeHtml = value => {
     if (value == null || Number.isNaN(value)) return "-";
@@ -1007,8 +1076,8 @@ export function renderStats() {
   };
   const renderComboRows = rows => `<div class="stat-combo">${rows.map(row => `
     <div class="stat-combo-row">
-      <span class="stat-combo-label">${row.label}</span>
-      <span class="stat-combo-value">${row.value}</span>
+      <span class="stat-combo-label"${row.labelTitle ? ` title="${escapeHtml(row.labelTitle)}"` : ''}>${row.label}</span>
+      <span class="stat-combo-value"${row.valueTitle ? ` title="${escapeHtml(row.valueTitle)}"` : ''}>${row.value}</span>
     </div>
   `).join('')}</div>`;
   const formatDividendAmount = amount => {
@@ -1086,6 +1155,13 @@ export function renderStats() {
         { label: "전일비", value: renderChangeHtml(p.current.commonChange) },
       ]),
     },
+    ...(!p.isAverage ? [{
+      label: "상장일",
+      value: renderComboRows([
+        { label: "우선주", value: formatDateShort(pairMeta?.listing?.preferred) },
+        { label: "보통주", value: formatDateShort(pairMeta?.listing?.common) },
+      ]),
+    }] : []),
     {
       label: '베타 / 상관계수 <span class="stat-label-normal">r</span>',
       value: renderComboRows([
@@ -1114,6 +1190,25 @@ export function renderStats() {
   ];
 
   if (!p.isAverage) {
+    const preferredTerm = getPreferredTerm(p);
+    const conversion = pairMeta?.conversion || null;
+    if (conversion || preferredTerm?.convertible) {
+      const annualizedConversionReturn = calculateAnnualizedConversionReturn(p, conversion || {});
+      stats.push({
+        label: "전환 옵션",
+        value: renderComboRows([
+          { label: "전환 예정일", value: formatDateShort(conversion?.scheduledDate) },
+          {
+            label: "환산 수익률",
+            labelTitle: CONVERSION_RETURN_TOOLTIP,
+            value: `<span class="${getTextColorClass(annualizedConversionReturn)}">${formatConversionReturn(annualizedConversionReturn)}</span>`,
+            valueTitle: CONVERSION_RETURN_TOOLTIP,
+          },
+        ]),
+        medium: true,
+      });
+    }
+
     stats.push({
       label: renderPreferredTermLabel(p),
       value: renderPreferredTermSummary(p),
