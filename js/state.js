@@ -27,9 +27,6 @@ export const LIVE_INTERNAL_STOCK_CONCURRENCY = 8;
 export const LIVE_ESIGNAL_NIGHT_SOCKET_URL = 'wss://esignal.co.kr/proxy/8888/socket.io/?EIO=4&transport=websocket';
 export const EMA_ALPHA = 0.1;
 export const SELECTED_CODE_QUERY_KEY = 'code';
-export const PREFERRED_ADDITIONAL_DIVIDEND_OVERRIDES = {
-  cj_4pref: 50,
-};
 export const TABLE_SORT_DEFAULT_DIRECTION = {
   name: 'asc',
   commonMarketCap: 'desc',

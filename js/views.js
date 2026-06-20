@@ -72,6 +72,7 @@ import {
 } from './market.js';
 import {
   getDetailLabels,
+  hasPreferredTermSummary,
   getPreferredShortLabel,
   renderPreferredInlineLabel,
   renderPreferredTermLabel,
@@ -1209,11 +1210,13 @@ export function renderStats() {
       });
     }
 
-    stats.push({
-      label: renderPreferredTermLabel(p),
-      value: renderPreferredTermSummary(p),
-      medium: true,
-    });
+    if (hasPreferredTermSummary(p)) {
+      stats.push({
+        label: renderPreferredTermLabel(p),
+        value: renderPreferredTermSummary(p),
+        medium: true,
+      });
+    }
 
     const recentDividendRows = buildRecentDividendRows(app.dividendHistories?.[p.id]);
     stats.push({

@@ -46,7 +46,7 @@
       "convertible": false,
       "redeemable": false,
       "minimumDividend": "액면가 기준 2%",
-      "additionalDividend": "최저우선배당 100원",
+      "additionalDividend": "보통주 대비 +100원",
       "confidence": "high",
       "sourceKey": "hyundai_report",
       "note": "현대차2우B는 비누적·참가적이며 액면가 기준 최저우선배당률 2% 조건입니다."
@@ -58,7 +58,7 @@
       "convertible": false,
       "redeemable": false,
       "minimumDividend": "액면가 기준 1%",
-      "additionalDividend": "최저우선배당 50원",
+      "additionalDividend": "보통주 대비 +50원",
       "confidence": "high",
       "sourceKey": "hyundai_report",
       "note": "현대차3우B는 비누적·참가적이며 액면가 기준 최저우선배당률 1% 조건입니다."
@@ -157,6 +157,10 @@
       "label": "두산퓨얼셀 종류주식 조건",
       "url": "https://electric-nomad.tistory.com/entry/%EB%91%90%EC%82%B0%ED%93%A8%EC%96%BC%EC%85%80-%EC%A3%BC%EA%B0%80-2020%EB%85%84%EC%97%90%EB%A7%8C-15%EB%B0%B0-%EC%88%98%EC%9D%B5%EB%8B%A4%EA%B0%80%EC%98%A4%EB%8A%94-%EC%88%98%EC%86%8C%EC%8B%9C%EB%8C%80"
     },
+    "daekyo_dart": {
+      "label": "대교 사업보고서 - 종류주식 발행현황",
+      "url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260318001633"
+    },
     "dl_enc": {
       "label": "DL이앤씨 2우 전환우선주 조건",
       "url": "https://survivalinvestment.tistory.com/116"
@@ -213,8 +217,8 @@
     "amore_holdings": { "profile": "old_standard" },
     "sk_chemicals": { "profile": "old_standard" },
     "sk": { "profile": "old_standard" },
-    "hanwha": { "profile": "modern_cum_nonpart", "minimumDividend": "주당발행가 기준 3%", "additionalDividend": "보통주 배당금+50원 조건과 비교", "sourceKey": "hanwha_kind", "confidence": "high" },
-    "mirae_asset": { "profile": "modern_cum_part", "minimumDividend": "주당발행가/액면가 × 2.4%", "additionalDividend": "보통주 주당배당금 이상", "sourceKey": "mirae_audit", "confidence": "high" },
+    "hanwha": { "profile": "modern_cum_nonpart", "minimumDividend": "주당발행가 기준 3%", "minimumDividendAmount": 510, "additionalDividend": "보통주 배당금+50원 조건과 비교", "sourceKey": "hanwha_kind", "confidence": "high" },
+    "mirae_asset": { "profile": "modern_cum_part", "minimumDividend": "주당발행가/액면가 × 2.4%", "minimumDividendAmount": 120, "additionalDividend": "보통주 주당배당금 이상", "sourceKey": "mirae_audit", "confidence": "high" },
     "mirae_asset_pref": { "profile": "old_standard", "additionalDividend": "보통주 대비 추가배당" },
     "amore_holdings_3pref": { "profile": "convertible_cum_part", "minimumDividend": "액면가 기준 3%", "additionalDividend": "보통주 배당금 + 액면가 기준 3% 조건", "sourceKey": "amoreg_kind" },
     "korea_circuit": { "profile": "old_standard" },
@@ -235,7 +239,13 @@
     "lx_hausys": { "profile": "old_standard" },
     "daeduck_electronics": { "profile": "old_standard" },
     "daeduck": { "profile": "old_standard" },
-    "daekyo": { "profile": "modern_cum_nonpart", "minimumDividend": "액면가 기준 9%", "sourceKey": "preferred_research" },
+    "daekyo": {
+      "profile": "modern_cum_part",
+      "minimumDividend": "액면가 기준 9%",
+      "minimumDividendAmount": 45,
+      "sourceKey": "daekyo_dart",
+      "confidence": "high"
+    },
     "yuanta_sec": { "profile": "old_standard" },
     "sk_discovery": { "profile": "old_standard" }
   }
