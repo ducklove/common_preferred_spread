@@ -1014,7 +1014,7 @@ export function renderStats() {
   const formatDividendAmount = amount => {
     const value = Number(amount);
     if (amount == null || Number.isNaN(value)) return '-';
-    return `${value.toLocaleString('ko-KR')}원`;
+    return value.toLocaleString('ko-KR');
   };
   const buildRecentDividendRows = entries => {
     const commonByDate = new Map(
@@ -1033,7 +1033,7 @@ export function renderStats() {
       .reverse()
       .map(date => ({
         label: date,
-        value: `<span class="dividend-pair-values"><span>우 ${formatDividendAmount(preferredByDate.get(date))}</span><span>보 ${formatDividendAmount(commonByDate.get(date))}</span></span>`,
+        value: `<span class="dividend-pair-values">${formatDividendAmount(preferredByDate.get(date))} / ${formatDividendAmount(commonByDate.get(date))}</span>`,
       }));
   };
 
@@ -1117,18 +1117,19 @@ export function renderStats() {
     stats.push({
       label: renderPreferredTermLabel(p),
       value: renderPreferredTermSummary(p),
-      wide: true,
+      medium: true,
     });
 
     const recentDividendRows = buildRecentDividendRows(app.dividendHistories?.[p.id]);
     stats.push({
-      label: "최근 배당",
+      label: "최근 배당 (우선주/보통주)",
       value: recentDividendRows.length ? renderComboRows(recentDividendRows) : "-",
+      medium: true,
     });
   }
 
   const statsEl = document.getElementById("statsRow");
-  statsEl.innerHTML = stats.map(item => `<div class="stat-box${item.wide ? ' wide' : ''}"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
+  statsEl.innerHTML = stats.map(item => `<div class="stat-box${item.medium ? ' medium' : ''}${item.wide ? ' wide' : ''}"><div class="label">${item.label}</div><div class="value">${item.value}</div></div>`).join("");
 }
 
 export function bindCardSortControls() {
