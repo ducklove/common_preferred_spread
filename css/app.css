@@ -1056,6 +1056,14 @@ canvas { display: block; }
 .stat-label-normal {
   text-transform: none;
 }
+.stat-box .label .stat-label-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.stat-box .label .stat-label-link:hover {
+  color: var(--accent);
+}
 .stat-box .value {
   font-size: 20px;
   font-weight: 700;
@@ -1094,6 +1102,16 @@ canvas { display: block; }
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.dividend-pair-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 7px;
+  white-space: normal;
+}
+.dividend-pair-values span {
+  white-space: nowrap;
 }
 .preferred-name-with-badges {
   display: inline-flex;
@@ -1189,23 +1207,10 @@ canvas { display: block; }
   font-weight: 700;
   line-height: 1.3;
 }
-.preferred-term-note {
-  margin-top: 8px;
-  color: var(--text-dim);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.45;
-}
-.preferred-term-source {
-  align-self: flex-start;
-  margin-top: 7px;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  text-decoration: none;
-}
-.preferred-term-source:hover {
-  text-decoration: underline;
+.preferred-term-confidence {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }
 .chart-title .preferred-badge + .preferred-badge,
 .price-chart-title .preferred-badge + .preferred-badge {

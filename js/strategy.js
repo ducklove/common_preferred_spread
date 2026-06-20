@@ -1,4 +1,4 @@
-// js/strategy.js — 전략 분석(백테스트) 섹션: analysis/outputs CSV 지연 로드 → 요약 stat / 로그 스케일 에쿼티 커브 / 연도별·이벤트 스터디 테이블 / 접기 토글
+// js/strategy.js — 전략 분석(백테스트) 섹션: analysis/outputs CSV 지연 로드 → 요약 stat / 로그 스케일 에쿼티 커브 / 연도별 테이블 / 접기 토글
 import { readStoredValue, writeStoredValue } from './state.js';
 import { escapeHtml, getHistoryDateMs, toFiniteNumber } from './format.js';
 import {
@@ -12,22 +12,12 @@ import {
 export const STRATEGY_COLLAPSED_STORAGE_KEY = 'strategyCollapsed';
 const STRATEGY_DAILY_CSV_URL = 'analysis/outputs/top3_spread_strategy_daily.csv';
 const STRATEGY_ANNUAL_CSV_URL = 'analysis/outputs/top3_spread_strategy_annual.csv';
-const STRATEGY_POOLED_CSV_URL = 'analysis/outputs/pooled_summary.csv';
 const STRATEGY_DATA_VERSION = '2026-06-16-corporate-actions';
 const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
 const LOAD_ERROR_HTML = '<div class="strategy-data-error">데이터를 불러올 수 없습니다</div>';
-// 이벤트 스터디 1차 스펙(5일 신호·20일 성과)과 가설별 측정 지표 (H1/H2=보통주, H3=우선주 수익률)
-const EVENT_STUDY_LOOKBACK = '5';
-const EVENT_STUDY_HORIZON = '20';
-const EVENT_STUDY_HYPOTHESES = [
-  { id: 'H1', desc: '보통주 급등 + 괴리 확대 → 보통주 수익률', metric: 'fwd_common_return' },
-  { id: 'H2', desc: '보통주 급등 + 괴리 유지 → 보통주 수익률', metric: 'fwd_common_return' },
-  { id: 'H3', desc: '우선주 급등 + 괴리 축소 → 우선주 수익률', metric: 'fwd_preferred_return' },
-];
-
 let strategyCollapsed = readStoredValue(STRATEGY_COLLAPSED_STORAGE_KEY) === '1';
-let strategyLoadPromise = null; // CSV 3종 병렬 fetch 1회 캐시
-let strategyData = null; // { daily, annual, pooled } — 각 항목은 실패 시 null
+let strategyLoadPromise = null; // CSV 병렬 fetch 1회 캐시
+let strategyData = null; // { daily, annual } — 각 항목은 실패 시 null
 let strategyContentRendered = false;
 let dailySeriesCache = null;
 
@@ -83,9 +73,8 @@ function ensureStrategyLoad() {
     strategyLoadPromise = Promise.all([
       fetchStrategyCsv(STRATEGY_DAILY_CSV_URL),
       fetchStrategyCsv(STRATEGY_ANNUAL_CSV_URL),
-      fetchStrategyCsv(STRATEGY_POOLED_CSV_URL),
-    ]).then(([daily, annual, pooled]) => {
-      strategyData = { daily, annual, pooled };
+    ]).then(([daily, annual]) => {
+      strategyData = { daily, annual };
       return strategyData;
     });
   }
@@ -172,11 +161,6 @@ function formatKrwAxisLabel(value) {
   }
   if (value >= 1e4) return `${Math.round(value / 1e4).toLocaleString('ko-KR')}만`;
   return Math.round(value).toLocaleString('ko-KR');
-}
-
-function formatEventP(p) {
-  if (p == null || Number.isNaN(p)) return '-';
-  return p < 0.0005 ? '<0.001' : p.toFixed(3);
 }
 
 // --- 요약 stat 박스 ---
@@ -373,63 +357,29 @@ function renderStrategyChart() {
 function buildAnnualTableHtml() {
   const rows = strategyData?.annual;
   if (!rows || !rows.length) return LOAD_ERROR_HTML;
+  let prevCumulativeDividends = 0;
   const body = rows.map(row => {
     const strategyYoY = toFiniteNumber(row.strategyYoY);
     const kospiYoY = toFiniteNumber(row.kospiYoY);
     const excessYoY = toFiniteNumber(row.excessYoY);
+    const cumulativeDividends = toFiniteNumber(row.cumulativeDividends);
+    const dividendReceived = cumulativeDividends == null
+      ? null
+      : Math.max(0, cumulativeDividends - prevCumulativeDividends);
+    if (cumulativeDividends != null) prevCumulativeDividends = cumulativeDividends;
     return `<tr>
       <td>${escapeHtml(row.year)}</td>
       <td>${Math.round(toFiniteNumber(row.strategyValue) ?? 0).toLocaleString('ko-KR')}</td>
       <td class="${getSignColorClass(strategyYoY)}">${formatFractionPercent(strategyYoY, { signed: true })}</td>
       <td class="${getSignColorClass(kospiYoY)}">${formatFractionPercent(kospiYoY, { signed: true })}</td>
       <td class="${getSignColorClass(excessYoY)}">${formatFractionPercent(excessYoY, { signed: true })}</td>
+      <td>${dividendReceived == null ? '-' : formatWon(dividendReceived)}</td>
     </tr>`;
   }).join('');
   return `<div class="index-weight-table-wrap strategy-table-wrap">
     <table class="index-weight-table strategy-table" id="strategyAnnualTable">
       <thead>
-        <tr><th>연도</th><th>전략 평가액(원)</th><th>전략 YoY</th><th>KOSPI YoY</th><th>초과수익</th></tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table>
-  </div>`;
-}
-
-// --- 이벤트 스터디 풀드 요약 테이블 ---
-function buildEventStudyTableHtml() {
-  const rows = strategyData?.pooled;
-  if (!rows || !rows.length) return LOAD_ERROR_HTML;
-  const body = EVENT_STUDY_HYPOTHESES.map(meta => {
-    const row = rows.find(item => (
-      item.hypothesis === meta.id
-      && item.lookback === EVENT_STUDY_LOOKBACK
-      && item.horizon === EVENT_STUDY_HORIZON
-    ));
-    if (!row) return '';
-    const events = toFiniteNumber(row.events);
-    const mean = toFiniteNumber(row[`${meta.metric}Mean`]);
-    const ciLow = toFiniteNumber(row[`${meta.metric}CiLow`]);
-    const ciHigh = toFiniteNumber(row[`${meta.metric}CiHigh`]);
-    const p = toFiniteNumber(row[`${meta.metric}P`]);
-    const ciText = ciLow != null && ciHigh != null
-      ? `${(ciLow * 100).toFixed(2)}% ~ ${(ciHigh * 100).toFixed(2)}%`
-      : '-';
-    return `<tr>
-      <td>
-        <div class="index-weight-name">${meta.id}</div>
-        <div class="index-weight-sub">${meta.desc}</div>
-      </td>
-      <td>${events != null ? events.toLocaleString('ko-KR') : '-'}</td>
-      <td class="${getSignColorClass(mean)}">${formatFractionPercent(mean, { signed: true })}</td>
-      <td>${ciText}</td>
-      <td>${formatEventP(p)}</td>
-    </tr>`;
-  }).join('');
-  if (!body) return LOAD_ERROR_HTML;
-  return `<div class="index-weight-table-wrap strategy-table-wrap">
-    <table class="index-weight-table strategy-table" id="strategyEventTable">
-      <thead>
-        <tr><th>가설</th><th>이벤트 수</th><th>20일 평균 수익률</th><th>95% CI</th><th>p (단측)</th></tr>
+        <tr><th>연도</th><th>전략 평가액(원)</th><th>전략 YoY</th><th>KOSPI YoY</th><th>초과수익</th><th>배당수령액(원)</th></tr>
       </thead>
       <tbody>${body}</tbody>
     </table>
@@ -443,11 +393,6 @@ function renderStrategyTables() {
     <div class="strategy-table-block">
       <div class="strategy-table-title">연도별 성과</div>
       ${buildAnnualTableHtml()}
-    </div>
-    <div class="strategy-table-block">
-      <div class="strategy-table-title">이벤트 스터디 풀드 요약 (5일 신호 · 20일 성과)</div>
-      ${buildEventStudyTableHtml()}
-      <div class="strategy-table-note">단측검정·탐색적 분석이며 인과 추정이 아님 (상세: <a href="analysis/hypothesis_event_study_report.md" target="_blank" rel="noopener">analysis/ 리포트</a>)</div>
     </div>
   `;
 }

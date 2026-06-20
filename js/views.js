@@ -71,6 +71,7 @@ import {
   getDetailLabels,
   getPreferredShortLabel,
   renderPreferredInlineLabel,
+  renderPreferredTermLabel,
   renderPreferredTermSummary,
   renderPreferredYieldLabel,
 } from './labels.js';
@@ -937,32 +938,18 @@ export function compareTableRows(a, b) {
 export function renderTable() {
   renderTableHeaders();
 
-  const averagePair = getAveragePair();
   const stockRows = app.pairs
     .filter(p => !p.isAverage)
     .map(getTableRowMetrics)
     .sort(compareTableRows);
   const maxSpread = Math.max(1, ...stockRows.map(row => row.spread || 0));
-  const tablePairs = [
-    ...(averagePair ? [averagePair] : []),
-    ...stockRows.map(row => row.pair),
-  ];
+  const tablePairs = stockRows.map(row => row.pair);
   const stockMetricsById = new Map(stockRows.map(row => [row.pair.id, row]));
 
   document.getElementById('tableBody').innerHTML = tablePairs.map(p => {
     const c = p.current;
     const textColorClass = getTextColorClass(c.spreadChange);
     const barW = (c.spread / maxSpread * 100).toFixed(1);
-    if (p.isAverage) {
-      // 평균 행은 종목/변동/괴리율만 값이 있고, 나머지는 헤더 config 길이에 맞춰 빈 셀로 채운다.
-      const emptyCells = '<td class="numeric"></td>'.repeat(Math.max(0, TABLE_HEADER_CONFIG.length - 3));
-      return `<tr style="border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--surface2)">
-        <td><strong>${p.name}</strong></td>
-        ${emptyCells}
-        <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
-        <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%;background:var(--green)"></div>${c.spread.toFixed(1)}%</div></td>
-      </tr>`;
-    }
     const row = stockMetricsById.get(p.id);
     const displayName = row?.name || getPairTableName(p);
     const commonMarketCap = row?.commonMarketCap ?? null;
@@ -1024,6 +1011,31 @@ export function renderStats() {
       <span class="stat-combo-value">${row.value}</span>
     </div>
   `).join('')}</div>`;
+  const formatDividendAmount = amount => {
+    const value = Number(amount);
+    if (amount == null || Number.isNaN(value)) return '-';
+    return `${value.toLocaleString('ko-KR')}원`;
+  };
+  const buildRecentDividendRows = entries => {
+    const commonByDate = new Map(
+      (Array.isArray(entries?.common) ? entries.common : [])
+        .filter(entry => entry?.date && entry.amount != null && !Number.isNaN(Number(entry.amount)))
+        .map(entry => [entry.date, Number(entry.amount)]),
+    );
+    const preferredByDate = new Map(
+      (Array.isArray(entries?.preferred) ? entries.preferred : [])
+        .filter(entry => entry?.date && entry.amount != null && !Number.isNaN(Number(entry.amount)))
+        .map(entry => [entry.date, Number(entry.amount)]),
+    );
+    return [...new Set([...commonByDate.keys(), ...preferredByDate.keys()])]
+      .sort()
+      .slice(-3)
+      .reverse()
+      .map(date => ({
+        label: date,
+        value: `<span class="dividend-pair-values"><span>우 ${formatDividendAmount(preferredByDate.get(date))}</span><span>보 ${formatDividendAmount(commonByDate.get(date))}</span></span>`,
+      }));
+  };
 
   const dividendYieldRows = [
     { label: renderPreferredYieldLabel(p), value: formatYield(p.current.preferredDivYield) },
@@ -1044,8 +1056,14 @@ export function renderStats() {
   }
 
   const stats = [
-    { label: "현재 괴리율", value: current == null ? "-" : `${current.toFixed(2)}%` },
-    { label: "250일 이동 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
+    {
+      label: "괴리율",
+      value: renderComboRows([
+        { label: "현재", value: current == null ? "-" : `${current.toFixed(2)}%` },
+        { label: "250일 평균", value: sma250 == null ? "-" : `${sma250.toFixed(2)}%` },
+        { label: "EMA (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
+      ]),
+    },
     {
       label: "괴리율 위치",
       value: renderComboRows([
@@ -1054,7 +1072,6 @@ export function renderStats() {
         { label: "z-score", value: zScore == null ? "-" : `${zScore >= 0 ? '+' : ''}${zScore.toFixed(2)}σ` },
       ]),
     },
-    { label: "지수 이동 평균 (K=0.1)", value: ema == null ? "-" : `${ema.toFixed(2)}%` },
     {
       label: renderPreferredInlineLabel(p, preferredLabel),
       value: renderComboRows([
@@ -1083,7 +1100,13 @@ export function renderStats() {
         { label: "보통주", value: formatMarketCap(commonMarketCap) },
       ]),
     },
-    { label: "거래액 (최근 1개월 평균)", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
+    {
+      label: "거래액 (최근 1개월 평균)",
+      value: renderComboRows([
+        { label: "우선주", value: formatTradedValue(p.current.preferredAvgTradedValue20) },
+        { label: "보통주", value: formatTradedValue(p.current.commonAvgTradedValue20) },
+      ]),
+    },
     {
       label: "배당수익률",
       value: renderComboRows(dividendYieldRows),
@@ -1092,21 +1115,14 @@ export function renderStats() {
 
   if (!p.isAverage) {
     stats.push({
-      label: "배당 조건",
+      label: renderPreferredTermLabel(p),
       value: renderPreferredTermSummary(p),
       wide: true,
     });
 
-    const dividendEntries = app.dividendHistories?.[p.id]?.preferred;
-    const recentDividendRows = Array.isArray(dividendEntries)
-      ? dividendEntries
-        .filter(entry => entry?.date && entry.amount != null && !Number.isNaN(Number(entry.amount)))
-        .slice(-3)
-        .reverse()
-        .map(entry => ({ label: entry.date, value: `${Number(entry.amount).toLocaleString('ko-KR')}원` }))
-      : [];
+    const recentDividendRows = buildRecentDividendRows(app.dividendHistories?.[p.id]);
     stats.push({
-      label: "최근 배당 (우선주)",
+      label: "최근 배당",
       value: recentDividendRows.length ? renderComboRows(recentDividendRows) : "-",
     });
   }

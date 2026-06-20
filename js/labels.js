@@ -120,10 +120,17 @@ export function renderPreferredTermBadges(pair) {
   )).join('')}</div>`;
 }
 
+export function renderPreferredTermLabel(pair) {
+  const term = getPreferredTerm(pair);
+  const source = term?.sourceKey ? app.preferredTermSources?.[term.sourceKey] : null;
+  if (!source?.url) return '배당 조건';
+  const label = source.label || '근거 보기';
+  return `<a class="stat-label-link" href="${escapeHtml(source.url)}" target="_blank" rel="noopener" title="${escapeHtml(label)}">배당 조건</a>`;
+}
+
 export function renderPreferredTermSummary(pair) {
   const term = getPreferredTerm(pair);
   if (!term) return '-';
-  const source = term.sourceKey ? app.preferredTermSources?.[term.sourceKey] : null;
   const rows = [
     { label: '종류', value: term.classText || '-' },
     {
@@ -134,7 +141,7 @@ export function renderPreferredTermSummary(pair) {
       ].join(' / '),
     },
     { label: '우선배당', value: term.minimumDividend || term.additionalDividend || '-' },
-    { label: '신뢰도', value: formatPreferredTermConfidence(term.confidence) },
+    { label: '신뢰도', value: formatPreferredTermConfidence(term.confidence), title: term.note || '' },
   ];
 
   return `<div class="preferred-term-summary">
@@ -142,10 +149,8 @@ export function renderPreferredTermSummary(pair) {
     <div class="preferred-term-lines">
       ${rows.map(row => `<div class="preferred-term-row">
         <span>${escapeHtml(row.label)}</span>
-        <strong>${escapeHtml(row.value)}</strong>
+        <strong${row.title ? ` class="preferred-term-confidence" title="${escapeHtml(row.title)}"` : ''}>${escapeHtml(row.value)}</strong>
       </div>`).join('')}
     </div>
-    ${term.note ? `<div class="preferred-term-note">${escapeHtml(term.note)}</div>` : ''}
-    ${source?.url ? `<a class="preferred-term-source" href="${escapeHtml(source.url)}" target="_blank" rel="noopener">${escapeHtml(source.label || '근거 보기')}</a>` : ''}
   </div>`;
 }
