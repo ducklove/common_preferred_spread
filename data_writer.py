@@ -44,7 +44,7 @@ def atomic_write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(path.name + ".tmp")
     try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8", newline="") as f:
             f.write(text)
         os.replace(tmp_path, path)
     except Exception:
