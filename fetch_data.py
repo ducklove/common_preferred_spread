@@ -45,12 +45,35 @@ PROXY_BACKFILL_WORKERS = 2
 PROXY_HISTORY_WINDOW_DAYS = 730
 PROXY_HISTORY_TIMEOUT_SECONDS = 60
 PROXY_HISTORY_RETRIES = 3
-INTERNAL_CLOSE_API_URL = os.environ.get("INTERNAL_CLOSE_API_URL", "").strip()
-INTERNAL_DAILY_API_URL = os.environ.get("INTERNAL_DAILY_API_URL", "").strip()
-INTERNAL_INDICES_API_URL = os.environ.get("INTERNAL_INDICES_API_URL", "").strip()
-INTERNAL_DIVIDENDS_API_URL = os.environ.get("INTERNAL_DIVIDENDS_API_URL", "").strip()
+def getenv_nonempty(name, default=""):
+    value = os.environ.get(name, "").strip()
+    return value if value else default
+
+
+INTERNAL_PRICE_API_ENABLED = getenv_nonempty("INTERNAL_PRICE_API", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
+INTERNAL_PRICE_API_BASE_URL = getenv_nonempty(
+    "INTERNAL_PRICE_API_BASE_URL",
+    "http://192.168.68.84:8400",
+).rstrip("/")
+
+
+def default_internal_api_url(env_name, path):
+    if not INTERNAL_PRICE_API_ENABLED:
+        return ""
+    return getenv_nonempty(env_name, f"{INTERNAL_PRICE_API_BASE_URL}{path}")
+
+
+INTERNAL_CLOSE_API_URL = default_internal_api_url("INTERNAL_CLOSE_API_URL", "/api/prices/close")
+INTERNAL_DAILY_API_URL = default_internal_api_url("INTERNAL_DAILY_API_URL", "/api/prices/daily")
+INTERNAL_INDICES_API_URL = default_internal_api_url("INTERNAL_INDICES_API_URL", "/api/macro/indices")
+INTERNAL_DIVIDENDS_API_URL = default_internal_api_url("INTERNAL_DIVIDENDS_API_URL", "/api/fundamentals/dividends")
 INTERNAL_CLOSE_TIMEOUT_SECONDS = 10
 INTERNAL_PRICE_TIMEOUT_SECONDS = 30
+INTERNAL_PRICE_HEALTH_TIMEOUT_SECONDS = 8
 INTERNAL_PRICE_MAX_DAYS = 3650
 DIVIDEND_HISTORY_WORKERS = 6
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
@@ -199,6 +222,7 @@ _internal_dividend_rows_cache = {}
 _pair_yahoo_history_cache = {}
 _dividend_series_cache = {}
 _sheet_dividend_amount_cache = None
+_internal_price_api_available = None
 
 
 def get_div_yield(ticker):
@@ -217,6 +241,30 @@ def normalize_ticker_code(ticker):
     return digits[-6:].zfill(6)
 
 
+def is_internal_price_api_available():
+    global _internal_price_api_available
+
+    if _internal_price_api_available is not None:
+        return _internal_price_api_available
+    if not INTERNAL_PRICE_API_ENABLED or not INTERNAL_PRICE_API_BASE_URL:
+        _internal_price_api_available = False
+        return _internal_price_api_available
+
+    try:
+        request = Request(
+            f"{INTERNAL_PRICE_API_BASE_URL}/api/health",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(request, timeout=INTERNAL_PRICE_HEALTH_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        _internal_price_api_available = payload.get("status") == "ok"
+    except Exception as exc:
+        print(f"  WARNING: 내부 가격 API 사용 불가, 기존 fallback 사용 ({exc})")
+        _internal_price_api_available = False
+
+    return _internal_price_api_available
+
+
 def fetch_internal_dividend_rows(tickers):
     ticker_codes = {
         ticker: normalize_ticker_code(ticker)
@@ -229,7 +277,7 @@ def fetch_internal_dividend_rows(tickers):
         }
     )
 
-    if INTERNAL_DIVIDENDS_API_URL and missing_codes:
+    if INTERNAL_DIVIDENDS_API_URL and missing_codes and is_internal_price_api_available():
         params = {"tickers": ",".join(missing_codes)}
         request = Request(
             f"{INTERNAL_DIVIDENDS_API_URL}?{urlencode(params)}",
@@ -804,7 +852,7 @@ def fetch_internal_daily_history(tickers, start_date, end_date):
     tickers = sorted({ticker for ticker in tickers if ticker and ticker != "^KS11"})
     close = pd.DataFrame(columns=tickers)
     volume = pd.DataFrame(columns=tickers)
-    if not INTERNAL_DAILY_API_URL or not tickers:
+    if not INTERNAL_DAILY_API_URL or not tickers or not is_internal_price_api_available():
         return close, volume
 
     frames_close = []
@@ -910,7 +958,7 @@ def merge_missing_price_frame(base, extra):
 def fetch_internal_index_history(series_id):
     if series_id not in _internal_index_history_cache:
         rows = []
-        if INTERNAL_INDICES_API_URL:
+        if INTERNAL_INDICES_API_URL and is_internal_price_api_available():
             params = {"series_id": series_id}
             request = Request(
                 f"{INTERNAL_INDICES_API_URL}?{urlencode(params)}",
@@ -956,7 +1004,7 @@ def fetch_internal_index_history(series_id):
 def fetch_internal_close_history(ticker, since_date, until_date):
     code = ticker.split(".")[0]
     empty = pd.DataFrame(columns=["close"])
-    if not INTERNAL_CLOSE_API_URL or not code:
+    if not INTERNAL_CLOSE_API_URL or not code or not is_internal_price_api_available():
         return empty.copy()
 
     since_text = pd.Timestamp(since_date).strftime("%Y-%m-%d")

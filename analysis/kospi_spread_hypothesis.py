@@ -127,7 +127,6 @@ def spearman_stats(x: np.ndarray, y: np.ndarray) -> dict[str, float]:
 def newey_west_ols(y: np.ndarray, x: np.ndarray, max_lag: int | None = None) -> dict[str, float]:
     n = len(y)
     X = np.column_stack([np.ones(n), x])
-    k = X.shape[1]
     if max_lag is None:
         max_lag = int(math.floor(4 * (n / 100) ** (2 / 9)))
     max_lag = max(0, min(max_lag, n - 1))

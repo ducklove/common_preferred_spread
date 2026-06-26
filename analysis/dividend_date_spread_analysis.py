@@ -414,10 +414,7 @@ def write_report(
     average_short_change = summarize_series(average_valid["change_t-20_to_t-1"])
     raw_change = summarize_series(filtered["change_t-60_to_t-1"])
     dividend_removed = summarize_series(filtered["endpoint_dividend_removed_change"])
-    preferred_only_removed = summarize_series(filtered["preferred_only_removed_change"])
 
-    q1 = quartiles.iloc[0]
-    q4 = quartiles.iloc[-1]
     pref_yield_high_low = high_low[high_low["metric"] == "preferred_yield_t-60"]
     yield_gap_high_low = high_low[high_low["metric"] == "yield_gap_t-60"]
 
