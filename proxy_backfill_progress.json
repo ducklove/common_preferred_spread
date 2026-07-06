@@ -5,7 +5,8 @@
     "daeduck_electronics",
     "dl_enc_2pref",
     "dl_enc_pref",
-    "samsung_elec"
+    "samsung_elec",
+    "solus_2pref"
   ],
   "history": [
     {
@@ -48,6 +49,13 @@
       "attemptedAt": "2026-07-06 23:52:28",
       "beforeStart": "2019-12-26",
       "afterStart": "2019-12-26",
+      "extended": false
+    },
+    {
+      "pairId": "solus_2pref",
+      "attemptedAt": "2026-07-07 06:52:47",
+      "beforeStart": "2019-10-18",
+      "afterStart": "2019-10-18",
       "extended": false
     }
   ]
