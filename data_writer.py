@@ -3,16 +3,18 @@
 STOCK_DATA 출력 모듈
 data.js(레거시 호환)와 data/ 분할 출력(summary/history/dividends)을 원자적으로 생성한다.
 
-표준 라이브러리만 사용한다 (pandas/yfinance 불필요, fetch_data.py를 import하지 않음).
+표준 라이브러리 + fin-commons(stdlib only)만 사용한다 (pandas/yfinance 불필요,
+fetch_data.py를 import하지 않음). 원자적 쓰기/콤팩트 직렬화는 fin-commons로 승격됨.
 부트스트랩/복구: python3 data_writer.py --migrate (기존 data.js를 읽어 전체 출력 재생성)
 """
 
 import argparse
 import json
 import math
-import os
 import re
 from pathlib import Path
+
+from fin_commons.jsonio import atomic_write_text, dump_compact_json
 
 SCHEMA_VERSION = 1
 SAFE_PAIR_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -36,26 +38,6 @@ def parse_stock_data_js(path):
         return json.loads(json_str)
     except (OSError, json.JSONDecodeError, ValueError):
         return None
-
-
-def atomic_write_text(path, text):
-    """같은 디렉터리에 tmp 파일을 쓴 뒤 os.replace로 원자적으로 교체한다."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(path.name + ".tmp")
-    try:
-        with open(tmp_path, "w", encoding="utf-8", newline="") as f:
-            f.write(text)
-        os.replace(tmp_path, path)
-    except Exception:
-        if tmp_path.exists():
-            tmp_path.unlink()
-        raise
-
-
-def dump_compact_json(obj):
-    """프런트엔드 계약에 맞춘 콤팩트 JSON 직렬화."""
-    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
 def compute_spread_stats(history):

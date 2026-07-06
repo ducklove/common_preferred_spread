@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  issues: write  # 실패 이슈 알림 (fin-commons 표준 헬스 패턴)
 
 concurrency:
   group: data-commit
@@ -84,3 +85,37 @@ jobs:
             sleep $((attempt * 5))
           done
           git push
+
+      # --- fin-commons 표준 파이프라인 헬스 블록 ---------------------------
+      # ① 실패 → GitHub 이슈 (시크릿 불필요, pip install 실패 시에도 동작)
+      - name: Report failure as issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create data-update-failure --color D93F0B \
+            --description "데이터 갱신 워크플로우 실패" --force || true
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body="${{ github.workflow }} 워크플로우가 실패했습니다. 실행 로그: ${run_url}"
+          existing=$(gh issue list --label data-update-failure --state open \
+            --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "데이터 갱신 실패: ${{ github.workflow }}" \
+              --label data-update-failure --body "$body"
+          fi
+
+      # ② 실패 → Telegram/Discord (리포 시크릿이 설정된 경우에만 발송, 없으면 조용히 skip)
+      - name: Failure alert (fin-commons)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: >
+          python -m fin_commons.notify_cli
+          --context "${{ github.repository }} / ${{ github.workflow }}"
+          --detail "일별 시세 데이터 갱신 실패"
+          --url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          || true
