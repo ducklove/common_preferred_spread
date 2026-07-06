@@ -2,6 +2,6 @@
 lxml==6.1.1
 pandas==3.0.3
 # 공통 유틸리티 (가드/원자적 쓰기/알림) — 반드시 버전 태그로 고정
-fin-commons @ git+https://github.com/ducklove/fin-commons.git@v0.1.1
+fin-commons @ git+https://github.com/ducklove/fin-commons.git@v0.2.0
 websocket-client==1.9.0
 yfinance==1.4.1

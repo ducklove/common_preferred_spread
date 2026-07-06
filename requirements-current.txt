@@ -1,4 +1,4 @@
 # fetch_current.py는 표준 라이브러리 + websocket-client만 사용
 websocket-client==1.9.0
 # 공통 유틸리티 (워크플로우 실패 알림 CLI) — 반드시 버전 태그로 고정
-fin-commons @ git+https://github.com/ducklove/fin-commons.git@v0.1.1
+fin-commons @ git+https://github.com/ducklove/fin-commons.git@v0.2.0
