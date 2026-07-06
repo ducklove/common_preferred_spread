@@ -1655,12 +1655,19 @@ def main():
                 }
             )
 
-        # 증분 모드: 기존 히스토리와 병합
+        # 증분 모드: 기존 히스토리와 날짜 기준 비파괴 병합. 같은 날짜는 새 값이 이기고,
+        # 새 데이터에 없는 날짜의 기존 레코드는 보존한다 — 소스가 축소된 히스토리를
+        # 반환해도(예: 2026-06 Yahoo가 00279K.KS 과거 구간을 잃어 백필 재구축이 기존보다
+        # 성기게 나온 사고) 기존 구간이 유실되지 않는다.
+        # 의도적 재구축(--allow-history-truncation)일 때만 새 구간이 기존 창을 대체한다.
         if pair["id"] in existing_pairs_map and new_history:
             existing_hist = existing_pairs_map[pair["id"]]["history"]
-            first_new_date = new_history[0]["date"]
-            kept = [h for h in existing_hist if h["date"] < first_new_date]
-            history = kept + new_history
+            if args.allow_history_truncation:
+                first_new_date = new_history[0]["date"]
+                kept = [h for h in existing_hist if h["date"] < first_new_date]
+                history = kept + new_history
+            else:
+                history = history_rules.merge_history_by_date(new_history, existing_hist)
         else:
             history = new_history
 

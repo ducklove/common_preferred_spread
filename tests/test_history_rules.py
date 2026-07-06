@@ -1,6 +1,10 @@
 """history_rules 순수 함수 테스트 (표준 라이브러리 + pytest만 사용)."""
 
-from history_rules import find_quality_violations, merge_preserved_history
+from history_rules import (
+    find_quality_violations,
+    merge_history_by_date,
+    merge_preserved_history,
+)
 
 
 def make_history(dates, price=1000):
@@ -90,6 +94,63 @@ class TestMergePreservedHistory:
             "2020-01-06",
             "2020-01-08",
         ]
+
+
+# ---------------------------------------------------------------------------
+# merge_history_by_date
+# ---------------------------------------------------------------------------
+
+
+class TestMergeHistoryByDate:
+    def test_same_date_new_wins_missing_dates_preserved(self):
+        old = make_history(
+            ["2020-01-02", "2020-01-03", "2020-01-06", "2020-01-07"], price=900
+        )
+        new = make_history(["2020-01-06", "2020-01-08"])
+
+        merged = merge_history_by_date(new, old)
+
+        assert [h["date"] for h in merged] == [
+            "2020-01-02",
+            "2020-01-03",
+            "2020-01-06",
+            "2020-01-07",
+            "2020-01-08",
+        ]
+        # 겹치는 1/6은 새 값, 새 데이터에 없는 1/7은 기존 값 보존
+        assert merged[2]["commonPrice"] == 1000
+        assert merged[3]["commonPrice"] == 900
+
+    def test_empty_inputs(self):
+        history = make_history(["2020-01-06", "2020-01-07"])
+
+        assert merge_history_by_date(history, []) == history
+        assert merge_history_by_date(history, None) == history
+        assert merge_history_by_date([], history) == history
+        assert merge_history_by_date(None, history) == history
+        assert merge_history_by_date([], []) == []
+
+    def test_no_duplicate_dates_after_merge(self):
+        old = make_history(["2020-01-02", "2020-01-03", "2020-01-06"], price=900)
+        new = make_history(["2020-01-03", "2020-01-06", "2020-01-07"])
+
+        merged = merge_history_by_date(new, old)
+
+        dates = [h["date"] for h in merged]
+        assert len(dates) == len(set(dates))
+        assert dates == sorted(dates)
+
+    def test_shrunken_refetch_passes_quality_guard(self):
+        # 2026-06 아모레G3우B 사고 재현: Yahoo가 과거 구간을 잃어 재수집(백필)이
+        # 기존보다 성긴 시리즈를 반환해도, 병합 결과는 기존 구간을 모두 보존해
+        # 품질 가드를 통과해야 한다 (파괴적 병합이었다면 포인트 감소로 exit 1).
+        previous = {"pair1": make_history(dates_from(100), price=900)}
+        sparse_refetch = make_history(dates_from(100)[::2])
+
+        merged = merge_history_by_date(sparse_refetch, previous["pair1"])
+
+        assert len(merged) == 100
+        assert find_quality_violations({"pair1": merged}, previous, {"pair1"}) == []
 
 
 # ---------------------------------------------------------------------------
