@@ -47,6 +47,7 @@ jobs:
           name: data-backup-${{ github.run_id }}
           path: |
             data.js
+            data/
             proxy_backfill_progress.json
           retention-days: 90
           if-no-files-found: warn

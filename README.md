@@ -64,7 +64,7 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 
 - **의존성 고정 정책**: 2026-05~06 한 달간, 미고정 `pip install yfinance pandas`가 lxml을 더 이상 전이 설치하지 않게 되면서 네이버 백필 경로의 `pd.read_html`이 `ModuleNotFoundError`로 크래시해 일별 워크플로우가 매일 실패했습니다. 이후 모든 의존성은 `requirements*.txt`에 버전 고정하며 lxml을 명시합니다.
 - **데이터 품질 가드**: 기존 데이터 대비 히스토리 시작일이 후퇴하거나 데이터 포인트가 급감하면 `fetch_data.py`가 exit 1로 실행을 실패시켜 커밋을 차단합니다. 의도적인 재구축일 때만 `--allow-history-truncation` 플래그를 사용하세요.
-- 두 워크플로우는 `concurrency: data-commit` 그룹으로 묶여 push 경합이 직렬화되고, push 실패 시 rebase 후 재시도합니다.
+- 두 워크플로우는 각자 별도 concurrency 그룹(`data-commit`/`current-commit`)을 사용해 같은 워크플로우끼리만 직렬화합니다(일별 작업이 장중 작업 대기열에 밀려 취소되는 것 방지). 워크플로우 간 push 경합은 커밋 스텝의 rebase 재시도로 처리합니다.
 
 ## 환경변수
 
@@ -95,10 +95,11 @@ npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js"   # JS 린트 (eslint
 
 ## 데이터 복구/백필 절차
 
-1. **백업 복원** — `update-data.yml`은 매 실행 전 `data.js`·`proxy_backfill_progress.json`을 Actions 아티팩트(`data-backup-<run_id>`, 90일 보관)로 업로드합니다. 데이터가 깨졌다면 정상이던 실행의 아티팩트를 내려받아 저장소에 덮어쓰고 커밋하면 됩니다.
-2. **유실 히스토리 재백필** — 장기 히스토리가 유실된 경우(예: `samsung_elec`은 1989-09-25까지, `cj_4pref`는 2019-08-09까지 보유했었음):
+1. **백업 복원** — `update-data.yml`은 매 실행 전 `data.js`·`data/`·`proxy_backfill_progress.json`을 Actions 아티팩트(`data-backup-<run_id>`, 90일 보관)로 업로드합니다. 데이터가 깨졌다면 정상이던 실행의 아티팩트를 내려받아 저장소에 덮어쓰고 커밋하면 됩니다.
+2. **git 히스토리 복원** — 아티팩트가 만료됐어도 데이터 파일은 매일 커밋되므로 git 히스토리가 사실상 영구 백업입니다. `git log -S '<유실 구간의 날짜 문자열>' -- data.js`로 유실 커밋을 찾아 그 부모 커밋의 `data.js`에서 해당 구간만 현재 데이터에 병합(prepend)한 뒤 `python data_writer.py --migrate`로 분할 출력을 재생성하면 됩니다. (실제 사례: 2026-04-10 신규 종목 추가 시 전체 재수집으로 `samsung_elec` 1989-09-25~1996-06-24 구간 1,978일이 유실됐고, 2026-07-06 이 방법으로 복구함)
+3. **유실 히스토리 재백필** — git 히스토리에도 없는 구간은 프록시 API로 재수집합니다:
    1. 저장소 Variables에 `PROXY_HISTORY_BASE_URL` 설정 (선행 필수)
-   2. Actions → "Update Stock Data (Daily)" → Run workflow → `proxy_backfill` 입력란에 `samsung_elec cj_4pref` 입력 후 실행
+   2. Actions → "Update Stock Data (Daily)" → Run workflow → `proxy_backfill` 입력란에 pair id(예: `samsung_elec cj_4pref`) 입력 후 실행
 
 ## 보안 주의
 
