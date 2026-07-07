@@ -6,6 +6,7 @@
     "dl_enc_2pref",
     "dl_enc_pref",
     "samsung_elec",
+    "solus",
     "solus_2pref"
   ],
   "history": [
@@ -54,6 +55,13 @@
     {
       "pairId": "solus_2pref",
       "attemptedAt": "2026-07-07 06:52:47",
+      "beforeStart": "2019-10-18",
+      "afterStart": "2019-10-18",
+      "extended": false
+    },
+    {
+      "pairId": "solus",
+      "attemptedAt": "2026-07-08 06:44:25",
       "beforeStart": "2019-10-18",
       "afterStart": "2019-10-18",
       "extended": false
