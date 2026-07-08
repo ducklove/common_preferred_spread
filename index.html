@@ -47,6 +47,7 @@
     <div class="card-toolbar-title">카드 정렬</div>
     <div class="card-sort-options" id="cardSortOptions" aria-label="카드 정렬">
       <button type="button" data-card-sort="spread" class="active">괴리율</button>
+      <button type="button" data-card-sort="attractiveness">투자매력도</button>
       <button type="button" data-card-sort="preferredYield">배당수익률</button>
       <button type="button" data-card-sort="spreadWidening">일 확대</button>
       <button type="button" data-card-sort="spreadNarrowing">일 축소</button>
@@ -108,6 +109,20 @@
   </div>
 
   <div class="stats-row" id="statsRow"></div>
+
+  <div class="chart-section attractiveness-section" id="attractivenessSection" hidden>
+    <div class="chart-header">
+      <div>
+        <div class="chart-title" id="attractivenessTitle">투자매력도</div>
+        <div class="attractiveness-subtitle">5개 축 × 20점 = 100점 · 일별 산출 (자세한 기준은 README)</div>
+      </div>
+      <div class="attractiveness-total" id="attractivenessTotal"></div>
+    </div>
+    <div class="attractiveness-body">
+      <div class="radar-container"><canvas id="radarChart"></canvas></div>
+      <div class="attractiveness-breakdown" id="attractivenessBreakdown"></div>
+    </div>
+  </div>
 
   <div class="table-section">
     <h2>종목 비교</h2>

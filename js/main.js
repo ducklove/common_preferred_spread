@@ -30,6 +30,7 @@ import {
   updateSelectedPairQueryParam,
 } from './views.js';
 import { bindZoomControls, renderChart, renderPriceChart, renderZoomPanel } from './charts.js';
+import { renderAttractivenessSection } from './radar.js';
 import { bindHeatmapControls, renderHeatmap } from './heatmap.js';
 import { bindStrategyControls, renderStrategySection } from './strategy.js';
 import { bindAutoRefresh, bindRefreshButton, fetchCurrentPrices } from './live.js';
@@ -70,6 +71,7 @@ export async function initializeDashboard() {
   renderChart();
   renderPriceChart();
   renderStats();
+  renderAttractivenessSection();
   queueDividendRender();
   bindPeriodBtns();
   bindCsvExportButton();
@@ -96,5 +98,6 @@ window.addEventListener('resize', () => {
   renderChart();
   renderPriceChart();
   renderHeatmap();
+  renderAttractivenessSection();
   renderStrategySection(); // 로드 완료 상태에서만 차트를 다시 그림 (내부 가드)
 });

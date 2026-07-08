@@ -25,6 +25,7 @@ from urllib.request import Request, urlopen
 import yfinance as yf
 import pandas as pd
 
+import attractiveness
 import data_writer
 import history_rules
 
@@ -546,7 +547,7 @@ def parse_number_text(value):
     return int(digits.replace(",", ""))
 
 
-def extract_naver_row_value(html, label):
+def extract_naver_row_text(html, label):
     marker = f'<th scope="row">{label}</th>'
     marker_idx = html.find(marker)
     if marker_idx == -1:
@@ -562,7 +563,76 @@ def extract_naver_row_value(html, label):
     text_end = row_html.find("</em>", text_start)
     if text_start == -1 or text_end == -1:
         return None
-    return parse_number_text(row_html[text_start + 1:text_end])
+    return row_html[text_start + 1:text_end]
+
+
+def extract_naver_row_value(html, label):
+    return parse_number_text(extract_naver_row_text(html, label))
+
+
+def parse_float_text(value):
+    match = re.search(r"-?\d[\d,]*(?:\.\d+)?", str(value or ""))
+    if not match:
+        return None
+    try:
+        return float(match.group().replace(",", ""))
+    except ValueError:
+        return None
+
+
+def extract_naver_indicator(html, indicator_id):
+    """네이버 종목 메인 페이지의 <em id="_per">8.66</em> 류 투자지표 값을 파싱한다."""
+    match = re.search(
+        rf'id="{indicator_id}"[^>]*>\s*([-\d,.]+)\s*<', html
+    )
+    return parse_float_text(match.group(1)) if match else None
+
+
+def extract_naver_foreign_ratio(html):
+    """외국인소진율(B/A) 행의 값을 파싱한다.
+
+    라벨이 <strong>으로 감싸이고 도움말 툴팁 div가 끼어 있어 행 파서로는 못 잡는다.
+    라벨 위치에서 가장 가까운 다음 <em> 값을 읽는다 (툴팁에는 <em>이 없음).
+    """
+    idx = html.find("외국인소진율")
+    if idx == -1:
+        return None
+    match = re.search(r"<em[^>]*>\s*([\d,.]+)\s*%?\s*</em>", html[idx:idx + 3000])
+    return parse_float_text(match.group(1)) if match else None
+
+
+def parse_naver_annual_net_incomes(html):
+    """기업실적분석 표에서 확정 연간 당기순이익 목록(원 단위, 과거→최근)을 반환한다.
+
+    추정치 컬럼('(E)' 표기)은 제외한다. 표가 없거나 파싱 실패 시 빈 목록.
+    """
+    try:
+        tables = pd.read_html(StringIO(html))
+    except Exception:
+        return []
+    for table in tables:
+        try:
+            first_col = table.iloc[:, 0].astype(str).str.strip()
+        except Exception:
+            continue
+        row_matches = first_col[first_col == "당기순이익"]
+        if row_matches.empty or not isinstance(table.columns, pd.MultiIndex):
+            continue
+        row = table.loc[row_matches.index[0]]
+        incomes = []
+        for column in table.columns[1:]:
+            labels = [str(level) for level in column]
+            if not any("최근 연간 실적" in level for level in labels):
+                continue
+            if any("(E)" in level for level in labels):
+                continue
+            value = parse_float_text(row[column])
+            if value is None:
+                continue
+            incomes.append(value * 100_000_000)  # 억원 → 원
+        if incomes:
+            return incomes
+    return []
 
 
 def get_naver_ticker_meta(ticker):
@@ -572,6 +642,10 @@ def get_naver_ticker_meta(ticker):
     meta = {
         "marketCap": None,
         "sharesOutstanding": None,
+        "per": None,
+        "pbr": None,
+        "foreignRatio": None,
+        "annualNetIncomes": [],
     }
 
     code = ticker.split(".")[0]
@@ -596,6 +670,11 @@ def get_naver_ticker_meta(ticker):
         meta["marketCap"] = market_cap_eok * 100_000_000
     if shares_outstanding is not None:
         meta["sharesOutstanding"] = shares_outstanding
+    # 본주 건전성(투자매력도) 지표 — 같은 페이지에서 추가 파싱 (추가 요청 없음)
+    meta["per"] = extract_naver_indicator(html, "_per")
+    meta["pbr"] = extract_naver_indicator(html, "_pbr")
+    meta["foreignRatio"] = extract_naver_foreign_ratio(html)
+    meta["annualNetIncomes"] = parse_naver_annual_net_incomes(html)
 
     _naver_meta_cache[ticker] = meta
     return meta
@@ -609,6 +688,10 @@ def get_ticker_meta(ticker):
         "dividendYield": 0,
         "marketCap": None,
         "sharesOutstanding": None,
+        "per": None,
+        "pbr": None,
+        "foreignRatio": None,
+        "annualNetIncomes": [],
     }
     internal_meta = _internal_ticker_meta_cache.get(ticker, {})
 
@@ -641,6 +724,11 @@ def get_ticker_meta(ticker):
         or info.get("sharesOutstanding")
         or _read_fast_info_value(fast_info, "sharesOutstanding", "shares", "shares_outstanding")
     )
+    # 투자매력도(본주 건전성) 지표: 네이버 우선, PER/PBR은 yfinance 폴백
+    meta["per"] = naver_meta["per"] or info.get("trailingPE")
+    meta["pbr"] = naver_meta["pbr"] or info.get("priceToBook")
+    meta["foreignRatio"] = naver_meta["foreignRatio"]
+    meta["annualNetIncomes"] = naver_meta["annualNetIncomes"]
 
     _ticker_meta_cache[ticker] = meta
     return meta
@@ -1773,6 +1861,17 @@ def main():
             },
             "history": history,
         }
+        pair_data["attractiveness"] = attractiveness.compute_attractiveness(
+            history,
+            pair_data["current"],
+            {
+                "per": common_meta.get("per"),
+                "pbr": common_meta.get("pbr"),
+                "foreignRatio": common_meta.get("foreignRatio"),
+                "annualNetIncomes": common_meta.get("annualNetIncomes"),
+            },
+            dividend_histories[pair["id"]]["preferred"],
+        )
         pairs_result.append(pair_data)
 
         print(

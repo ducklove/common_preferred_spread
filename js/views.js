@@ -86,6 +86,7 @@ import {
   renderZoomPanel,
   resetZoomWindow,
 } from './charts.js';
+import { renderAttractivenessSection } from './radar.js';
 
 export function queueDividendRender() {
   // 배당 데이터 최초 로드가 끝나는 시점에만 1회 재렌더한다 (이미 로드됐으면 일반 렌더 경로에 포함).
@@ -181,6 +182,7 @@ export function applyTheme(theme, { persist = true, rerender = true } = {}) {
     renderZoomPanel();
     renderChart();
     renderPriceChart();
+    renderAttractivenessSection();
   }
 }
 
@@ -262,6 +264,7 @@ export function selectPair(idx, { updateUrl = true, scrollToChart = false } = {}
   renderCards();
   renderTable();
   queueDividendRender();
+  renderAttractivenessSection(); // 히스토리 로드와 무관 (일별 점수는 summary에 포함)
   const renderDetail = () => {
     if (app.selectedIdx !== idx) return; // 로드 중 다른 종목이 선택된 경우
     renderZoomPanel();
@@ -976,6 +979,7 @@ export function getTableRowMetrics(pair) {
     preferredListingDateText,
     spread: pair.current.spread,
     spreadChange: pair.current.spreadChange,
+    attractiveness: pair.attractiveness?.total ?? null,
   };
 }
 
@@ -1035,6 +1039,7 @@ export function renderTable() {
       <td class="numeric${divYieldGap > 0 ? ' div-yield' : ''}">${formatDivYieldGap(divYieldGap)}</td>
       <td class="numeric ${textColorClass}">${formatPointChange(c.spreadChange)}</td>
       <td class="numeric"><div class="bar-cell"><div class="bar" style="width:${barW}%"></div>${c.spread.toFixed(1)}%</div></td>
+      <td class="numeric">${metrics?.attractiveness == null ? '-' : metrics.attractiveness.toFixed(1)}</td>
     </tr>`;
   }).join('');
 }

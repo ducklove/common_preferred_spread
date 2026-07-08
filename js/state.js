@@ -36,6 +36,7 @@ export const TABLE_SORT_DEFAULT_DIRECTION = {
   preferredListingDate: 'asc',
   spreadChange: 'desc',
   spread: 'desc',
+  attractiveness: 'desc',
 };
 export const TABLE_HEADER_CONFIG = [
   { key: 'name', label: '\uC885\uBAA9', sortable: true, numeric: false },
@@ -48,6 +49,7 @@ export const TABLE_HEADER_CONFIG = [
   { key: 'divYieldGap', label: '\uBC30\uB2F9\uCC28', sortable: true, numeric: true },
   { key: 'spreadChange', label: '\uBCC0\uB3D9', sortable: true, numeric: true },
   { key: 'spread', label: '\uAD34\uB9AC\uC728', sortable: true, numeric: true },
+  { key: 'attractiveness', label: '\uD22C\uC790\uB9E4\uB825\uB3C4', sortable: true, numeric: true },
 ];
 export const MARKET_EXTRA_SPECS = [
   { id: 'KOSDAQ', name: 'KOSDAQ', unit: '', priceDecimals: 2 },
@@ -59,6 +61,7 @@ export const ZOOM_RANGE_MAX = 1000;
 export const ZOOM_MIN_WINDOW = 30;
 export const CARD_SORT_CONFIG = {
   spread: { direction: 'desc' },
+  attractiveness: { direction: 'desc' },
   preferredYield: { direction: 'desc' },
   spreadWidening: { direction: 'desc' },
   spreadNarrowing: { direction: 'asc' },
@@ -332,6 +335,7 @@ export function getPairMeta(pairOrId) {
 
 export function getCardSortMetric(pair, mode = app.cardSortMode) {
   if (!pair?.current) return null;
+  if (mode === 'attractiveness') return pair.attractiveness?.total ?? null;
   if (mode === 'preferredYield') return pair.current.preferredDivYield;
   if (mode === 'spreadWidening' || mode === 'spreadNarrowing') return pair.current.spreadChange;
   return pair.current.spread;

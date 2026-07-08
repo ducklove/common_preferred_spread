@@ -1604,3 +1604,83 @@ td.numeric .bar-cell {
 @media (max-width: 768px) {
   .strategy-chart-container { height: 240px; }
 }
+
+/* 투자매력도 (레이더) 섹션 */
+.attractiveness-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.attractiveness-total {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.attractiveness-total-max {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-left: 2px;
+}
+.attractiveness-body {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.radar-container {
+  position: relative;
+  flex: 0 0 320px;
+  height: 300px;
+  min-width: 260px;
+}
+.attractiveness-breakdown {
+  flex: 1 1 280px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.attractiveness-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.attractiveness-row-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.attractiveness-row-score {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.attractiveness-row-max {
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.attractiveness-bar {
+  height: 4px;
+  margin-top: 4px;
+  background: var(--grid);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.attractiveness-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.attractiveness-row-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+@media (max-width: 768px) {
+  .radar-container { flex-basis: 100%; height: 260px; }
+}
