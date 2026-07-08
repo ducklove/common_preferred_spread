@@ -5,6 +5,7 @@
     "daeduck_electronics",
     "dl_enc_2pref",
     "dl_enc_pref",
+    "doosan_fuelcell_2pref",
     "samsung_elec",
     "solus",
     "solus_2pref"
@@ -62,6 +63,13 @@
     {
       "pairId": "solus",
       "attemptedAt": "2026-07-08 06:44:25",
+      "beforeStart": "2019-10-18",
+      "afterStart": "2019-10-18",
+      "extended": false
+    },
+    {
+      "pairId": "doosan_fuelcell_2pref",
+      "attemptedAt": "2026-07-09 06:28:28",
       "beforeStart": "2019-10-18",
       "afterStart": "2019-10-18",
       "extended": false
