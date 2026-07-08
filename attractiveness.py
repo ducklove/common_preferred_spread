@@ -5,7 +5,9 @@
 5개 축 × 20점 = 총 100점. 각 축의 기준(anchor)은 아래 상수로 고정한다.
 값이 없는 하위 지표는 0점 처리하되 details에 null로 남겨 프런트에서 구분한다.
 
-1. 괴리율(20): 현재 괴리율. 0% → 0점, SPREAD_FULL_SCORE_PCT 이상 → 만점 (선형)
+1. 괴리율(20): 현재 괴리율의 상대 스케일 — 전 종목 최고 괴리율이 만점 기준
+   (0% → 0점, 최고 종목 → 20점, 선형. 고정 앵커면 60%+ 종목들이 전부 만점으로
+   뭉개져 상위권 변별력이 사라진다. 최고값이 없으면 SPREAD_FULL_SCORE_PCT 사용)
 2. 괴리율 이격도(20): 최근 3년 괴리율 분포에서 현재 값의 백분위 × 20
    (분포 상단 = 자기 역사 대비 괴리율이 넓은 상태 = 평균회귀 여지)
 3. 유동성(20): 우선주 시총(10) + 최근 1개월(20거래일) 평균 거래액(10), 로그 스케일
@@ -17,7 +19,7 @@
 
 import math
 
-SPREAD_FULL_SCORE_PCT = 60.0            # 괴리율 60% 이상 = 20점
+SPREAD_FULL_SCORE_PCT = 60.0            # 전 종목 최고값이 없을 때의 만점 폴백 앵커
 SPREAD_POSITION_WINDOW_YEARS = 3
 
 LIQUIDITY_MCAP_LOG_MIN = 10.0           # 우선주 시총 100억(1e10) 이하 = 0점
@@ -68,8 +70,10 @@ def _log_score(value, log_min, log_max, max_score):
     return _clamp01((math.log10(value) - log_min) / (log_max - log_min)) * max_score
 
 
-def score_spread(spread):
-    return _linear_score(spread, 0.0, SPREAD_FULL_SCORE_PCT, 20.0)
+def score_spread(spread, max_spread=None):
+    """괴리율 점수. max_spread(전 종목 최고 괴리율)가 만점 기준, 없으면 고정 앵커."""
+    anchor = max_spread if max_spread is not None and max_spread > 0 else SPREAD_FULL_SCORE_PCT
+    return _linear_score(spread, 0.0, anchor, 20.0)
 
 
 def spread_percentile_3y(history):
@@ -178,13 +182,16 @@ def score_health(common_market_cap, foreign_ratio, annual_net_incomes, per, pbr)
     return score, len(incomes), positive_years
 
 
-def compute_attractiveness(history, current, common_financials, preferred_dividends):
-    """pair 1개의 투자매력도를 계산한다. current가 없으면 None."""
+def compute_attractiveness(history, current, common_financials, preferred_dividends, max_spread=None):
+    """pair 1개의 투자매력도를 계산한다. current가 없으면 None.
+
+    max_spread: 전 종목 최고 괴리율(%) — 괴리율 축의 상대 스케일 만점 기준.
+    """
     if not current:
         return None
     financials = common_financials or {}
 
-    spread_score = score_spread(current.get("spread"))
+    spread_score = score_spread(current.get("spread"), max_spread)
     percentile, window_days = spread_percentile_3y(history)
     position_score = score_spread_position(percentile)
     liquidity_score = score_liquidity(
@@ -216,6 +223,7 @@ def compute_attractiveness(history, current, common_financials, preferred_divide
         "total": round(sum(scores.values()), 1),
         "scores": scores,
         "details": {
+            "spreadAnchor": round(max_spread, 1) if max_spread is not None and max_spread > 0 else None,
             "spreadPct3y": round(percentile, 1) if percentile is not None else None,
             "spreadWindowDays": window_days,
             "divYield5y": round(five_year_avg, 2) if five_year_avg is not None else None,

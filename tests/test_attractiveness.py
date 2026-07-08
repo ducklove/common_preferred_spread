@@ -20,13 +20,23 @@ def make_history(entries):
 
 
 class TestScoreSpread:
-    def test_anchors(self):
+    def test_fallback_anchor_without_max(self):
         assert score_spread(0) == 0
         assert score_spread(30) == 10
         assert score_spread(60) == 20
         assert score_spread(90) == 20  # 만점 초과 클램프
         assert score_spread(-10) == 0  # 역전 괴리율
         assert score_spread(None) == 0
+
+    def test_relative_scale_to_universe_max(self):
+        # 전 종목 최고(85%)가 만점 기준: 60% 고정 앵커에서 함께 만점이던
+        # 두 종목(85% vs 68%)이 상대 스케일에서는 구분된다
+        assert score_spread(85.0, 85.0) == 20
+        assert round(score_spread(68.0, 85.0), 1) == 16.0
+        assert score_spread(0, 85.0) == 0
+        # 비정상 max는 폴백 앵커 사용
+        assert score_spread(30, 0) == 10
+        assert score_spread(30, None) == 10
 
 
 class TestSpreadPercentile:

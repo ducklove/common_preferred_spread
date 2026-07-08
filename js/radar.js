@@ -31,7 +31,9 @@ function getAxisDetailText(axisKey, pair) {
   const d = a?.details || {};
   switch (axisKey) {
     case 'spread':
-      return `현재 괴리율 ${formatDetailNumber(c.spread, '%')}`;
+      return d.spreadAnchor == null
+        ? `현재 괴리율 ${formatDetailNumber(c.spread, '%')}`
+        : `현재 괴리율 ${formatDetailNumber(c.spread, '%')} · 만점 기준 ${formatDetailNumber(d.spreadAnchor, '%')} (전 종목 최고)`;
     case 'spreadPosition':
       return d.spreadPct3y == null
         ? '3년 분포 데이터 부족'
