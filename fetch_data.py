@@ -27,6 +27,7 @@ import pandas as pd
 
 import attractiveness
 import data_writer
+import dividend_sources
 import history_rules
 
 KST = timezone(timedelta(hours=9))
@@ -438,7 +439,7 @@ def fetch_sheet_dividend_amounts():
         return _sheet_dividend_amount_cache
 
     try:
-        sheet_df = pd.read_csv(StringIO(csv_text), dtype=str)
+        sheet_df = pd.read_csv(StringIO(csv_text), dtype=str, header=None)
     except Exception:
         _sheet_dividend_amount_cache = {
             "byPair": {},
@@ -447,6 +448,20 @@ def fetch_sheet_dividend_amounts():
         }
         return _sheet_dividend_amount_cache
 
+    # 배당 블록 시작 컬럼은 시트에 열이 추가될 때마다 밀리므로 앵커로 감지한다
+    # (헤더 행은 종목코드 정규화가 None이 되어 아래 루프에서 자연히 건너뛴다)
+    header_cells = sheet_df.iloc[0].tolist() if len(sheet_df) else []
+    sample_row_cells = []
+    for _, row in sheet_df.iloc[1:].iterrows():
+        cells = row.tolist()
+        if any(isinstance(c, str) and c.strip().endswith("억") for c in cells):
+            sample_row_cells = cells
+            break
+    latest_fiscal_year = datetime.now(KST).year - 1
+    common_dividend_idx, preferred_dividend_idx = dividend_sources.detect_sheet_layout(
+        header_cells, sample_row_cells, latest_fiscal_year
+    )
+
     by_pair = {}
     by_preferred = {}
     by_common = {}
@@ -454,8 +469,12 @@ def fetch_sheet_dividend_amounts():
     for _, row in sheet_df.iterrows():
         preferred_code = normalize_sheet_code(row.iloc[1] if len(row) > 1 else None)
         common_code = normalize_sheet_code(row.iloc[2] if len(row) > 2 else None)
-        common_dividend = parse_sheet_dividend_amount(row.iloc[14] if len(row) > 14 else None)
-        preferred_dividend = parse_sheet_dividend_amount(row.iloc[34] if len(row) > 34 else None)
+        common_dividend = parse_sheet_dividend_amount(
+            row.iloc[common_dividend_idx] if len(row) > common_dividend_idx else None
+        )
+        preferred_dividend = parse_sheet_dividend_amount(
+            row.iloc[preferred_dividend_idx] if len(row) > preferred_dividend_idx else None
+        )
 
         if not preferred_code and not common_code:
             continue
@@ -646,6 +665,7 @@ def get_naver_ticker_meta(ticker):
         "pbr": None,
         "foreignRatio": None,
         "annualNetIncomes": [],
+        "naverDividendYield": None,
     }
 
     code = ticker.split(".")[0]
@@ -675,6 +695,8 @@ def get_naver_ticker_meta(ticker):
     meta["pbr"] = extract_naver_indicator(html, "_pbr")
     meta["foreignRatio"] = extract_naver_foreign_ratio(html)
     meta["annualNetIncomes"] = parse_naver_annual_net_incomes(html)
+    # 공식 배당수익률 — 배당액 소스(내부 API/시트) 낡음 검증 기준값
+    meta["naverDividendYield"] = extract_naver_indicator(html, "_dvr")
 
     _naver_meta_cache[ticker] = meta
     return meta
@@ -692,6 +714,7 @@ def get_ticker_meta(ticker):
         "pbr": None,
         "foreignRatio": None,
         "annualNetIncomes": [],
+        "naverDividendYield": None,
     }
     internal_meta = _internal_ticker_meta_cache.get(ticker, {})
 
@@ -729,6 +752,7 @@ def get_ticker_meta(ticker):
     meta["pbr"] = naver_meta["pbr"] or info.get("priceToBook")
     meta["foreignRatio"] = naver_meta["foreignRatio"]
     meta["annualNetIncomes"] = naver_meta["annualNetIncomes"]
+    meta["naverDividendYield"] = naver_meta["naverDividendYield"]
 
     _ticker_meta_cache[ticker] = meta
     return meta
@@ -1593,6 +1617,7 @@ def main():
 
     # 각 페어별로 괴리율 계산
     pairs_result = []
+    attractiveness_financials = {}
     dividend_histories = {}
 
     for pair in PAIRS:
@@ -1789,14 +1814,34 @@ def main():
         common_meta = get_ticker_meta(ct)
         preferred_meta = get_ticker_meta(pt)
         internal_dividend_amounts = get_internal_dividend_amounts(ct, pt)
-        common_dividend_per_share = internal_dividend_amounts.get("commonDividendPerShare")
-        preferred_dividend_per_share = internal_dividend_amounts.get("preferredDividendPerShare")
-        if common_dividend_per_share is None or preferred_dividend_per_share is None:
-            sheet_dividend_amounts = get_sheet_dividend_amounts(ct, pt) or {}
-            if common_dividend_per_share is None:
-                common_dividend_per_share = sheet_dividend_amounts.get("commonDividendPerShare")
-            if preferred_dividend_per_share is None:
-                preferred_dividend_per_share = sheet_dividend_amounts.get("preferredDividendPerShare")
+        sheet_dividend_amounts = get_sheet_dividend_amounts(ct, pt) or {}
+        # 소스 우선순위(내부 API > 시트)는 유지하되, 네이버 공식 배당수익률(_dvr)과
+        # 함의 수익률이 크게 어긋나는 낡은 값(분할 미반영·전년도 값)은 걸러낸다
+        common_dividend_per_share, common_dividend_source = dividend_sources.choose_dividend_per_share(
+            latest["commonPrice"],
+            [
+                ("internal", internal_dividend_amounts.get("commonDividendPerShare")),
+                ("sheet", sheet_dividend_amounts.get("commonDividendPerShare")),
+            ],
+            common_meta.get("naverDividendYield"),
+        )
+        preferred_dividend_per_share, preferred_dividend_source = dividend_sources.choose_dividend_per_share(
+            latest["preferredPrice"],
+            [
+                ("internal", internal_dividend_amounts.get("preferredDividendPerShare")),
+                ("sheet", sheet_dividend_amounts.get("preferredDividendPerShare")),
+            ],
+            preferred_meta.get("naverDividendYield"),
+        )
+        for side, chosen_source, rejected in (
+            ("보통주", common_dividend_source, internal_dividend_amounts.get("commonDividendPerShare")),
+            ("우선주", preferred_dividend_source, internal_dividend_amounts.get("preferredDividendPerShare")),
+        ):
+            if rejected is not None and chosen_source not in (None, "internal"):
+                print(
+                    f"  INFO: {pair['name']} {side} 배당액 소스 교정: "
+                    f"internal {rejected} 기각 -> {chosen_source} 채택"
+                )
         dividend_override = DIVIDEND_AMOUNT_OVERRIDES.get((ct, pt), {})
         if "commonDividendPerShare" in dividend_override:
             common_dividend_per_share = dividend_override["commonDividendPerShare"]
@@ -1861,17 +1906,13 @@ def main():
             },
             "history": history,
         }
-        pair_data["attractiveness"] = attractiveness.compute_attractiveness(
-            history,
-            pair_data["current"],
-            {
-                "per": common_meta.get("per"),
-                "pbr": common_meta.get("pbr"),
-                "foreignRatio": common_meta.get("foreignRatio"),
-                "annualNetIncomes": common_meta.get("annualNetIncomes"),
-            },
-            dividend_histories[pair["id"]]["preferred"],
-        )
+        # 투자매력도는 전 종목 최고 괴리율(상대 스케일 기준)이 필요해 루프 종료 후 일괄 계산
+        attractiveness_financials[pair["id"]] = {
+            "per": common_meta.get("per"),
+            "pbr": common_meta.get("pbr"),
+            "foreignRatio": common_meta.get("foreignRatio"),
+            "annualNetIncomes": common_meta.get("annualNetIncomes"),
+        }
         pairs_result.append(pair_data)
 
         print(
@@ -1879,6 +1920,26 @@ def main():
             f"현재 괴리율 {latest['spread']:.2f}% "
             f"({'↑' if spread_change > 0 else '↓'}{abs(spread_change):.2f}%p) "
             f"배당: {pair_data['current']['commonDivYield']:.1f}%/{pair_data['current']['preferredDivYield']:.1f}%"
+        )
+
+    # 투자매력도 일괄 계산 — 괴리율 축은 전 종목 최고 괴리율 기준 상대 스케일
+    max_spread = max(
+        (
+            p["current"]["spread"]
+            for p in pairs_result
+            if p["current"].get("spread") is not None
+        ),
+        default=None,
+    )
+    if max_spread is not None:
+        print(f"투자매력도 괴리율 만점 기준(전 종목 최고): {max_spread:.2f}%")
+    for pair_data in pairs_result:
+        pair_data["attractiveness"] = attractiveness.compute_attractiveness(
+            pair_data["history"],
+            pair_data["current"],
+            attractiveness_financials.get(pair_data["id"]),
+            dividend_histories.get(pair_data["id"], {}).get("preferred"),
+            max_spread=max_spread,
         )
 
     # KOSPI 지수 데이터 준비
