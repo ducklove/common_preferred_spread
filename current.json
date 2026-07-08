@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-07-09 06:45:33",
+  "lastUpdated": "2026-07-09 07:05:44",
   "prices": {
     "samsung_elec": {
       "date": "2026-07-08",
@@ -683,9 +683,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1506.5,
-        "change": -10.7,
-        "changePct": -0.71,
+        "price": 1507.0,
+        "change": -10.2,
+        "changePct": -0.67,
         "marketStatus": "내부 지표 API",
         "unit": "원",
         "code": null,
@@ -697,9 +697,9 @@
       {
         "id": "GOLD",
         "name": "금가격 (COMEX)",
-        "price": 4157.4,
-        "change": -10.1,
-        "changePct": -0.24,
+        "price": 4082.4,
+        "change": -75.0,
+        "changePct": -1.8,
         "marketStatus": "내부 지표 API",
         "unit": null,
         "code": null,
@@ -760,9 +760,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1506.5,
-          "change": -10.7,
-          "changePct": -0.71,
+          "price": 1507.0,
+          "change": -10.2,
+          "changePct": -0.67,
           "marketStatus": "내부 지표 API",
           "unit": "원",
           "code": null,
@@ -774,9 +774,9 @@
         {
           "id": "GOLD",
           "name": "금가격 (COMEX)",
-          "price": 4157.4,
-          "change": -10.1,
-          "changePct": -0.24,
+          "price": 4082.4,
+          "change": -75.0,
+          "changePct": -1.8,
           "marketStatus": "내부 지표 API",
           "unit": null,
           "code": null,
