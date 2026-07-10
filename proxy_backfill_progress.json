@@ -2,6 +2,7 @@
   "completedPairIds": [
     "amore_holdings_3pref",
     "cj_4pref",
+    "daeduck",
     "daeduck_electronics",
     "dl_enc_2pref",
     "dl_enc_pref",
@@ -81,6 +82,13 @@
       "beforeStart": "2019-10-18",
       "afterStart": "2019-10-18",
       "extended": false
+    },
+    {
+      "pairId": "daeduck",
+      "attemptedAt": "2026-07-11 06:21:37",
+      "beforeStart": "2018-12-21",
+      "afterStart": "2018-12-19",
+      "extended": true
     }
   ]
 }
