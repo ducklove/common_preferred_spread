@@ -31,11 +31,17 @@ const dom = new JSDOM(`<!doctype html>
 </body>
 </html>`, { url: 'https://example.com/' });
 
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.localStorage = dom.window.localStorage;
-// openIndexWeightModal 의 포커스 이동을 동기로 실행해 검증 가능하게 한다.
-globalThis.requestAnimationFrame = (cb) => cb();
+// CI 가 테스트 파일들을 한 프로세스에서 돌리는 경우(29147… 실패), 알파벳상
+// 늦게 import 되는 스텁 기반 테스트 파일이 전역 document 를 덮어쓴 채로
+// 이 파일의 테스트가 "실행"될 수 있다. import 시점 1회 설치로는 부족하므로
+// 각 테스트 시작 시 jsdom 전역을 재설치한다 (installDom — 실행 순서 무관).
+function installDom() {
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.requestAnimationFrame = (cb) => cb();
+}
+installDom();
 
 // 테스트 본문에서 쓰는 로컬 별칭 (eslint tests/js 설정에는 브라우저 전역이 없다).
 const { document, localStorage } = dom.window;
@@ -117,6 +123,7 @@ function tableFirstCells() {
 }
 
 test('renderCards: 그룹 수만큼 카드 렌더 — 평균 카드 선두 + 그룹은 보통주명으로 병합', () => {
+  installDom();
   resetState();
   renderCards();
   const cards = document.querySelectorAll('#cards .card');
@@ -132,6 +139,7 @@ test('renderCards: 그룹 수만큼 카드 렌더 — 평균 카드 선두 + 그
 });
 
 test('renderCards: 정렬 모드 반영 — spread 내림차순 ↔ spreadNarrowing 오름차순', () => {
+  installDom();
   resetState();
   renderCards();
   // spread desc: 알파(40) → 감마(30) → 베타(20)
@@ -144,6 +152,7 @@ test('renderCards: 정렬 모드 반영 — spread 내림차순 ↔ spreadNarrow
 });
 
 test('renderCards: 선택 그룹에 active 클래스, data-idx 는 대표 종목 인덱스', () => {
+  installDom();
   resetState();
   app.selectedIdx = 2; // 알파/2우B — 같은 그룹이므로 알파 카드가 active
   renderCards();
@@ -154,6 +163,7 @@ test('renderCards: 선택 그룹에 active 클래스, data-idx 는 대표 종목
 });
 
 test('renderCards/renderTable: 악의 문자열은 이스케이프 — img/script 요소가 생기지 않는다', () => {
+  installDom();
   resetState();
   const evilName = '<img src=x onerror=window.__xss1=1>악성우';
   const evilCommon = '<script>window.__xss2=1</script>악성';
@@ -171,6 +181,7 @@ test('renderCards/renderTable: 악의 문자열은 이스케이프 — img/scrip
 });
 
 test('핀 토글: .card-pin 클릭으로 pinned 클래스/aria-pressed/저장/카드 순서가 갱신된다', () => {
+  installDom();
   resetState();
   renderCards();
   const betaIdx = app.pairs.findIndex(p => p.id === 'beta'); // 3
@@ -200,6 +211,7 @@ test('핀 토글: .card-pin 클릭으로 pinned 클래스/aria-pressed/저장/�
 });
 
 test('renderTable: 평균 쌍 제외 행 수 + 정렬 방향에 따른 행 순서 + 선택 행 표시', () => {
+  installDom();
   resetState();
   renderTable();
   const rows = document.querySelectorAll('#tableBody tr');
@@ -215,6 +227,7 @@ test('renderTable: 평균 쌍 제외 행 수 + 정렬 방향에 따른 행 순�
 });
 
 test('renderTableHeaders: TABLE_HEADER_CONFIG 그대로 재생성 + 정렬 상태 클래스/aria-sort', () => {
+  installDom();
   resetState();
   renderTableHeaders();
   const headers = document.querySelectorAll('.table-section thead th');
@@ -234,6 +247,7 @@ test('renderTableHeaders: TABLE_HEADER_CONFIG 그대로 재생성 + 정렬 상�
 });
 
 test('테이블 헤더 클릭: 새 키는 기본 방향으로, 같은 키 재클릭은 방향 반전 + 재렌더', () => {
+  installDom();
   resetState();
   app.tableSortState = { key: 'name', direction: 'asc' };
   renderTable();
@@ -249,6 +263,7 @@ test('테이블 헤더 클릭: 새 키는 기본 방향으로, 같은 키 재클
 });
 
 test('renderTodayOverview: 요약 데이터로 오버뷰 카드 4장(지수/시장/확대/축소) 렌더', () => {
+  installDom();
   resetState();
   app.todayOverviewData = {
     averageSpread: 32.5,
@@ -280,6 +295,7 @@ test('renderTodayOverview: 요약 데이터로 오버뷰 카드 4장(지수/시�
 });
 
 test('renderTodayOverview: 빈 데이터(요약 없음/종목 없음)면 오버뷰를 비운다', () => {
+  installDom();
   resetState();
   const overview = document.getElementById('todayOverview');
   overview.innerHTML = '<div>이전 렌더 잔여물</div>';
@@ -295,6 +311,7 @@ test('renderTodayOverview: 빈 데이터(요약 없음/종목 없음)면 오버�
 });
 
 test('지수 비중 모달: 열림 — hidden 해제/modal-open/닫기 버튼 포커스/비중 테이블 렌더', () => {
+  installDom();
   resetState();
   const outside = document.getElementById('outsideFocusBtn');
   outside.focus();
@@ -314,6 +331,7 @@ test('지수 비중 모달: 열림 — hidden 해제/modal-open/닫기 버튼 �
 });
 
 test('지수 비중 모달: 닫힘 — hidden 복원/modal-open 제거/이전 포커스 복원', () => {
+  installDom();
   resetState();
   const outside = document.getElementById('outsideFocusBtn');
   outside.focus();
@@ -330,6 +348,7 @@ test('지수 비중 모달: 닫힘 — hidden 복원/modal-open 제거/이전 �
 });
 
 test('지수 비중 모달: 종목이 없으면 빈 상태 문구를 렌더한다', () => {
+  installDom();
   resetState();
   app.pairs = [];
   renderIndexWeightModalContent();
@@ -341,6 +360,7 @@ test('지수 비중 모달: 종목이 없으면 빈 상태 문구를 렌더한�
 });
 
 test('renderStats: 선택 종목 통계 박스 렌더 — 괴리율/가격/시총/배당 + 최근 배당 이력', () => {
+  installDom();
   resetState();
   app.selectedIdx = 1; // 알파우
   app.dividendHistories = {
@@ -363,6 +383,7 @@ test('renderStats: 선택 종목 통계 박스 렌더 — 괴리율/가격/시�
 });
 
 test('renderStats: 평균 쌍 선택 시 종목 전용 박스(상장일/최근 배당)는 생략된다', () => {
+  installDom();
   resetState();
   app.selectedIdx = 0; // 평균
   renderStats();

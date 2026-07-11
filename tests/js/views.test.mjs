@@ -4,7 +4,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-globalThis.document = { documentElement: { dataset: { theme: 'light' } }, activeElement: null };
+// CI 가 테스트 파일들을 한 프로세스에서 돌리면(셤 경로) 다른 파일의 jsdom 전역이
+// 이 파일 테스트 "실행" 시점에 남아 있을 수 있다. jsdom document 는 activeElement
+// setter 가 없어 포커스 트랩 테스트가 깨지므로, 스텁을 쓰는 테스트는 시작 시
+// installStubDocument() 로 자기 전역을 재설치한다 (render.test.mjs 의 installDom 과 대칭).
+function installStubDocument() {
+  globalThis.document = { documentElement: { dataset: { theme: 'light' } }, activeElement: null };
+}
+installStubDocument();
 
 const { app } = await import('../../js/state.js');
 const {
@@ -210,6 +217,7 @@ test('getModalFocusableElements: disabled 제외 셀렉터로 조회해 배열 �
 });
 
 test('trapIndexWeightModalTab: 마지막에서 Tab이면 첫 요소로 순환', () => {
+  installStubDocument();
   const [first, mid, last] = ['first', 'mid', 'last'].map(makeFocusable);
   const modal = makeModal([first, mid, last]);
   globalThis.document.activeElement = last;
@@ -220,6 +228,7 @@ test('trapIndexWeightModalTab: 마지막에서 Tab이면 첫 요소로 순환', 
 });
 
 test('trapIndexWeightModalTab: 첫 요소에서 Shift+Tab이면 마지막으로 순환', () => {
+  installStubDocument();
   const [first, mid, last] = ['first', 'mid', 'last'].map(makeFocusable);
   const modal = makeModal([first, mid, last]);
   globalThis.document.activeElement = first;
@@ -230,6 +239,7 @@ test('trapIndexWeightModalTab: 첫 요소에서 Shift+Tab이면 마지막으로 
 });
 
 test('trapIndexWeightModalTab: 중간 요소에서는 기본 Tab 이동 유지', () => {
+  installStubDocument();
   const [first, mid, last] = ['first', 'mid', 'last'].map(makeFocusable);
   const modal = makeModal([first, mid, last]);
   globalThis.document.activeElement = mid;
@@ -243,6 +253,7 @@ test('trapIndexWeightModalTab: 중간 요소에서는 기본 Tab 이동 유지',
 });
 
 test('trapIndexWeightModalTab: 포커스가 모달 밖이면 방향에 맞는 끝으로 회수, 포커스 대상 없으면 이동 차단만', () => {
+  installStubDocument();
   const [first, last] = ['first', 'last'].map(makeFocusable);
   const modal = makeModal([first, last]);
   const outside = makeFocusable('outside');
