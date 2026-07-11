@@ -107,6 +107,22 @@ body {
   color: var(--text-dim);
   margin-top: 4px;
 }
+.header .hub-link {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 9px 10px;
+  border-radius: 8px;
+  transition: color 0.15s;
+}
+.header .hub-link:hover {
+  color: var(--accent);
+}
+.header .hub-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .header .refresh-btn {
   border: 1px solid var(--border);
   background: var(--surface);
