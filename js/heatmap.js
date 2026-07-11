@@ -166,7 +166,9 @@ function renderHeatmapTileHtml(item, rect) {
 
   const spreadText = item.spread != null ? `${item.spread.toFixed(1)}%` : '-';
   const zText = item.z != null ? ` ${item.z >= 0 ? '+' : ''}${item.z.toFixed(1)}σ` : '';
-  return `<div class="${classes.join(' ')}" role="button" tabindex="0" data-idx="${item.idx}" title="${escapeHtml(buildHeatmapTileTitle(item))}" style="${styles.join(';')}">
+  // title은 hover 전용이라 터치·스크린리더에서 접근 불가 → 같은 내용을 aria-label로 병행
+  const tileTitle = escapeHtml(buildHeatmapTileTitle(item));
+  return `<div class="${classes.join(' ')}" role="button" tabindex="0" data-idx="${item.idx}" title="${tileTitle}" aria-label="${tileTitle}" style="${styles.join(';')}">
     <div class="ht-name">${escapeHtml(formatPairName(item.pair.name))}</div>
     <div class="ht-meta">${spreadText}${zText}</div>
   </div>`;

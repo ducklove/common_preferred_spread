@@ -3,7 +3,7 @@
 // 축당 20점 × 5축 = 100점. 축 순서/라벨은 attractiveness.py의 AXIS_KEYS와 일치.
 import { app } from './state.js';
 import { getChartTheme, getThemeColor, hexToRgba } from './charts.js';
-import { escapeHtml, formatMarketCap, formatTradedValue } from './format.js';
+import { escapeHtml, formatMarketCap, formatPairName, formatTradedValue } from './format.js';
 import { renderPreferredInlineLabel } from './labels.js';
 
 export const ATTRACTIVENESS_AXES = [
@@ -185,6 +185,11 @@ export function renderAttractivenessSection() {
   document.getElementById('attractivenessTitle').innerHTML = `${titleLabel} 투자매력도`;
   const totalEl = document.getElementById('attractivenessTotal');
   totalEl.innerHTML = `${formatScore(attractiveness.total)}<span class="attractiveness-total-max">/100</span>`;
-  drawRadarChart(document.getElementById('radarChart'), attractiveness.scores);
+  const radarCanvas = document.getElementById('radarChart');
+  radarCanvas.setAttribute(
+    'aria-label',
+    `${formatPairName(pair.name)} 투자매력도 레이더 차트: 총점 ${formatScore(attractiveness.total)}/100`,
+  );
+  drawRadarChart(radarCanvas, attractiveness.scores);
   renderBreakdown(document.getElementById('attractivenessBreakdown'), pair);
 }

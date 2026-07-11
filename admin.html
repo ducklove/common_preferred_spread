@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="우선주 괴리율 대시보드의 종목 쌍(보통주/우선주) 구성을 관리하는 페이지입니다.">
+<meta property="og:title" content="종목 관리 — 우선주 괴리율 대시보드">
+<meta property="og:description" content="우선주 괴리율 대시보드의 종목 쌍(보통주/우선주) 구성을 관리하는 페이지입니다.">
+<meta property="og:type" content="website">
 <title>종목 관리</title>
 <style>
 :root {
@@ -184,6 +188,19 @@ body {
   .header, .container, .status-bar { padding-left: 16px; padding-right: 16px; }
   .pair-card { flex-direction: column; align-items: flex-start; }
   .form-row { grid-template-columns: 1fr; }
+  /* 터치 타겟: 작은 버튼의 실효 히트 영역을 40px 근처로 확장 (시각 크기는 유지) */
+  .btn-sm, .back-link { position: relative; }
+  .btn-sm::after, .back-link::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 </style>
 </head>

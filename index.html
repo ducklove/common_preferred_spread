@@ -4,6 +4,10 @@
 <!-- build: sqrt-spread-index -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="한국 우선주-보통주 괴리율 대시보드. 종목별 괴리율 추이·히트맵·배당수익률·투자매력도와 백테스트 전략 비교를 제공합니다.">
+<meta property="og:title" content="우선주 괴리율 대시보드">
+<meta property="og:description" content="한국 우선주-보통주 괴리율 대시보드. 종목별 괴리율 추이·히트맵·배당수익률·투자매력도와 백테스트 전략 비교를 제공합니다.">
+<meta property="og:type" content="website">
 <title>우선주 괴리율 대시보드</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg?v=1">
 <script>
@@ -85,7 +89,7 @@
       <button type="button" class="zoom-reset-btn" id="csvExportBtn">CSV</button>
     </div>
     <div class="chart-container">
-      <canvas id="chart"></canvas>
+      <canvas id="chart" role="img" aria-label="선택 종목의 괴리율 추이 차트"></canvas>
       <div class="tooltip" id="tooltip"></div>
     </div>
     <div class="zoom-panel" id="zoomPanel">
@@ -95,7 +99,7 @@
         <button type="button" class="zoom-reset-btn" id="zoomResetBtn">전체 보기</button>
       </div>
       <div class="zoom-overview">
-        <canvas id="zoomChart"></canvas>
+        <canvas id="zoomChart" role="img" aria-label="전체 기간 괴리율 미니맵 (확대 범위 선택용)"></canvas>
         <div class="zoom-selection" id="zoomSelection"></div>
         <input type="range" min="0" max="1000" value="0" class="zoom-slider zoom-slider-start" id="zoomStart" aria-label="시작 범위">
         <input type="range" min="0" max="1000" value="1000" class="zoom-slider zoom-slider-end" id="zoomEnd" aria-label="끝 범위">
@@ -104,7 +108,7 @@
     <div class="price-chart-container">
       <div class="price-chart-title" id="priceChartTitle">시세 추이</div>
       <div class="price-legend" id="priceLegend"></div>
-      <canvas id="priceChart"></canvas>
+      <canvas id="priceChart" role="img" aria-label="선택 종목의 시세 추이 차트"></canvas>
       <div class="tooltip" id="priceTooltip"></div>
     </div>
   </div>
@@ -120,7 +124,7 @@
       <div class="attractiveness-total" id="attractivenessTotal"></div>
     </div>
     <div class="attractiveness-body">
-      <div class="radar-container"><canvas id="radarChart"></canvas></div>
+      <div class="radar-container"><canvas id="radarChart" role="img" aria-label="투자매력도 5개 축 레이더 차트"></canvas></div>
       <div class="attractiveness-breakdown" id="attractivenessBreakdown"></div>
     </div>
   </div>
@@ -155,7 +159,7 @@
     <div class="strategy-body" id="strategyBody">
       <div class="stats-row" id="strategyStats"></div>
       <div class="strategy-chart-container">
-        <canvas id="strategyChart"></canvas>
+        <canvas id="strategyChart" role="img" aria-label="괴리율 상위 3종 순환 전략과 KOSPI의 누적 자산 추이 비교 차트"></canvas>
         <div class="tooltip" id="strategyTooltip"></div>
       </div>
       <div class="strategy-tables" id="strategyTables"></div>

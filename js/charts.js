@@ -1,6 +1,6 @@
 // js/charts.js — 캔버스 차트 엔진 (스케일/세그먼트/축/라인/툴팁/밴드/배당마커/줌 패널/기간·줌 필터/테마 색)
 import { app, ZOOM_MIN_WINDOW, ZOOM_RANGE_MAX } from './state.js';
-import { escapeHtml, formatAxisPrice, formatKstTimestamp, formatPrice, getHistoryDateMs } from './format.js';
+import { escapeHtml, formatAxisPrice, formatKstTimestamp, formatPairName, formatPrice, getHistoryDateMs } from './format.js';
 import {
   calculateEmaSeries,
   calculateLatestEma,
@@ -34,6 +34,7 @@ export function renderChart() {
   document.getElementById('chartTitle').innerHTML = `${titleLabel} 괴리율 추이`;
 
   const canvas = document.getElementById('chart');
+  canvas.setAttribute('aria-label', `${formatPairName(p.name)} 괴리율 추이 차트`);
   const container = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
   const rect = container.getBoundingClientRect();
@@ -272,6 +273,10 @@ export function renderPriceChart() {
   }
 
   const canvas = document.getElementById('priceChart');
+  canvas.setAttribute(
+    'aria-label',
+    isAvg ? 'KOSPI 지수 추이 차트' : `${formatPairName(p.name)} 보통주·우선주 시세 추이 차트`,
+  );
   const container = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
   const rect = container.getBoundingClientRect();

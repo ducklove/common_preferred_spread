@@ -96,7 +96,8 @@ export function renderPreferredTermLabel(pair) {
   const source = term?.sourceKey ? app.preferredTermSources?.[term.sourceKey] : null;
   if (!source?.url) return '배당 조건';
   const label = source.label || '근거 보기';
-  return `<a class="stat-label-link" href="${escapeHtml(source.url)}" target="_blank" rel="noopener" title="${escapeHtml(label)}">배당 조건</a>`;
+  // title(hover 전용)의 근거 라벨을 스크린리더도 읽을 수 있게 aria-label 병행
+  return `<a class="stat-label-link" href="${escapeHtml(source.url)}" target="_blank" rel="noopener" title="${escapeHtml(label)}" aria-label="배당 조건 근거: ${escapeHtml(label)}">배당 조건</a>`;
 }
 
 export function renderPreferredTermSummary(pair) {
