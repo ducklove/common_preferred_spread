@@ -8,6 +8,7 @@
     "dl_enc_pref",
     "doosan_fuelcell",
     "doosan_fuelcell_2pref",
+    "mirae_asset",
     "samsung_elec",
     "solus",
     "solus_2pref"
@@ -88,6 +89,13 @@
       "attemptedAt": "2026-07-11 06:21:37",
       "beforeStart": "2018-12-21",
       "afterStart": "2018-12-19",
+      "extended": true
+    },
+    {
+      "pairId": "mirae_asset",
+      "attemptedAt": "2026-07-12 06:06:12",
+      "beforeStart": "2018-06-25",
+      "afterStart": "2018-03-14",
       "extended": true
     }
   ]
