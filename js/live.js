@@ -155,7 +155,7 @@ export function setRefreshButtonState(isBusy) {
   const refreshBtn = document.getElementById('refreshBtn');
   if (!refreshBtn) return;
   refreshBtn.disabled = isBusy;
-  refreshBtn.textContent = isBusy ? '갱신 중...' : '새로 고침';
+  refreshBtn.textContent = isBusy ? '갱신 중...' : '새로고침';
 }
 
 export function bindRefreshButton() {

@@ -562,6 +562,39 @@ export function closeIndexWeightModal() {
   app.indexWeightModalLastFocus = null;
 }
 
+const MODAL_FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+export function getModalFocusableElements(modal) {
+  return Array.from(modal.querySelectorAll(MODAL_FOCUSABLE_SELECTOR));
+}
+
+export function trapIndexWeightModalTab(event, modal) {
+  const focusables = getModalFocusableElements(modal);
+  if (!focusables.length) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (event.shiftKey) {
+    if (active === first || !modal.contains(active)) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (active === last || !modal.contains(active)) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 export function bindIndexWeightModal() {
   if (bindIndexWeightModal._bound) return;
   const modal = document.getElementById('indexWeightModal');
@@ -573,7 +606,12 @@ export function bindIndexWeightModal() {
     if (event.target === modal) closeIndexWeightModal();
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeIndexWeightModal();
+    if (modal.hidden) return;
+    if (event.key === 'Escape') {
+      closeIndexWeightModal();
+      return;
+    }
+    if (event.key === 'Tab') trapIndexWeightModalTab(event, modal);
   });
   bindIndexWeightModal._bound = true;
 }
