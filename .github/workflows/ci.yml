@@ -60,4 +60,7 @@ jobs:
           rm -rf "$tmpdir"
 
       - name: ESLint
-        run: npx --yes eslint@9.39.4 --config eslint.config.mjs "js/**/*.js"
+        run: npx --yes eslint@9.39.4 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"
+
+      - name: Frontend unit tests (node --test)
+        run: node --test tests/js/

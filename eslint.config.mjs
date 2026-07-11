@@ -1,6 +1,6 @@
-// ESLint 9.x flat config — js/ 브라우저 ES 모듈 대상 최소 린트.
+// ESLint 9.x flat config — js/ 브라우저 ES 모듈 + tests/js/ node 테스트 대상 최소 린트.
 // 스타일 규칙 없이 실수 탐지(no-undef, no-unused-vars)만 검사한다.
-// 실행 예: npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js"
+// 실행 예: npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"
 
 export default [
   {
@@ -82,6 +82,21 @@ export default [
     rules: {
       // 최소 규칙셋: 정의되지 않은 식별자/미사용 변수만 오류 처리.
       // (다른 작업과의 병렬 수정 충돌을 피하기 위해 스타일 규칙은 두지 않음)
+      'no-undef': 'error',
+      'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
+    },
+  },
+  {
+    // node 내장 test runner용 테스트 (node --test tests/js/)
+    files: ['tests/js/**/*.js', 'tests/js/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        console: 'readonly',
+      },
+    },
+    rules: {
       'no-undef': 'error',
       'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
     },

@@ -130,7 +130,7 @@ export function parseSnapshotTimestamp(timestamp) {
 
 export function formatKstTimestamp(value) {
   const parsed = value instanceof Date ? value : parseSnapshotTimestamp(value);
-  if (!parsed) return '';
+  if (!parsed || Number.isNaN(parsed.getTime())) return ''; // Invalid Date 포함 파싱 실패는 빈 문자열
 
   const parts = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Seoul',
