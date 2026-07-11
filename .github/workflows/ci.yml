@@ -59,6 +59,10 @@ jobs:
           done
           rm -rf "$tmpdir"
 
+      # jsdom 등 프론트 테스트 devDependencies 설치 (package-lock.json 기준 재현 설치)
+      - name: Install frontend test dependencies (npm ci)
+        run: npm ci --no-audit --no-fund
+
       - name: ESLint
         run: npx --yes eslint@9.39.4 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"
 

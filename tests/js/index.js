@@ -6,4 +6,5 @@ import('./format.test.mjs');
 import('./calc.test.mjs');
 import('./state.test.mjs');
 import('./views.test.mjs');
+import('./render.test.mjs');
 import('./live.test.mjs');

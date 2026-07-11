@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/js/"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
   }
 }
