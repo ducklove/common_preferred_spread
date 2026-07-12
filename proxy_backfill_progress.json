@@ -10,6 +10,7 @@
     "doosan_fuelcell_2pref",
     "mirae_asset",
     "samsung_elec",
+    "sk_chemicals",
     "solus",
     "solus_2pref"
   ],
@@ -96,6 +97,13 @@
       "attemptedAt": "2026-07-12 06:06:12",
       "beforeStart": "2018-06-25",
       "afterStart": "2018-03-14",
+      "extended": true
+    },
+    {
+      "pairId": "sk_chemicals",
+      "attemptedAt": "2026-07-13 06:07:00",
+      "beforeStart": "2018-01-12",
+      "afterStart": "2018-01-05",
       "extended": true
     }
   ]
