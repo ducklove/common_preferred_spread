@@ -8,6 +8,7 @@
     "dl_enc_pref",
     "doosan_fuelcell",
     "doosan_fuelcell_2pref",
+    "hanwha",
     "mirae_asset",
     "samsung_elec",
     "sk_chemicals",
@@ -105,6 +106,13 @@
       "beforeStart": "2018-01-12",
       "afterStart": "2018-01-05",
       "extended": true
+    },
+    {
+      "pairId": "hanwha",
+      "attemptedAt": "2026-07-14 06:17:59",
+      "beforeStart": "2016-10-19",
+      "afterStart": "2016-10-19",
+      "extended": false
     }
   ]
 }
