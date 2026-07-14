@@ -11,6 +11,7 @@
     "hanwha",
     "mirae_asset",
     "samsung_elec",
+    "sk",
     "sk_chemicals",
     "solus",
     "solus_2pref"
@@ -112,6 +113,13 @@
       "attemptedAt": "2026-07-14 06:17:59",
       "beforeStart": "2016-10-19",
       "afterStart": "2016-10-19",
+      "extended": false
+    },
+    {
+      "pairId": "sk",
+      "attemptedAt": "2026-07-15 06:20:57",
+      "beforeStart": "2015-08-17",
+      "afterStart": "2015-08-17",
       "extended": false
     }
   ]
