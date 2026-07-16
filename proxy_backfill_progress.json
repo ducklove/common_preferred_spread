@@ -8,6 +8,7 @@
     "dl_enc_pref",
     "doosan_fuelcell",
     "doosan_fuelcell_2pref",
+    "hanjinkal",
     "hanwha",
     "mirae_asset",
     "samsung_ct",
@@ -128,6 +129,13 @@
       "attemptedAt": "2026-07-16 06:19:56",
       "beforeStart": "2014-12-18",
       "afterStart": "2014-12-18",
+      "extended": false
+    },
+    {
+      "pairId": "hanjinkal",
+      "attemptedAt": "2026-07-17 06:23:16",
+      "beforeStart": "2013-09-16",
+      "afterStart": "2013-09-16",
       "extended": false
     }
   ]
