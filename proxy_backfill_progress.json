@@ -10,6 +10,7 @@
     "doosan_fuelcell_2pref",
     "hanjinkal",
     "hanwha",
+    "korea_circuit_2pref",
     "mirae_asset",
     "samsung_ct",
     "samsung_elec",
@@ -136,6 +137,13 @@
       "attemptedAt": "2026-07-17 06:23:16",
       "beforeStart": "2013-09-16",
       "afterStart": "2013-09-16",
+      "extended": false
+    },
+    {
+      "pairId": "korea_circuit_2pref",
+      "attemptedAt": "2026-07-19 06:08:55",
+      "beforeStart": "2013-06-17",
+      "afterStart": "2013-06-17",
       "extended": false
     }
   ]
