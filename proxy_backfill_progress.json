@@ -12,6 +12,7 @@
     "hanwha",
     "kolon_industries",
     "korea_circuit_2pref",
+    "lx_hausys",
     "mirae_asset",
     "samsung_ct",
     "samsung_elec",
@@ -152,6 +153,13 @@
       "attemptedAt": "2026-07-20 06:17:13",
       "beforeStart": "2010-02-01",
       "afterStart": "2010-02-01",
+      "extended": false
+    },
+    {
+      "pairId": "lx_hausys",
+      "attemptedAt": "2026-07-21 06:30:15",
+      "beforeStart": "2009-04-20",
+      "afterStart": "2009-04-20",
       "extended": false
     }
   ]
