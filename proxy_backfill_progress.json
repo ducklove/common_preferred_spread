@@ -4,6 +4,7 @@
     "cj_4pref",
     "daeduck",
     "daeduck_electronics",
+    "daishin_sec_2pref",
     "dl_enc_2pref",
     "dl_enc_pref",
     "doosan_fuelcell",
@@ -160,6 +161,13 @@
       "attemptedAt": "2026-07-21 06:30:15",
       "beforeStart": "2009-04-20",
       "afterStart": "2009-04-20",
+      "extended": false
+    },
+    {
+      "pairId": "daishin_sec_2pref",
+      "attemptedAt": "2026-07-22 06:32:27",
+      "beforeStart": "2007-11-12",
+      "afterStart": "2007-11-12",
       "extended": false
     }
   ]
