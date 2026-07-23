@@ -2,6 +2,7 @@
   "completedPairIds": [
     "amore_holdings_3pref",
     "cj_4pref",
+    "cj_cheiljedang",
     "daeduck",
     "daeduck_electronics",
     "daishin_sec_2pref",
@@ -168,6 +169,13 @@
       "attemptedAt": "2026-07-22 06:32:27",
       "beforeStart": "2007-11-12",
       "afterStart": "2007-11-12",
+      "extended": false
+    },
+    {
+      "pairId": "cj_cheiljedang",
+      "attemptedAt": "2026-07-24 06:33:15",
+      "beforeStart": "2007-09-28",
+      "afterStart": "2007-09-28",
       "extended": false
     }
   ]
