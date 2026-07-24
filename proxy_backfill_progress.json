@@ -1,6 +1,7 @@
 {
   "completedPairIds": [
     "amore_holdings_3pref",
+    "cj",
     "cj_4pref",
     "cj_cheiljedang",
     "daeduck",
@@ -177,6 +178,13 @@
       "beforeStart": "2007-09-28",
       "afterStart": "2007-09-28",
       "extended": false
+    },
+    {
+      "pairId": "cj",
+      "attemptedAt": "2026-07-25 06:23:16",
+      "beforeStart": "2007-09-28",
+      "afterStart": "1994-12-23",
+      "extended": true
     }
   ]
 }
