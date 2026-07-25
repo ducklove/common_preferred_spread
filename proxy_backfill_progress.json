@@ -21,6 +21,7 @@
     "samsung_elec",
     "sk",
     "sk_chemicals",
+    "sk_innovation",
     "solus",
     "solus_2pref"
   ],
@@ -185,6 +186,13 @@
       "beforeStart": "2007-09-28",
       "afterStart": "1994-12-23",
       "extended": true
+    },
+    {
+      "pairId": "sk_innovation",
+      "attemptedAt": "2026-07-26 06:18:49",
+      "beforeStart": "2007-07-25",
+      "afterStart": "2007-07-25",
+      "extended": false
     }
   ]
 }
