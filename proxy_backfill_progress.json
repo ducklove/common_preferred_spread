@@ -23,7 +23,8 @@
     "sk_chemicals",
     "sk_innovation",
     "solus",
-    "solus_2pref"
+    "solus_2pref",
+    "yuanta_sec"
   ],
   "history": [
     {
@@ -192,6 +193,13 @@
       "attemptedAt": "2026-07-26 06:18:49",
       "beforeStart": "2007-07-25",
       "afterStart": "2007-07-25",
+      "extended": false
+    },
+    {
+      "pairId": "yuanta_sec",
+      "attemptedAt": "2026-07-27 06:14:38",
+      "beforeStart": "2007-03-29",
+      "afterStart": "2007-03-29",
       "extended": false
     }
   ]
