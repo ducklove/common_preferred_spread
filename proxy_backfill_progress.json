@@ -1,6 +1,7 @@
 {
   "completedPairIds": [
     "amore_holdings_3pref",
+    "amorepacific",
     "cj",
     "cj_4pref",
     "cj_cheiljedang",
@@ -200,6 +201,13 @@
       "attemptedAt": "2026-07-27 06:14:38",
       "beforeStart": "2007-03-29",
       "afterStart": "2007-03-29",
+      "extended": false
+    },
+    {
+      "pairId": "amorepacific",
+      "attemptedAt": "2026-07-28 06:34:47",
+      "beforeStart": "2006-06-29",
+      "afterStart": "2006-06-29",
       "extended": false
     }
   ]
