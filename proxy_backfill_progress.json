@@ -12,6 +12,7 @@
     "dl_enc_pref",
     "doosan_fuelcell",
     "doosan_fuelcell_2pref",
+    "gs",
     "hanjinkal",
     "hanwha",
     "kolon_industries",
@@ -208,6 +209,13 @@
       "attemptedAt": "2026-07-28 06:34:47",
       "beforeStart": "2006-06-29",
       "afterStart": "2006-06-29",
+      "extended": false
+    },
+    {
+      "pairId": "gs",
+      "attemptedAt": "2026-07-29 06:26:07",
+      "beforeStart": "2004-08-05",
+      "afterStart": "2004-08-05",
       "extended": false
     }
   ]
