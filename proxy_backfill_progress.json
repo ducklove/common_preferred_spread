@@ -7,6 +7,7 @@
     "cj_cheiljedang",
     "daeduck",
     "daeduck_electronics",
+    "daekyo",
     "daishin_sec_2pref",
     "dl_enc_2pref",
     "dl_enc_pref",
@@ -216,6 +217,13 @@
       "attemptedAt": "2026-07-29 06:26:07",
       "beforeStart": "2004-08-05",
       "afterStart": "2004-08-05",
+      "extended": false
+    },
+    {
+      "pairId": "daekyo",
+      "attemptedAt": "2026-07-30 06:14:35",
+      "beforeStart": "2004-02-03",
+      "afterStart": "2004-02-03",
       "extended": false
     }
   ]
