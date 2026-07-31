@@ -744,7 +744,15 @@ export function getOverviewPairName(pairId, fallbackName) {
   return items.length > 1 ? pair.commonName : pair.name;
 }
 
-export function renderGroupSnapshot(items, { emphasizeChange = false } = {}) {
+// 카드 종목명 옆 투자매력도 배지 (총점 100점 만점, summary.json의 attractiveness.total)
+export function renderAttractivenessChip(pair) {
+  const total = toFiniteNumber(pair?.attractiveness?.total);
+  if (total == null) return '';
+  const score = total.toFixed(1);
+  return `<span class="attractiveness-chip" title="투자매력도 ${score}/100" aria-label="투자매력도 ${score}점">${score}</span>`;
+}
+
+export function renderGroupSnapshot(items, { emphasizeChange = false, showAttractiveness = false } = {}) {
   const top = items[0];
   const p = top.pair;
   const c = p.current;
@@ -754,9 +762,13 @@ export function renderGroupSnapshot(items, { emphasizeChange = false } = {}) {
     ? escapeHtml(displayName)
     : renderPreferredInlineLabel(p, displayName);
   const emphasisClass = emphasizeChange ? ' emphasis' : '';
+  const chipHtml = showAttractiveness ? renderAttractivenessChip(p) : '';
 
   return `
-    <div class="name">${displayNameHtml}</div>
+    <div class="name-row">
+      <div class="name">${displayNameHtml}</div>
+      ${chipHtml}
+    </div>
     <div class="spread-line">
       <div class="spread-val">${c.spread.toFixed(1)}%</div>
       <div class="spread-change ${dir}${emphasisClass}">${formatPointChange(c.spreadChange)}</div>
@@ -823,7 +835,7 @@ export function renderCards() {
     const pinned = isGroupPinned(items);
     return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" role="button" tabindex="0">
       <button type="button" class="card-pin${pinned ? ' pinned' : ''}" data-pin-idx="${primaryIdx}" aria-label="관심종목 ${pinned ? '해제' : '등록'}" aria-pressed="${pinned}">${pinned ? '★' : '☆'}</button>
-      ${renderGroupSnapshot(items)}
+      ${renderGroupSnapshot(items, { showAttractiveness: true })}
     </div>`;
   }).join('');
   el.querySelectorAll('.card').forEach(card => {

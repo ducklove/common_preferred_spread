@@ -536,7 +536,8 @@ body {
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  /* 종목명(최장 "아모레퍼시픽홀딩스")과 투자매력도 배지가 한 줄에 들어가는 최소 폭 */
+  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -565,7 +566,30 @@ body {
 }
 .card .card-pin:hover { color: var(--accent); }
 .card .card-pin.pinned { color: #f5c518; }
-.cards .card .name { padding-right: 22px; }
+.cards .card .name,
+.cards .card .name-row { padding-right: 22px; }
+.cards .card .name-row .name { padding-right: 0; }
+/* 아래 여백은 자식 .name의 margin-bottom을 그대로 쓴다 (행 자체에는 주지 않음 — 이중 적용 방지) */
+.name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.name-row .name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.attractiveness-chip {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--accent);
+  background: var(--surface2);
+  border-radius: 999px;
+  padding: 1px 5px;
+  font-variant-numeric: tabular-nums;
+}
 .card.avg-card { border-color: var(--green); background: var(--avg-card-bg); }
 .card.avg-card.active { border-color: var(--green); background: var(--avg-card-bg-active); }
 .card.active {
