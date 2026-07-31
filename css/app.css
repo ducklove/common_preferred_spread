@@ -1729,11 +1729,20 @@ td.numeric .bar-cell {
     transform: translate(-50%, -50%);
     width: 100%;
     height: 100%;
-    min-width: 40px;
-    min-height: 40px;
+    min-width: 44px;
+    min-height: 44px;
   }
   /* 촘촘한 세로 리스트는 오버레이 대신 패딩으로 확장 (겹침 방지) */
   .overview-rank-item {
     padding: 6px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

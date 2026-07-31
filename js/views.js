@@ -116,7 +116,9 @@ export function restoreStoredSettings() {
   if (storedSortMode && CARD_SORT_CONFIG[storedSortMode]) {
     app.cardSortMode = storedSortMode;
     document.querySelectorAll('#cardSortOptions button').forEach(button => {
-      button.classList.toggle('active', button.dataset.cardSort === app.cardSortMode);
+      const active = button.dataset.cardSort === app.cardSortMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
   }
   const storedPeriodText = readStoredValue(PERIOD_DAYS_STORAGE_KEY);
@@ -124,7 +126,9 @@ export function restoreStoredSettings() {
   if (storedPeriodDays != null && PERIOD_DAYS_OPTIONS.includes(storedPeriodDays)) {
     app.periodDays = storedPeriodDays;
     document.querySelectorAll('#periodBtns button').forEach(button => {
-      button.classList.toggle('active', parseInt(button.dataset.days, 10) === app.periodDays);
+      const active = parseInt(button.dataset.days, 10) === app.periodDays;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
     });
   }
 }
@@ -1282,7 +1286,9 @@ export function bindCardSortControls() {
     app.cardSortMode = button.dataset.cardSort || 'spread';
     writeStoredValue(CARD_SORT_STORAGE_KEY, app.cardSortMode);
     controls.querySelectorAll('button').forEach(item => {
-      item.classList.toggle('active', item === button);
+      const active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
     });
     renderCards();
   });
@@ -1293,8 +1299,12 @@ export function bindCardSortControls() {
 export function bindPeriodBtns() {
   document.getElementById('periodBtns').addEventListener('click', function(e) {
     if (e.target.tagName !== 'BUTTON') return;
-    this.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    this.querySelectorAll('button').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
     e.target.classList.add('active');
+    e.target.setAttribute('aria-pressed', 'true');
     app.periodDays = parseInt(e.target.dataset.days);
     writeStoredValue(PERIOD_DAYS_STORAGE_KEY, String(app.periodDays));
     resetZoomWindow({ render: false });
