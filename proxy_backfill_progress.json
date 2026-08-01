@@ -19,6 +19,7 @@
     "kolon_industries",
     "korea_circuit_2pref",
     "korea_investment",
+    "lg_chem",
     "lg_elec",
     "lx_hausys",
     "mirae_asset",
@@ -241,6 +242,13 @@
       "beforeStart": "2002-04-23",
       "afterStart": "2002-04-22",
       "extended": true
+    },
+    {
+      "pairId": "lg_chem",
+      "attemptedAt": "2026-08-02 06:18:26",
+      "beforeStart": "2001-04-25",
+      "afterStart": "2001-04-25",
+      "extended": false
     }
   ]
 }
