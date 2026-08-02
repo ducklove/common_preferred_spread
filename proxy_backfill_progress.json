@@ -21,6 +21,7 @@
     "korea_investment",
     "lg_chem",
     "lg_elec",
+    "lg_household",
     "lx_hausys",
     "mirae_asset",
     "samsung_ct",
@@ -246,6 +247,13 @@
     {
       "pairId": "lg_chem",
       "attemptedAt": "2026-08-02 06:18:26",
+      "beforeStart": "2001-04-25",
+      "afterStart": "2001-04-25",
+      "extended": false
+    },
+    {
+      "pairId": "lg_household",
+      "attemptedAt": "2026-08-03 06:16:10",
       "beforeStart": "2001-04-25",
       "afterStart": "2001-04-25",
       "extended": false
