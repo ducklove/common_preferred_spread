@@ -16,6 +16,7 @@
     "gs",
     "hanjinkal",
     "hanwha",
+    "hyundai_motor_3pref",
     "kolon_industries",
     "korea_circuit_2pref",
     "korea_investment",
@@ -257,6 +258,13 @@
       "beforeStart": "2001-04-25",
       "afterStart": "2001-04-25",
       "extended": false
+    },
+    {
+      "pairId": "hyundai_motor_3pref",
+      "attemptedAt": "2026-08-04 06:22:08",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1999-04-15",
+      "extended": true
     }
   ]
 }
