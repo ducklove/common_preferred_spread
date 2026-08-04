@@ -16,6 +16,7 @@
     "gs",
     "hanjinkal",
     "hanwha",
+    "hyundai_eandc",
     "hyundai_motor_3pref",
     "kolon_industries",
     "korea_circuit_2pref",
@@ -264,6 +265,13 @@
       "attemptedAt": "2026-08-04 06:22:08",
       "beforeStart": "2000-01-04",
       "afterStart": "1999-04-15",
+      "extended": true
+    },
+    {
+      "pairId": "hyundai_eandc",
+      "attemptedAt": "2026-08-05 06:28:11",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1989-09-21",
       "extended": true
     }
   ]
