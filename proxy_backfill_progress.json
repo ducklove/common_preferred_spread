@@ -1,5 +1,6 @@
 {
   "completedPairIds": [
+    "amore_holdings",
     "amore_holdings_3pref",
     "amorepacific",
     "cj",
@@ -272,6 +273,13 @@
       "attemptedAt": "2026-08-05 06:28:11",
       "beforeStart": "2000-01-04",
       "afterStart": "1989-09-21",
+      "extended": true
+    },
+    {
+      "pairId": "amore_holdings",
+      "attemptedAt": "2026-08-06 06:27:36",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1989-06-30",
       "extended": true
     }
   ]
