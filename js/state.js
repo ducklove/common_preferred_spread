@@ -112,6 +112,19 @@ app.pairs = app.STOCK_DATA.pairs;
 
 export const configLoadPromise = loadPairConfig();
 
+// 거래정지 종목 판정용 기준일. 실시간 시세가 적용되면 history 마지막 날짜가 오늘로
+// 밀리므로, 파이프라인이 만든 원본 기준일을 로드 시점에 pair에 고정해 둔다.
+export function stampPairLastHistoryDates(pairs = [], historyMeta = null) {
+  pairs.forEach(pair => {
+    if (!pair || pair.lastHistoryDate) return;
+    const history = Array.isArray(pair.history) ? pair.history : [];
+    const fallback = history.length ? history[history.length - 1].date : null;
+    const resolved = normalizeDateText(historyMeta?.[pair.id]?.end || fallback);
+    if (resolved) pair.lastHistoryDate = resolved;
+  });
+  return pairs;
+}
+
 export async function loadSummaryData() {
   // 1순위: summary.json (소형이므로 no-store + 타임스탬프)
   try {
@@ -123,6 +136,8 @@ export async function loadSummaryData() {
           lastUpdated: summary.lastUpdated || '',
           pairs: summary.pairs.map(p => ({ ...p, history: [] })),
         };
+        // summary.json에 lastHistoryDate가 없는 구버전 캐시는 historyMeta.end로 보완한다.
+        stampPairLastHistoryDates(app.STOCK_DATA.pairs, summary.historyMeta);
         app.pairs = app.STOCK_DATA.pairs;
         return 'summary';
       }
@@ -153,6 +168,7 @@ export async function loadLegacyDataJs() {
   }
   app.STOCK_DATA = parsed;
   app.pairs = app.STOCK_DATA.pairs;
+  stampPairLastHistoryDates(app.pairs); // 실시간 upsert 전에 원본 기준일 고정
   app.pairs.forEach(p => app.historyLoadedIds.add(p.id)); // 레거시는 히스토리 내장
 }
 

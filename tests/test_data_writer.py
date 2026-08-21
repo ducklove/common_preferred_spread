@@ -179,11 +179,40 @@ class TestWriteStockDataOutputs:
             "max": 20.0,
             "count": 2,
         }
+        original_pair1["lastHistoryDate"] = "2020-01-03"
         assert summary["pairs"][0] == original_pair1
         assert summary["historyMeta"] == {
             "pair1": {"start": "2020-01-02", "end": "2020-01-03", "points": 2},
             "_average": {"start": "2020-01-02", "end": "2020-01-03", "points": 2},
         }
+
+    def test_last_history_date_marks_stale_pairs(self, tmp_path):
+        """거래정지 종목 배지용 lastHistoryDate: 종목별 마지막 히스토리 날짜를 그대로 노출한다."""
+        stock_data = build_stock_data()
+        # 한화 거래정지처럼 한 종목만 뒤처진 상태 (carry_forward_missing_pairs 결과)
+        stock_data["pairs"][0]["history"] = stock_data["pairs"][0]["history"][:1]
+        stock_data["pairs"].append(
+            {
+                "id": "pair2",
+                "name": "정지",
+                "commonName": "정지",
+                "preferredName": "정지우",
+                "current": {"commonPrice": 1, "preferredPrice": 1, "spread": 0.0},
+                "history": [],
+            }
+        )
+
+        write_stock_data_outputs(stock_data, tmp_path)
+
+        summary = read_json(tmp_path / "data" / "summary.json")
+        by_id = {p["id"]: p for p in summary["pairs"]}
+        assert by_id["pair1"]["lastHistoryDate"] == "2020-01-02"
+        assert by_id["_average"]["lastHistoryDate"] == "2020-01-03"
+        # historyMeta.end와 항상 같은 값이어야 프런트 폴백(historyMeta)도 일치한다
+        for pair_id, meta in summary["historyMeta"].items():
+            assert by_id[pair_id]["lastHistoryDate"] == meta["end"]
+        # 히스토리가 아예 없는 종목에는 키를 만들지 않는다
+        assert "lastHistoryDate" not in by_id["pair2"]
 
     def test_history_files_match_source_history(self, tmp_path):
         stock_data = build_stock_data()

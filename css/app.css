@@ -37,6 +37,9 @@ html[data-embed] .container { padding-top: 14px !important; }
   --grid: rgba(255,255,255,0.06);
   --avg-line: rgba(108,140,255,0.3);
   --avg-label: rgba(108,140,255,0.6);
+  --warn: #e0a145;
+  --warn-border: rgba(224,161,69,0.45);
+  --warn-bg: rgba(224,161,69,0.12);
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -72,6 +75,9 @@ html[data-embed] .container { padding-top: 14px !important; }
   --grid: rgba(23,32,51,0.08);
   --avg-line: rgba(49,91,219,0.28);
   --avg-label: rgba(49,91,219,0.55);
+  --warn: #a86a10;
+  --warn-border: rgba(168,106,16,0.4);
+  --warn-bg: rgba(168,106,16,0.1);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -569,15 +575,21 @@ body {
 .cards .card .name,
 .cards .card .name-row { padding-right: 22px; }
 .cards .card .name-row .name { padding-right: 0; }
-/* 아래 여백은 자식 .name의 margin-bottom을 그대로 쓴다 (행 자체에는 주지 않음 — 이중 적용 방지) */
+/* 좁은 카드에서 배지가 종목명을 밀어내지 않도록 줄바꿈을 허용한다. 줄바꿈되면
+   자식 .name의 margin-bottom이 행 중간에 끼므로, 아래 여백은 행이 직접 갖고
+   자식은 0으로 눌러 이중 적용을 막는다. */
 .name-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 6px;
+  row-gap: 2px;
+  margin-bottom: 8px;
 }
 .name-row .name {
   flex: 0 1 auto;
   min-width: 0;
+  margin-bottom: 0;
 }
 .attractiveness-chip {
   flex: none;
@@ -589,6 +601,27 @@ body {
   border-radius: 999px;
   padding: 1px 5px;
   font-variant-numeric: tabular-nums;
+}
+/* 거래정지 등으로 히스토리가 멈춘 종목: 표시 중인 값이 언제 기준인지 알린다.
+   투자매력도 칩(.attractiveness-chip)·조건 배지(.preferred-badge)와 같은 pill 형태를 쓴다. */
+.stale-badge {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--warn);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+td .stale-badge {
+  margin-left: 6px;
+  vertical-align: middle;
 }
 .card.avg-card { border-color: var(--green); background: var(--avg-card-bg); }
 .card.avg-card.active { border-color: var(--green); background: var(--avg-card-bg-active); }

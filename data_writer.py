@@ -109,14 +109,18 @@ def write_stock_data_outputs(stock_data, repo_root):
         spread_stats = compute_spread_stats(history)
         if spread_stats is not None:
             summary_pair["spreadStats"] = spread_stats
-        summary_pairs.append(summary_pair)
         if history:
+            # 거래정지 종목은 carry_forward_missing_pairs로 직전 기록이 유지되므로 current가
+            # 몇 주 전 값일 수 있다. 프런트가 "언제 기준 값인지" 배지를 붙일 수 있도록
+            # 마지막 히스토리 날짜를 pair에 직접 노출한다 (historyMeta[id].end와 같은 값).
+            summary_pair["lastHistoryDate"] = history[-1]["date"]
             history_meta[pair["id"]] = {
                 "start": history[0]["date"],
                 "end": history[-1]["date"],
                 "points": len(history),
             }
             total_points += len(history)
+        summary_pairs.append(summary_pair)
     summary_text = dump_compact_json(
         {
             "schemaVersion": SCHEMA_VERSION,

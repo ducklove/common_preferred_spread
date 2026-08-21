@@ -13,6 +13,7 @@ const {
   getPrevDaySpread,
   getCardSortMetric,
   compareCardItems,
+  stampPairLastHistoryDates,
 } = await import('../../js/state.js');
 
 test('buildHistoryRecords: 배열 길이는 최소 공통 길이, kospi는 값이 있을 때만 부착', () => {
@@ -149,4 +150,22 @@ test('compareCardItems: 기본 내림차순, 결측은 항상 뒤로, 동률은 
       'spreadNarrowing',
     ) < 0,
   );
+});
+
+test('stampPairLastHistoryDates: historyMeta.end 우선, 없으면 history 마지막, 기존 값은 보존', () => {
+  const pairs = [
+    { id: 'summaryPair', history: [] },                                  // history 없음 → meta로 보완
+    { id: 'legacyPair', history: [{ date: '2026-08-19' }, { date: '2026-08-20' }] },
+    { id: 'alreadyStamped', lastHistoryDate: '2026-07-29', history: [{ date: '2026-08-21' }] },
+    { id: 'empty', history: [] },
+    null,
+  ];
+
+  stampPairLastHistoryDates(pairs, { summaryPair: { end: '20260813' } });
+
+  assert.equal(pairs[0].lastHistoryDate, '2026-08-13'); // 8자리도 정규화
+  assert.equal(pairs[1].lastHistoryDate, '2026-08-20');
+  assert.equal(pairs[2].lastHistoryDate, '2026-07-29'); // summary.json이 준 값을 덮어쓰지 않는다
+  assert.equal('lastHistoryDate' in pairs[3], false);   // 근거가 없으면 심지 않는다
+  assert.deepEqual(stampPairLastHistoryDates([]), []);
 });

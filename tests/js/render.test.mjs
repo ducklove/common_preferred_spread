@@ -393,3 +393,83 @@ test('renderStats: 평균 쌍 선택 시 종목 전용 박스(상장일/최근 �
   assert.doesNotMatch(statsEl.textContent, /최근 배당/);
   assert.match(statsEl.textContent, /괴리율/);
 });
+
+// --- 거래정지(데이터 정체) 배지 ---
+// 전체 최신일(2026-08-20)보다 크게 뒤처진 종목만 카드/테이블에 기준일 배지가 붙는지 검증한다.
+function applyStaleFixture() {
+  app.pairs.forEach(pair => { pair.lastHistoryDate = '2026-08-20'; });
+  app.pairs.find(p => p.id === 'beta').lastHistoryDate = '2026-07-29'; // 22일 정체
+  app.pairs.find(p => p.id === 'gamma').lastHistoryDate = '2026-08-13'; // 7일 정체
+}
+
+function staleBadgeTextsIn(containerId) {
+  return [...document.querySelectorAll(`#${containerId} .stale-badge`)]
+    .map(el => el.textContent.trim());
+}
+
+test('renderCards: 정체 종목 카드에만 기준일 배지 — 최신 종목에는 붙지 않는다', () => {
+  installDom();
+  resetState();
+  applyStaleFixture();
+  renderCards();
+
+  assert.deepEqual(staleBadgeTextsIn('cards').sort(), ['2026.07.29 기준', '2026.08.13 기준']);
+  const badgedNames = [...document.querySelectorAll('#cards .card')]
+    .filter(card => card.querySelector('.stale-badge'))
+    .map(card => card.querySelector('.name').textContent.trim());
+  assert.deepEqual(badgedNames.sort(), ['감마우', '베타우']);
+  // 배지는 종목명 행 안(투자매력도 칩과 같은 자리)에 들어간다.
+  assert.ok(document.querySelector('#cards .card .name-row .stale-badge'));
+  // 툴팁/스크린리더 문구에 마지막 시세일과 뒤처진 일수가 담긴다.
+  const badge = document.querySelector('#cards .stale-badge');
+  assert.match(badge.getAttribute('title'), /거래정지/);
+  assert.match(badge.getAttribute('aria-label'), /\d+일/);
+});
+
+test('renderCards: 그룹 카드는 가장 오래 정체된 우선주 기준으로 배지가 붙는다', () => {
+  installDom();
+  resetState();
+  applyStaleFixture();
+  app.pairs.find(p => p.id === 'alpha2').lastHistoryDate = '2026-07-29'; // 대표(alpha)는 최신
+  renderCards();
+
+  const alphaCard = [...document.querySelectorAll('#cards .card')]
+    .find(card => card.querySelector('.name').textContent.trim() === '알파');
+  assert.equal(alphaCard.querySelector('.stale-badge').textContent.trim(), '2026.07.29 기준');
+});
+
+test('renderTable: 정체 종목 행에만 기준일 배지 (종목명 셀)', () => {
+  installDom();
+  resetState();
+  applyStaleFixture();
+  renderTable();
+
+  assert.deepEqual(staleBadgeTextsIn('tableBody').sort(), ['2026.07.29 기준', '2026.08.13 기준']);
+  const badgedRows = [...document.querySelectorAll('#tableBody tr')]
+    .filter(row => row.querySelector('.stale-badge'))
+    .map(row => row.querySelector('.table-name-button').textContent.trim());
+  assert.deepEqual(badgedRows.sort(), ['감마우', '베타우']);
+  // 종목명 셀(첫 칸)에만 붙는다.
+  assert.equal(document.querySelectorAll('#tableBody td:not(:first-child) .stale-badge').length, 0);
+});
+
+test('renderCards/renderTable: 모든 종목이 같은 날짜면 배지가 하나도 없다', () => {
+  installDom();
+  resetState();
+  app.pairs.forEach(pair => { pair.lastHistoryDate = '2026-08-20'; });
+  renderCards();
+  renderTable();
+
+  assert.equal(document.querySelectorAll('.stale-badge').length, 0);
+});
+
+test('renderCards: 실시간 시세가 history에 반영돼도 파이프라인 기준일로 배지를 유지한다', () => {
+  installDom();
+  resetState();
+  applyStaleFixture();
+  // live.js의 upsertHistoryPoint가 오늘 날짜를 밀어 넣은 상황
+  app.pairs.find(p => p.id === 'beta').history = [{ date: '2026-08-21', spread: 20 }];
+  renderCards();
+
+  assert.deepEqual(staleBadgeTextsIn('cards').sort(), ['2026.07.29 기준', '2026.08.13 기준']);
+});

@@ -80,6 +80,12 @@ import {
   renderPreferredYieldLabel,
 } from './labels.js';
 import {
+  getGroupStaleInfo,
+  getLatestPairHistoryDate,
+  getPairStaleInfo,
+  renderStalePairBadge,
+} from './stale.js';
+import {
   getFilteredHistory,
   renderChart,
   renderPriceChart,
@@ -752,6 +758,15 @@ export function renderAttractivenessChip(pair) {
   return `<span class="attractiveness-chip" title="투자매력도 ${score}/100" aria-label="투자매력도 ${score}점">${score}</span>`;
 }
 
+// 거래정지 등으로 히스토리가 멈춘 종목 배지. 전체 최신일 기준은 렌더마다 한 번만 구한다.
+export function renderPairStaleBadge(pair, latestDate = getLatestPairHistoryDate(app.pairs)) {
+  return renderStalePairBadge(getPairStaleInfo(pair, latestDate));
+}
+
+export function renderGroupStaleBadge(items, latestDate = getLatestPairHistoryDate(app.pairs)) {
+  return renderStalePairBadge(getGroupStaleInfo(items, latestDate));
+}
+
 export function renderGroupSnapshot(items, { emphasizeChange = false, showAttractiveness = false } = {}) {
   const top = items[0];
   const p = top.pair;
@@ -763,11 +778,13 @@ export function renderGroupSnapshot(items, { emphasizeChange = false, showAttrac
     : renderPreferredInlineLabel(p, displayName);
   const emphasisClass = emphasizeChange ? ' emphasis' : '';
   const chipHtml = showAttractiveness ? renderAttractivenessChip(p) : '';
+  const staleHtml = renderGroupStaleBadge(items);
 
   return `
     <div class="name-row">
       <div class="name">${displayNameHtml}</div>
       ${chipHtml}
+      ${staleHtml}
     </div>
     <div class="spread-line">
       <div class="spread-val">${c.spread.toFixed(1)}%</div>
@@ -1069,6 +1086,7 @@ export function renderTable() {
     .sort(compareTableRows);
   const maxSpread = Math.max(1, ...stockRows.map(row => row.spread || 0));
   const stockMetricsById = new Map(stockRows.map(row => [row.pair.id, row]));
+  const latestHistoryDate = getLatestPairHistoryDate(app.pairs);
 
   document.getElementById('tableBody').innerHTML = stockRows.map(row => {
     const p = row.pair;
@@ -1083,7 +1101,7 @@ export function renderTable() {
     const divYieldGap = metrics?.divYieldGap ?? null;
     const isSelected = row.idx === app.selectedIdx;
     return `<tr${isSelected ? ' class="selected-row"' : ''}>
-      <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)}</strong></button></td>
+      <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)}</strong></button>${renderPairStaleBadge(p, latestHistoryDate)}</td>
       <td class="numeric">${formatPrice(c.commonPrice)}</td>
       <td class="numeric">${formatPrice(c.preferredPrice)}</td>
       <td>${formatDateShort(metrics?.preferredListingDateText)}</td>
