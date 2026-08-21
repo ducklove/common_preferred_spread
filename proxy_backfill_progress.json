@@ -29,6 +29,7 @@
     "mirae_asset",
     "samsung_ct",
     "samsung_elec",
+    "sebang",
     "sk",
     "sk_chemicals",
     "sk_innovation",
@@ -280,6 +281,13 @@
       "attemptedAt": "2026-08-06 06:27:36",
       "beforeStart": "2000-01-04",
       "afterStart": "1989-06-30",
+      "extended": true
+    },
+    {
+      "pairId": "sebang",
+      "attemptedAt": "2026-08-21 12:18:04",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1991-10-24",
       "extended": true
     }
   ]
