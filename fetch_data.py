@@ -78,6 +78,12 @@ INTERNAL_PRICE_TIMEOUT_SECONDS = 30
 INTERNAL_PRICE_HEALTH_TIMEOUT_SECONDS = 8
 INTERNAL_PRICE_MAX_DAYS = 3650
 DIVIDEND_HISTORY_WORKERS = 6
+# 증분 창을 가장 뒤처진 종목 기준으로 잡되, 영구 거래정지 종목이 창을 무한정
+# 끌어내리지 않도록 최신 종목 기준 하한을 둔다.
+INCREMENTAL_OVERLAP_DAYS = 5
+INCREMENTAL_MAX_LOOKBACK_DAYS = 90
+# 전체 최신일보다 이만큼 뒤처진 종목은 경고로 알린다 (거래정지/상장폐지 후보).
+STALE_PAIR_WARN_DAYS = 14
 SAFE_ADJUSTMENT_RATIO_MIN = 0.01
 SAFE_ADJUSTMENT_RATIO_MAX = 10.0
 AVG_TRADED_VALUE_WINDOW = 20
@@ -115,18 +121,98 @@ def load_existing_data():
         return None
 
 
-def get_last_date(existing_data):
-    """기존 데이터에서 가장 최근 날짜를 찾는다."""
-    last_date = None
-    for pair in existing_data.get("pairs", []):
+def get_pair_last_dates(existing_data):
+    """pair id -> 마지막 히스토리 날짜 (평균 페어 제외)."""
+    last_dates = {}
+    for pair in (existing_data or {}).get("pairs", []):
         if pair.get("isAverage"):
             continue
         hist = pair.get("history", [])
         if hist:
-            pair_last = hist[-1]["date"]
-            if last_date is None or pair_last > last_date:
-                last_date = pair_last
-    return last_date
+            last_dates[pair["id"]] = hist[-1]["date"]
+    return last_dates
+
+
+def incremental_start(
+    last_dates,
+    overlap_days=INCREMENTAL_OVERLAP_DAYS,
+    max_lookback_days=INCREMENTAL_MAX_LOOKBACK_DAYS,
+):
+    """증분 수집 시작일을 계산한다.
+
+    기준은 '가장 뒤처진 종목'의 마지막 날짜(-overlap_days)다. 예전에는 가장 앞선
+    종목을 기준으로 삼았는데, 그러면 한 종목이 거래정지 등으로 하루라도 뒤처지는
+    순간 다음 실행의 수집 창이 그 종목의 마지막 날짜보다 뒤로 밀려서 영원히
+    따라잡지 못하는 자기강화 결함이 있었다 (2026-08 한화 거래정지 사고).
+
+    영구 정지 종목이 창을 무한정 끌어내리지 않도록 최신 종목 기준 하한을 둔다.
+    """
+    newest = datetime.strptime(max(last_dates), "%Y-%m-%d")
+    oldest = datetime.strptime(min(last_dates), "%Y-%m-%d")
+    return max(oldest - timedelta(days=overlap_days), newest - timedelta(days=max_lookback_days))
+
+
+def carry_forward_missing_pairs(pairs_result, pairs_config, previous_data, dividend_histories):
+    """이번 회차에 결과가 없는 종목을 직전 기록으로 이어붙이고 그 id 집합을 반환한다.
+
+    거래정지·상장폐지·소스 장애로 한 종목의 신규 데이터가 비어도, 그 종목만
+    직전 기록으로 넘어가고 나머지 종목의 갱신은 계속되게 한다. 예전에는 이런
+    종목이 결과에서 통째로 빠져 아래 품질 가드가 전체 실행을 중단시켰고,
+    그 결과 60개 전 종목의 히스토리가 함께 멈췄다 (2026-08 한화 거래정지 사고).
+
+    config에서 제거된 종목은 의도적 삭제이므로 되살리지 않는다.
+    """
+    previous_pairs_map = {
+        p["id"]: p
+        for p in (previous_data or {}).get("pairs", [])
+        if p.get("id") and not p.get("isAverage")
+    }
+    previous_dividend_histories = (previous_data or {}).get("dividendHistories") or {}
+    processed_pair_ids = {p["id"] for p in pairs_result}
+
+    carried_pair_ids = set()
+    for pair in pairs_config:
+        pair_id = pair["id"]
+        if pair_id in processed_pair_ids:
+            continue
+        previous_pair = previous_pairs_map.get(pair_id)
+        if not previous_pair or not previous_pair.get("history"):
+            continue
+        pairs_result.append(previous_pair)
+        carried_pair_ids.add(pair_id)
+        if pair_id in previous_dividend_histories:
+            dividend_histories[pair_id] = previous_dividend_histories[pair_id]
+        print(
+            f"  WARNING: {pair['name']} 새 데이터 없음 — 기존 기록 유지 "
+            f"({len(previous_pair['history'])}일, ~{previous_pair['history'][-1]['date']})"
+        )
+    return carried_pair_ids
+
+
+def find_stale_pair_warnings(pairs_result, warn_days=STALE_PAIR_WARN_DAYS):
+    """전체 최신일보다 warn_days 넘게 뒤처진 종목 경고 메시지 목록 (중단은 하지 않음)."""
+    last_dates = [
+        p["history"][-1]["date"]
+        for p in pairs_result
+        if p.get("history") and not p.get("isAverage")
+    ]
+    if not last_dates:
+        return []
+
+    global_latest = datetime.strptime(max(last_dates), "%Y-%m-%d")
+    warnings = []
+    for pair_data in pairs_result:
+        history = pair_data.get("history")
+        if pair_data.get("isAverage") or not history:
+            continue
+        pair_last = history[-1]["date"]
+        gap_days = (global_latest - datetime.strptime(pair_last, "%Y-%m-%d")).days
+        if gap_days > warn_days:
+            warnings.append(
+                f"{pair_data['id']}: 마지막 데이터가 전체 최신일보다 {gap_days}일 "
+                f"뒤처짐 ({pair_last}) — 거래정지/상장폐지 확인 필요"
+            )
+    return warnings
 
 
 def get_pair_start_dates(existing_data):
@@ -1497,11 +1583,15 @@ def main():
                 "신규 종목 감지, 해당 종목만 전체 수집: "
                 + ", ".join(missing_pair_ids)
             )
-        last_date_str = get_last_date(existing_data)
-        if last_date_str:
-            # 마지막 날짜에서 5일 전부터 가져와서 안전하게 겹침 처리
-            start_date = datetime.strptime(last_date_str, "%Y-%m-%d") - timedelta(days=5)
-            print(f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다")
+        pair_last_dates = get_pair_last_dates(existing_data)
+        if pair_last_dates:
+            # 가장 뒤처진 종목 기준 -5일 (최신 종목 기준 90일 하한)
+            start_date = incremental_start(list(pair_last_dates.values()))
+            laggard_id = min(pair_last_dates, key=lambda pid: pair_last_dates[pid])
+            print(
+                f"증분 갱신 모드: {start_date.strftime('%Y-%m-%d')}부터 가져옵니다 "
+                f"(최후미 {laggard_id} {pair_last_dates[laggard_id]} 기준)"
+            )
         else:
             start_date = datetime(2000, 1, 1)
             print("기존 히스토리 없음, 전체 다운로드")
@@ -1922,6 +2012,16 @@ def main():
             f"배당: {pair_data['current']['commonDivYield']:.1f}%/{pair_data['current']['preferredDivYield']:.1f}%"
         )
 
+    # 새 데이터가 없는 기존 종목 유지 — 거래정지/상장폐지/소스 장애로 이번 회차에
+    # 결과가 비어도 그 종목만 직전 기록으로 넘어가고, 나머지 종목의 갱신은 계속된다.
+    # (예전에는 한 종목이 비면 아래 품질 가드가 전체 실행을 중단시켜 60개 전 종목의
+    #  히스토리가 통째로 멈췄다 — 2026-08 한화 거래정지 사고)
+    carried_pair_ids = carry_forward_missing_pairs(
+        pairs_result, PAIRS, previous_data, dividend_histories
+    )
+    for message in find_stale_pair_warnings(pairs_result):
+        print(f"WARNING: {message}")
+
     # 투자매력도 일괄 계산 — 괴리율 축은 전 종목 최고 괴리율 기준 상대 스케일
     max_spread = max(
         (
@@ -1934,6 +2034,9 @@ def main():
     if max_spread is not None:
         print(f"투자매력도 괴리율 만점 기준(전 종목 최고): {max_spread:.2f}%")
     for pair_data in pairs_result:
+        # 유지된 종목은 이번 회차 재무/배당 입력이 없으므로 직전 점수를 그대로 둔다
+        if pair_data["id"] in carried_pair_ids and pair_data.get("attractiveness"):
+            continue
         pair_data["attractiveness"] = attractiveness.compute_attractiveness(
             pair_data["history"],
             pair_data["current"],
