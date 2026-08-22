@@ -13,6 +13,7 @@
     "dl_enc_2pref",
     "dl_enc_pref",
     "doosan",
+    "doosan_2pref",
     "doosan_fuelcell",
     "doosan_fuelcell_2pref",
     "gs",
@@ -296,6 +297,13 @@
       "attemptedAt": "2026-08-22 05:51:29",
       "beforeStart": "2000-01-04",
       "afterStart": "1996-06-26",
+      "extended": true
+    },
+    {
+      "pairId": "doosan_2pref",
+      "attemptedAt": "2026-08-23 05:41:17",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1999-12-03",
       "extended": true
     }
   ]
