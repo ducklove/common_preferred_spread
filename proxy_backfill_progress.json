@@ -29,6 +29,7 @@
     "lg_household",
     "lx_hausys",
     "mirae_asset",
+    "s_oil",
     "samsung_ct",
     "samsung_elec",
     "sebang",
@@ -304,6 +305,13 @@
       "attemptedAt": "2026-08-23 05:41:17",
       "beforeStart": "2000-01-04",
       "afterStart": "1999-12-03",
+      "extended": true
+    },
+    {
+      "pairId": "s_oil",
+      "attemptedAt": "2026-08-24 05:41:14",
+      "beforeStart": "2000-01-04",
+      "afterStart": "1993-01-04",
       "extended": true
     }
   ]
