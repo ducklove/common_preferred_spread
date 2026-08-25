@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-08-26 05:39:14",
+  "lastUpdated": "2026-08-26 06:27:46",
   "prices": {
     "samsung_elec": {
       "date": "2026-08-25",
@@ -683,9 +683,9 @@
       {
         "id": "USDKRW",
         "name": "환율",
-        "price": 1384.0,
-        "change": 0.0,
-        "changePct": 0.0,
+        "price": 1383.5,
+        "change": -0.5,
+        "changePct": -0.04,
         "marketStatus": "내부 지표 API",
         "unit": "원",
         "code": null,
@@ -726,8 +726,8 @@
   },
   "averageSpread": 46.91,
   "averageSpreadChange": 0.28,
-  "indexSpread": 40.09,
-  "indexSpreadChange": 0.48,
+  "indexSpread": 39.98,
+  "indexSpreadChange": -0.04,
   "summary": {
     "market": {
       "id": "KOSPI",
@@ -760,9 +760,9 @@
         {
           "id": "USDKRW",
           "name": "환율",
-          "price": 1384.0,
-          "change": 0.0,
-          "changePct": 0.0,
+          "price": 1383.5,
+          "change": -0.5,
+          "changePct": -0.04,
           "marketStatus": "내부 지표 API",
           "unit": "원",
           "code": null,
