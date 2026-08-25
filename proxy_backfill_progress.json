@@ -20,6 +20,7 @@
     "hanjinkal",
     "hanwha",
     "hyundai_eandc",
+    "hyundai_motor",
     "hyundai_motor_3pref",
     "kolon_industries",
     "korea_circuit_2pref",
@@ -320,6 +321,13 @@
       "attemptedAt": "2026-08-25 05:49:47",
       "beforeStart": "1999-06-10",
       "afterStart": "1999-06-10",
+      "extended": false
+    },
+    {
+      "pairId": "hyundai_motor",
+      "attemptedAt": "2026-08-26 05:46:10",
+      "beforeStart": "1998-12-02",
+      "afterStart": "1998-12-02",
       "extended": false
     }
   ]
