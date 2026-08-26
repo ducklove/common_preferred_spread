@@ -23,6 +23,7 @@
     "hyundai_motor",
     "hyundai_motor_3pref",
     "kolon_industries",
+    "korea_circuit",
     "korea_circuit_2pref",
     "korea_investment",
     "lg_chem",
@@ -329,6 +330,13 @@
       "beforeStart": "1998-12-02",
       "afterStart": "1998-12-02",
       "extended": false
+    },
+    {
+      "pairId": "korea_circuit",
+      "attemptedAt": "2026-08-27 08:31:13",
+      "beforeStart": "1996-06-27",
+      "afterStart": "1989-07-05",
+      "extended": true
     }
   ]
 }
