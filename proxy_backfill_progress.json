@@ -29,6 +29,7 @@
     "lg_chem",
     "lg_elec",
     "lg_household",
+    "lotte_chilsung",
     "lx_hausys",
     "mirae_asset",
     "nexen_tire",
@@ -336,6 +337,13 @@
       "attemptedAt": "2026-08-27 08:31:13",
       "beforeStart": "1996-06-27",
       "afterStart": "1989-07-05",
+      "extended": true
+    },
+    {
+      "pairId": "lotte_chilsung",
+      "attemptedAt": "2026-08-28 13:26:35",
+      "beforeStart": "1996-06-27",
+      "afterStart": "1989-10-10",
       "extended": true
     }
   ]
