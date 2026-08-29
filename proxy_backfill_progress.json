@@ -20,6 +20,7 @@
     "gs",
     "hanjinkal",
     "hanwha",
+    "hanwha_solutions",
     "hyundai_eandc",
     "hyundai_motor",
     "hyundai_motor_3pref",
@@ -352,6 +353,13 @@
       "attemptedAt": "2026-08-29 11:53:02",
       "beforeStart": "1996-06-27",
       "afterStart": "1989-09-16",
+      "extended": true
+    },
+    {
+      "pairId": "hanwha_solutions",
+      "attemptedAt": "2026-08-30 07:44:08",
+      "beforeStart": "1996-06-26",
+      "afterStart": "1989-12-08",
       "extended": true
     }
   ]
