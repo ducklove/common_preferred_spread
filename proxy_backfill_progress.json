@@ -3,6 +3,7 @@
     "amore_holdings",
     "amore_holdings_3pref",
     "amorepacific",
+    "byc",
     "cj",
     "cj_4pref",
     "cj_cheiljedang",
@@ -344,6 +345,13 @@
       "attemptedAt": "2026-08-28 13:26:35",
       "beforeStart": "1996-06-27",
       "afterStart": "1989-10-10",
+      "extended": true
+    },
+    {
+      "pairId": "byc",
+      "attemptedAt": "2026-08-29 11:53:02",
+      "beforeStart": "1996-06-27",
+      "afterStart": "1989-09-16",
       "extended": true
     }
   ]
