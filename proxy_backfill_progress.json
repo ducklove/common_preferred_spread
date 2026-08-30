@@ -24,6 +24,7 @@
     "hyundai_eandc",
     "hyundai_motor",
     "hyundai_motor_3pref",
+    "hyundai_motor_pref",
     "kolon_industries",
     "korea_circuit",
     "korea_circuit_2pref",
@@ -360,6 +361,13 @@
       "attemptedAt": "2026-08-30 07:44:08",
       "beforeStart": "1996-06-26",
       "afterStart": "1989-12-08",
+      "extended": true
+    },
+    {
+      "pairId": "hyundai_motor_pref",
+      "attemptedAt": "2026-08-31 07:47:25",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-09-12",
       "extended": true
     }
   ]
