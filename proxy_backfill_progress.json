@@ -46,6 +46,7 @@
     "solus",
     "solus_2pref",
     "yuanta_sec",
+    "yuhan",
     "yuhwa_sec"
   ],
   "history": [
@@ -377,6 +378,13 @@
       "beforeStart": "1996-06-25",
       "afterStart": "1990-02-20",
       "extended": true
+    },
+    {
+      "pairId": "yuhan",
+      "attemptedAt": "2026-09-02 07:43:39",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1996-06-25",
+      "extended": false
     }
   ]
 }
