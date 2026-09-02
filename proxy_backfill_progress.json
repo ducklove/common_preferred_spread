@@ -39,6 +39,7 @@
     "s_oil",
     "samsung_ct",
     "samsung_elec",
+    "samsung_fire",
     "sebang",
     "sk",
     "sk_chemicals",
@@ -385,6 +386,13 @@
       "beforeStart": "1996-06-25",
       "afterStart": "1996-06-25",
       "extended": false
+    },
+    {
+      "pairId": "samsung_fire",
+      "attemptedAt": "2026-09-03 07:40:17",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1990-04-12",
+      "extended": true
     }
   ]
 }
