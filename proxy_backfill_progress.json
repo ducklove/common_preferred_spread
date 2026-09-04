@@ -41,6 +41,7 @@
     "samsung_elec",
     "samsung_electro",
     "samsung_fire",
+    "samsung_sdi",
     "sebang",
     "sk",
     "sk_chemicals",
@@ -400,6 +401,13 @@
       "attemptedAt": "2026-09-04 07:37:38",
       "beforeStart": "1996-06-25",
       "afterStart": "1989-10-11",
+      "extended": true
+    },
+    {
+      "pairId": "samsung_sdi",
+      "attemptedAt": "2026-09-05 07:25:12",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-11-25",
       "extended": true
     }
   ]
