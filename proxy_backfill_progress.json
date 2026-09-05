@@ -3,6 +3,7 @@
     "amore_holdings",
     "amore_holdings_3pref",
     "amorepacific",
+    "bookook_sec",
     "byc",
     "cj",
     "cj_4pref",
@@ -408,6 +409,13 @@
       "attemptedAt": "2026-09-05 07:25:12",
       "beforeStart": "1996-06-25",
       "afterStart": "1989-11-25",
+      "extended": true
+    },
+    {
+      "pairId": "bookook_sec",
+      "attemptedAt": "2026-09-06 07:07:19",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-11-10",
       "extended": true
     }
   ]
