@@ -36,6 +36,7 @@
     "lotte_chilsung",
     "lx_hausys",
     "mirae_asset",
+    "mirae_asset_pref",
     "nexen_tire",
     "s_oil",
     "samsung_ct",
@@ -416,6 +417,13 @@
       "attemptedAt": "2026-09-06 07:07:19",
       "beforeStart": "1996-06-25",
       "afterStart": "1989-11-10",
+      "extended": true
+    },
+    {
+      "pairId": "mirae_asset_pref",
+      "attemptedAt": "2026-09-07 07:11:15",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-04-08",
       "extended": true
     }
   ]
