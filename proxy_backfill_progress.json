@@ -11,6 +11,7 @@
     "daeduck",
     "daeduck_electronics",
     "daekyo",
+    "daishin_sec",
     "daishin_sec_2pref",
     "dl_enc_2pref",
     "dl_enc_pref",
@@ -424,6 +425,13 @@
       "attemptedAt": "2026-09-07 07:11:15",
       "beforeStart": "1996-06-25",
       "afterStart": "1989-04-08",
+      "extended": true
+    },
+    {
+      "pairId": "daishin_sec",
+      "attemptedAt": "2026-09-08 07:51:57",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-01-04",
       "extended": true
     }
   ]
