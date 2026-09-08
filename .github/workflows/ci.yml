@@ -29,8 +29,8 @@ jobs:
 
       - name: Unit tests
         run: |
-          # fin-commons: history_rules/data_writer가 재수출하는 공통 유틸리티
-          pip install pytest "fin-commons @ git+https://github.com/ducklove/fin-commons.git@v0.2.0"
+          # 수집기 회복성 테스트도 운영과 같은 의존성으로 import한다.
+          pip install pytest -r requirements.txt
           python -m pytest -q
 
       - name: Ruff lint
