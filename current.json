@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-09-10 06:55:09",
+  "lastUpdated": "2026-09-10 07:58:11",
   "prices": {
     "samsung_elec": {
       "date": "2026-09-09",
@@ -697,9 +697,9 @@
       {
         "id": "GOLD",
         "name": "금가격 (COMEX)",
-        "price": 4439.0,
-        "change": -37.6,
-        "changePct": -0.84,
+        "price": 4460.7,
+        "change": 21.7,
+        "changePct": 0.49,
         "marketStatus": "내부 지표 API",
         "unit": null,
         "code": null,
@@ -727,7 +727,7 @@
   "averageSpread": 46.82,
   "averageSpreadChange": 0.14,
   "indexSpread": 40.93,
-  "indexSpreadChange": 0.35,
+  "indexSpreadChange": 0.0,
   "summary": {
     "market": {
       "id": "KOSPI",
@@ -774,9 +774,9 @@
         {
           "id": "GOLD",
           "name": "금가격 (COMEX)",
-          "price": 4439.0,
-          "change": -37.6,
-          "changePct": -0.84,
+          "price": 4460.7,
+          "change": 21.7,
+          "changePct": 0.49,
           "marketStatus": "내부 지표 API",
           "unit": null,
           "code": null,
