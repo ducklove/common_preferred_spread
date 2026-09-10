@@ -50,6 +50,7 @@
     "sebang",
     "sk",
     "sk_chemicals",
+    "sk_discovery",
     "sk_innovation",
     "solus",
     "solus_2pref",
@@ -449,6 +450,13 @@
       "beforeStart": "1996-06-25",
       "afterStart": "1996-06-25",
       "extended": false
+    },
+    {
+      "pairId": "sk_discovery",
+      "attemptedAt": "2026-09-11 07:36:08",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-11-24",
+      "extended": true
     }
   ]
 }
