@@ -32,6 +32,7 @@
     "korea_circuit_2pref",
     "korea_investment",
     "kumho_petro",
+    "lg",
     "lg_chem",
     "lg_elec",
     "lg_household",
@@ -462,6 +463,13 @@
     {
       "pairId": "nh_investment",
       "attemptedAt": "2026-09-12 07:36:38",
+      "beforeStart": "1996-06-25",
+      "afterStart": "1989-01-04",
+      "extended": true
+    },
+    {
+      "pairId": "lg",
+      "attemptedAt": "2026-09-13 07:19:01",
       "beforeStart": "1996-06-25",
       "afterStart": "1989-01-04",
       "extended": true
