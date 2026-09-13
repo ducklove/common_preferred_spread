@@ -29,6 +29,7 @@ import attractiveness
 import data_writer
 import dividend_sources
 import history_rules
+from price_revisions import has_price_revision, require_complete_refresh
 
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -94,7 +95,9 @@ GOOGLE_SHEET_DIVIDEND_URL = (
 GOOGLE_SHEET_DIVIDEND_CACHE_PATH = Path(__file__).parent / ".cache" / "google_sheet" / "dividend_data.csv"
 DIVIDEND_AMOUNT_OVERRIDES = {
     ("019680.KS", "019685.KS"): {
-        "preferredDividendPerShare": 60.0,
+        # 2026-09-10 2:1 병합 후 주식 단위. Yahoo 배당 이력도 120원으로 조정됐다.
+        "commonDividendPerShare": 120.0,
+        "preferredDividendPerShare": 120.0,
     },
 }
 
@@ -1492,6 +1495,7 @@ def prefetch_dividend_histories(tickers):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--refresh-pairs", nargs="*", default=[], help="지정 종목의 수정주가 전체 재조회")
     parser.add_argument("--full", action="store_true", help="전체 데이터 다시 다운로드")
     parser.add_argument(
         "--naver-backfill",
@@ -1522,6 +1526,9 @@ def main():
         help="기존 데이터보다 과거 구간이 줄어드는 것을 허용합니다 (의도적 재구축용)",
     )
     args = parser.parse_args()
+    unknown_refresh = set(args.refresh_pairs) - {pair["id"] for pair in PAIRS}
+    if unknown_refresh:
+        raise ValueError(f"알 수 없는 재조회 종목: {sorted(unknown_refresh)}")
 
     explicit_naver_backfill_pair_ids = set(DEFAULT_NAVER_BACKFILL_PAIR_IDS)
     if args.naver_backfill is not None:
@@ -1707,6 +1714,7 @@ def main():
 
     # 각 페어별로 괴리율 계산
     pairs_result = []
+    required_refresh_ids = set(args.refresh_pairs)
     attractiveness_financials = {}
     dividend_histories = {}
 
@@ -1813,6 +1821,27 @@ def main():
             )
             print(f"  INFO: {pair['name']} 내부 종가 백업 {common_msg}, {preferred_msg}")
 
+        old_history = previous_hist_map.get(pair["id"], [])
+        refresh_prices = bool(old_history) and (
+            pair["id"] in args.refresh_pairs
+            or has_price_revision(old_history, {
+                "commonPrice": common_close, "preferredPrice": preferred_close,
+            })
+        )
+        if refresh_prices:
+            required_refresh_ids.add(pair["id"])
+            print(f"  {pair['name']}: 과거 가격 기준 변경 — 전체 히스토리 재조회")
+            since = pd.Timestamp(old_history[0]["date"])
+            fresh_close, fresh_volume = fetch_internal_daily_history([ct, pt], since, end_date)
+            if any(t not in fresh_close or fresh_close[t].dropna().empty for t in (ct, pt)):
+                fresh = yf.download([ct, pt], start=since.strftime("%Y-%m-%d"),
+                                    end=end_date.strftime("%Y-%m-%d"), auto_adjust=False,
+                                    progress=False)
+                fresh_close, fresh_volume = fresh["Close"], fresh["Volume"]
+            common_close, preferred_close = fresh_close[ct].dropna(), fresh_close[pt].dropna()
+            common_vol = fresh_volume[ct].reindex(common_close.index).fillna(0)
+            preferred_vol = fresh_volume[pt].reindex(preferred_close.index).fillna(0)
+
         # 두 시리즈의 공통 날짜만 사용
         common_dates = common_close.index.intersection(preferred_close.index)
         if len(common_dates) == 0:
@@ -1857,6 +1886,9 @@ def main():
                     "spread": round(float(spread.loc[date]), 2),
                 }
             )
+
+        if refresh_prices:
+            require_complete_refresh(new_history, old_history, pair["id"])
 
         # 증분 모드: 기존 히스토리와 날짜 기준 비파괴 병합. 같은 날짜는 새 값이 이기고,
         # 새 데이터에 없는 날짜의 기존 레코드는 보존한다 — 소스가 축소된 히스토리를
@@ -2127,6 +2159,10 @@ def main():
             f"현재 괴리율 {latest_avg['spread']:.2f}% "
             f"({'↑' if avg_change > 0 else '↓'}{abs(avg_change):.2f}%p)"
         )
+
+    missing_refresh = required_refresh_ids - {p["id"] for p in pairs_result}
+    if missing_refresh:
+        raise ValueError(f"가격 기준 변경 종목 재수집 실패: {sorted(missing_refresh)}")
 
     # 전체 평균도 포함하여 괴리율 높은 순 정렬
     if avg_history:
