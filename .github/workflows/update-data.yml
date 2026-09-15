@@ -67,6 +67,9 @@ jobs:
           ${{ inputs.proxy_backfill && format('--proxy-backfill {0}', inputs.proxy_backfill) || '' }}
           --auto-proxy-backfill-batch-size 1
 
+      - name: Build research API
+        run: python research_api.py
+
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
