@@ -811,6 +811,19 @@ export function renderGroupPriceDetails(items) {
 }
 
 // --- Cards ---
+export function renderSpreadPercentiles(items) {
+  const rows = items.map(({ pair }) => {
+    const stats = pair.spreadPercentiles;
+    if (!stats || (!Number.isFinite(stats.pctile1y) && !Number.isFinite(stats.pctile3y))) return '';
+    const pct = value => Number.isFinite(value) ? `${value}%` : '-';
+    const label = items.length > 1 ? `${escapeHtml(getPreferredShortLabel(pair))} · 백분위 1y/3y` : '백분위 1y/3y';
+    return `<div title="${escapeHtml(stats.date)} 종가 기준 · 최근 365일/1,095일 괴리율 중 해당 값 이하의 비율 · 최소 표본 30개">
+      ${renderPriceLine(label, `${pct(stats.pctile1y)} / ${pct(stats.pctile3y)}`)}
+    </div>`;
+  }).join('');
+  return rows ? `<div class="spread-percentiles">${rows}</div>` : '';
+}
+
 export function renderCards() {
   const cardGroups = getCardGroups();
   const el = document.getElementById('cards');
@@ -836,6 +849,7 @@ export function renderCards() {
     return `<div class="card${isActive ? ' active' : ''}" data-idx="${primaryIdx}" role="button" tabindex="0">
       <button type="button" class="card-pin${pinned ? ' pinned' : ''}" data-pin-idx="${primaryIdx}" aria-label="관심종목 ${pinned ? '해제' : '등록'}" aria-pressed="${pinned}">${pinned ? '★' : '☆'}</button>
       ${renderGroupSnapshot(items, { showAttractiveness: true })}
+      ${renderSpreadPercentiles(items)}
     </div>`;
   }).join('');
   el.querySelectorAll('.card').forEach(card => {

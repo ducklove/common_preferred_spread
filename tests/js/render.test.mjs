@@ -117,6 +117,19 @@ function cardNames() {
     .map(el => el.textContent.replace(/\s+/g, ' ').trim());
 }
 
+test('renderCards: 우선주별 일별 백분위와 부분 누락 표시', () => {
+  installDom();
+  resetState();
+  app.pairs[1].spreadPercentiles = { date: '2026-09-21', pctile1y: 0, pctile3y: 80 };
+  app.pairs[2].spreadPercentiles = { date: '2026-09-21', pctile3y: 55 };
+  renderCards();
+  const rows = document.querySelectorAll('.spread-percentiles .price-line');
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].textContent, /백분위 1y\/3y\s+0% \/ 80%/);
+  assert.match(rows[1].textContent, /백분위 1y\/3y\s+- \/ 55%/);
+  assert.match(rows[0].parentElement.title, /2026-09-21 종가 기준/);
+});
+
 function tableFirstCells() {
   return [...document.querySelectorAll('#tableBody tr td:first-child')]
     .map(el => el.textContent.replace(/\s+/g, ' ').trim());

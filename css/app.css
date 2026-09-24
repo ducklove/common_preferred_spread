@@ -660,6 +660,11 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+.spread-percentiles {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 .price-line {
   display: flex;
   align-items: baseline;

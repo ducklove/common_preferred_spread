@@ -12,6 +12,7 @@ import argparse
 import json
 import math
 import re
+from datetime import date, timedelta
 from pathlib import Path
 
 from fin_commons.jsonio import atomic_write_text, dump_compact_json
@@ -68,6 +69,30 @@ def compute_spread_stats(history):
     }
 
 
+def compute_spread_percentiles(history):
+    """holding_value와 같은 일별 기준 백분위: 이하 표본 비율, 최소 30개."""
+    if not history:
+        return None
+    latest = history[-1]
+    current = latest.get("spread")
+    if isinstance(current, bool) or not isinstance(current, (int, float)) or not math.isfinite(current):
+        return None
+    end = date.fromisoformat(latest["date"])
+    result = {"date": latest["date"]}
+    for key, days in (("pctile1y", 365), ("pctile3y", 1095)):
+        cutoff = (end - timedelta(days=days)).isoformat()
+        values = [
+            h["spread"] for h in history
+            if cutoff <= h["date"] <= latest["date"]
+            and isinstance(h.get("spread"), (int, float))
+            and not isinstance(h["spread"], bool)
+            and math.isfinite(h["spread"])
+        ]
+        if len(values) >= 30:
+            result[key] = round(sum(v <= current for v in values) / len(values) * 100)
+    return result if len(result) > 1 else None
+
+
 def build_history_payload(pair, last_updated):
     """pair의 history 레코드를 컬럼 배열(dates/common/preferred/spread[/kospi])로 변환한다."""
     history = pair.get("history", [])
@@ -107,6 +132,9 @@ def write_stock_data_outputs(stock_data, repo_root):
         summary_pair = {k: v for k, v in pair.items() if k != "history"}
         history = pair.get("history", [])
         spread_stats = compute_spread_stats(history)
+        percentiles = compute_spread_percentiles(history)
+        if percentiles is not None:
+            summary_pair["spreadPercentiles"] = percentiles
         if spread_stats is not None:
             summary_pair["spreadStats"] = spread_stats
         summary_pairs.append(summary_pair)

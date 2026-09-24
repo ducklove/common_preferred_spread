@@ -1,6 +1,7 @@
 """data_writer 테스트 (표준 라이브러리 + pytest만 사용, tmp_path 기반 합성 데이터)."""
 
 import json
+from datetime import date, timedelta
 
 import data_writer
 from data_writer import (
@@ -11,6 +12,27 @@ from data_writer import (
 )
 
 PREFIX = "const STOCK_DATA = "
+
+
+def test_spread_percentiles_windows_ties_and_insufficient_samples():
+    end = date(2026, 9, 21)
+    history = [
+        {"date": (end - timedelta(days=400 + i)).isoformat(), "spread": 90}
+        for i in range(30)
+    ] + [
+        {"date": (end - timedelta(days=29 - i)).isoformat(), "spread": 20}
+        for i in range(30)
+    ]
+    history.insert(0, {"date": "2020-01-01", "spread": 0})
+    assert data_writer.compute_spread_percentiles(history) == {
+        "date": "2026-09-21", "pctile1y": 100, "pctile3y": 50,
+    }
+    history.pop()
+    assert data_writer.compute_spread_percentiles(history) == {
+        "date": "2026-09-20", "pctile3y": 49,
+    }
+    assert data_writer.compute_spread_percentiles(history[-29:]) is None
+    assert data_writer.compute_spread_percentiles([]) is None
 
 SAMPLE = {"lastUpdated": "2026-06-10 05:00:00", "pairs": []}
 
