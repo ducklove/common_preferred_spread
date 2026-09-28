@@ -35,10 +35,18 @@ export function renderConvertibleBadge(pair) {
   return '<span class="preferred-badge convertible">전환</span>';
 }
 
+export function portfolioCode(pair, kind) {
+  return pair?.[`${kind}Ticker`] || app.pairConfigMap.get(pair?.id)?.[`${kind}Ticker`] || '';
+}
+
+export function renderCommonInlineLabel(pair, label = '보통주') {
+  return `<span data-portfolio-code="${escapeHtml(portfolioCode(pair, 'common'))}">${escapeHtml(label)}</span>`;
+}
+
 export function renderPreferredInlineLabel(pair, fallbackLabel = null) {
   const rawLabel = fallbackLabel || pair?.preferredName || pair?.name || '우선주';
   const label = stripConvertibleMarker(rawLabel) || rawLabel;
-  return `<span class="preferred-name-with-badges">
+  return `<span class="preferred-name-with-badges" data-portfolio-code="${escapeHtml(portfolioCode(pair, 'preferred'))}">
     <span class="preferred-name-text">${escapeHtml(label)}</span>
     ${renderConvertibleBadge(pair)}
   </span>`;

@@ -1775,3 +1775,17 @@ td.numeric .bar-cell {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keep portfolio badges readable even in narrow two-column mobile cards. */
+.preferred-name-with-badges > .portfolio-held-badge { flex: 0 0 auto; }
+.card .name:has(.portfolio-held-badge),
+.overview-card .name:has(.portfolio-held-badge) {
+  white-space: normal;
+  overflow: visible;
+}
+.price-line:has(.portfolio-held-badge) { flex-wrap: wrap; gap: 4px; }
+.price-line:has(.portfolio-held-badge) .price-label {
+  flex-basis: 100%;
+  overflow: visible;
+  white-space: normal;
+}

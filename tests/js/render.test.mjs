@@ -406,3 +406,21 @@ test('renderStats: 평균 쌍 선택 시 종목 전용 박스(상장일/최근 �
   assert.doesNotMatch(statsEl.textContent, /최근 배당/);
   assert.match(statsEl.textContent, /괴리율/);
 });
+
+test('보유 배지의 코드: 병합 카드와 표에서 보통주·각 우선주를 구분한다', () => {
+  installDom();
+  resetState();
+  app.pairConfigMap = new Map([
+    ['alpha', { commonTicker: '005380.KS', preferredTicker: '005385.KS' }],
+    ['alpha2', { commonTicker: '005380.KS', preferredTicker: '005387.KS' }],
+  ]);
+  renderCards();
+  const card = document.querySelector('.card[data-idx="1"]');
+  assert.equal(card.querySelector('.name [data-portfolio-code]').dataset.portfolioCode, '005380.KS');
+  assert.deepEqual([...card.querySelectorAll('.preferred-name-with-badges')].map(node => node.dataset.portfolioCode), ['005385.KS', '005387.KS']);
+  renderTable();
+  const first = document.querySelector('#tableBody tr');
+  assert.equal(first.querySelector('.preferred-name-with-badges').dataset.portfolioCode, '005385.KS');
+  assert.equal(first.querySelector('td.numeric [data-portfolio-code]').dataset.portfolioCode, '005380.KS');
+  app.pairConfigMap = new Map();
+});

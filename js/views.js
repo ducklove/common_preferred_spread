@@ -75,6 +75,8 @@ import {
   hasPreferredTermSummary,
   getPreferredShortLabel,
   renderPreferredInlineLabel,
+  renderCommonInlineLabel,
+  portfolioCode,
   renderPreferredTermLabel,
   renderPreferredTermSummary,
   renderPreferredYieldLabel,
@@ -759,7 +761,7 @@ export function renderGroupSnapshot(items, { emphasizeChange = false, showAttrac
   const dir = getDirectionClass(c.spreadChange);
   const displayName = items.length > 1 ? p.commonName : p.name;
   const displayNameHtml = items.length > 1
-    ? escapeHtml(displayName)
+    ? renderCommonInlineLabel(p, displayName)
     : renderPreferredInlineLabel(p, displayName);
   const emphasisClass = emphasizeChange ? ' emphasis' : '';
   const chipHtml = showAttractiveness ? renderAttractivenessChip(p) : '';
@@ -791,7 +793,7 @@ export function renderGroupPriceDetails(items) {
 
   if (items.length === 1) {
     return `<div class="prices">
-      ${renderPriceLine(labels.common, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
+      ${renderPriceLine(renderCommonInlineLabel(p, labels.common), `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
       ${renderPriceLine(renderPreferredInlineLabel(p, labels.preferred), `${formatPrice(c.preferredPrice)} ${fmtChange(c.preferredChange)}`)}
       <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
     </div>`;
@@ -804,7 +806,7 @@ export function renderGroupPriceDetails(items) {
   }).join('');
 
   return `<div class="prices">
-    ${renderPriceLine(labels.common, `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
+    ${renderPriceLine(renderCommonInlineLabel(p, labels.common), `${formatPrice(c.commonPrice)} ${fmtChange(c.commonChange)}`)}
     ${prefLines}
     <span class="div-info">배당 ${c.commonDivYield.toFixed(1)}% / ${c.preferredDivYield.toFixed(1)}%</span>
   </div>`;
@@ -1098,7 +1100,7 @@ export function renderTable() {
     const isSelected = row.idx === app.selectedIdx;
     return `<tr${isSelected ? ' class="selected-row"' : ''}>
       <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)}</strong></button></td>
-      <td class="numeric">${formatPrice(c.commonPrice)}</td>
+      <td class="numeric"><span data-portfolio-code="${escapeHtml(portfolioCode(p, 'common'))}" title="${escapeHtml(p.commonName || '보통주')}">${formatPrice(c.commonPrice)}</span></td>
       <td class="numeric">${formatPrice(c.preferredPrice)}</td>
       <td>${formatDateShort(metrics?.preferredListingDateText)}</td>
       <td class="numeric">${formatMarketCap(commonMarketCap)}</td>
@@ -1223,7 +1225,7 @@ export function renderStats() {
       ]),
     },
     {
-      label: commonLabel,
+      label: renderCommonInlineLabel(p, commonLabel),
       value: renderComboRows([
         { label: "현재가격", value: formatStatPrice(p.current.commonPrice) },
         { label: "전일비", value: renderChangeHtml(p.current.commonChange) },
