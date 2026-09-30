@@ -83,6 +83,39 @@ holding_value와 동일하게 최근 365일/1,095일, 최소 유효 표본 30개
 - **정체 종목 경고**: 전체 최신일보다 14일 넘게 뒤처진 종목은 실행을 막지 않고 `WARNING`으로 알립니다(`find_stale_pair_warnings`) — 거래정지/상장폐지 확인용.
 - 두 워크플로우는 각자 별도 concurrency 그룹(`data-commit`/`current-commit`)을 사용해 같은 워크플로우끼리만 직렬화합니다(일별 작업이 장중 작업 대기열에 밀려 취소되는 것 방지). 워크플로우 간 push 경합은 커밋 스텝의 rebase 재시도로 처리합니다.
 
+## Value Compass 생태계 연동
+
+허브 레지스트리(value-invest `config/ecosystem.json`)의 도구 id는 **`common_preferred_spread`**
+(integrationKey `preferredSpread`, handoff·보유 배지 대상)입니다.
+
+- **벤더링 (직접 수정 금지)**: 루트 `vc-shell.js`·`vc-tokens.css`, `index.html`의 `<!-- vc:theme-boot -->`
+  블록, 허브 보유 배지 `?v=` 태그, `vc_publish.py`는 허브가 정본입니다. 허브에서 고친 뒤 이 저장소 루트에서
+  `node ../value-invest/scripts/sync-ecosystem.mjs --write --only common_preferred_spread`로 다시 복사합니다
+  (`--write` 없이 실행하면 검증만).
+- **에코시스템 바·테마**: `<vc-shell tool="common_preferred_spread">`. `js/ecosystem.js`가 선택 종목을
+  `VCShell.setStock`에 알려 "허브에서 분석 ↗" 칩을 띄우고, 보통주가 holding_value 추적 대상이면 차트 헤더에
+  "지주사 지분가치 ↗" 교차 링크를 답니다. 차트는 `vc:themechange`에 다시 그리고, `--up`/`--down`은 `--vc-up`/`--vc-down`.
+- **인바운드 딥링크**
+  - `?code=<우선주 코드 | 보통주 코드>` — 우선주 코드가 정확히 맞는 쌍을 먼저, 없으면 그 보통주의 첫 쌍을 선택.
+    선택을 바꾸면 URL의 `code`(우선주 코드)도 갱신합니다.
+  - `?theme=dark|light` — 첫 페인트 전 적용, 저장하지 않음(없으면 공용 `theme` 키 → OS 설정).
+  - `?embed`(`0`/`false` 제외)·`?headless=1` — `html[data-embed]`로 헤더·푸터·에코시스템 바 숨김.
+    `?vc-shell=0`·iframe에서도 바가 숨습니다.
+  - `#vc-held=코드:수량,…` — 허브 `/go/common_preferred_spread` handoff의 보유 스냅샷(배지 스크립트가 읽고 지움).
+- **발행 요약**: `update-current.yml`이 `fetch_current.py` 다음에 `python publish_summary.py`(네트워크 없음)로
+  루트(= Pages 루트) `summary.json`·`version.json`을 씁니다. 값이 같으면 다시 쓰지 않고, 실패해도 `current.json`
+  커밋은 막지 않습니다. `asOf` = 시세 스냅샷 시각(KST). 허브는
+  `https://ducklove.github.io/common_preferred_spread/summary.json`을 먼저 읽고 실패하면 `current.json`으로 폴백합니다.
+  계약: [data-contract.md](https://github.com/ducklove/value-invest/blob/master/docs/ecosystem/data-contract.md) §6.2.
+- **사용하는 허브 서비스**
+  - 보유 배지: 허브 `/js/portfolio-held-badges.js`가 `data-portfolio-code`/`data-portfolio-price` 라벨에 **보유** 배지.
+  - kis-proxy: 브라우저 실시간 갱신(`js/live.js`)이 HTTPS `:3298`의 `/v1/stocks/…`·`/v1/naverfinance/…`·
+    `/v1/indexes/…`·`/v1/yfinance/…`를 호출합니다. 프록시 백필은 `PROXY_HISTORY_BASE_URL`(저장소 Variables)의
+    같은 형식 `/v1/stocks/{code}/history`를 씁니다. `fetch_current.py`는 KIS Open API를 직접 호출합니다.
+  - finance-pi: 로컬 실행 전용 `INTERNAL_*_API_URL` 보조 가격 소스(summary `sources`에 `finance-pi`로 표기, CI 미사용).
+    반대로 finance-pi가 `data/research/v1/` 연구 API를 읽어 갑니다([docs/research-api.md](docs/research-api.md)).
+  - `/api/internal/notify`·`/api/asset-quotes`는 쓰지 않습니다(실패 알림은 GitHub 이슈 + fin-commons Telegram/Discord).
+
 ## 투자매력도 지표
 
 우선주별 5개 축 × 20점 = 총 100점. `attractiveness.py`가 일별 파이프라인에서 계산하고,
