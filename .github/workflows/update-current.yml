@@ -43,11 +43,20 @@ jobs:
           KIS_AUTH_CACHE_PATH: ${{ runner.temp }}/kis_auth_cache.json
         run: python fetch_current.py
 
+      # Value Compass 생태계 요약본(데이터 계약 v1) — 허브가 current.json 대신 읽는 ~14KB 파일.
+      # 시세·괴리율이 그대로면 파일을 다시 쓰지 않는다(write_if_changed). 발행 실패는 경고만 남기고
+      # 이전 summary.json 을 유지한다(current.json 커밋은 막지 않음). 네트워크 호출 없음.
+      - name: Publish ecosystem summary.json
+        id: summary
+        # 예상 밖 예외(스크립트 버그 등)로도 current.json 커밋이 막히지 않게 한다
+        continue-on-error: true
+        run: python publish_summary.py
+
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add current.json
+          git add current.json summary.json version.json
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0

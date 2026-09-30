@@ -10,6 +10,8 @@ on:
       - 'data.js'
       - 'data/**'
       - 'proxy_backfill_progress.json'
+      - 'summary.json'
+      - 'version.json'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -25,7 +27,11 @@ jobs:
         with: { python-version: "3.13" }
 
       - name: Python syntax
-        run: python -m py_compile fetch_data.py fetch_current.py data_writer.py history_rules.py
+        run: python -m py_compile fetch_data.py fetch_current.py data_writer.py history_rules.py publish_summary.py vc_publish.py
+
+      # 생태계 발행물(summary.json) envelope·contentHash 검증 (vc_publish.py 는 허브 벤더링 사본)
+      - name: Validate ecosystem summary.json
+        run: python vc_publish.py validate summary.json
 
       - name: Unit tests
         run: |
@@ -66,5 +72,7 @@ jobs:
       - name: ESLint
         run: npx --yes eslint@9.39.4 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"
 
+      # 디렉터리 인자(tests/js/)는 일부 Node 빌드에서 index.js 셤만 실행되어 파일이 빠질 수 있다.
+      # 셸 glob으로 모든 *.test.mjs 를 명시 전달한다 (Node 20 러너에서도 동작).
       - name: Frontend unit tests (node --test)
-        run: node --test tests/js/
+        run: node --test tests/js/*.test.mjs

@@ -26,6 +26,12 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 ```
 
 - `index.html` — 대시보드 본체(마크업 + 인라인 테마 부트스트랩). `data/summary.json`을 우선 로드하고 종목별 히스토리는 지연 로드합니다.
+- Value Compass 생태계 공용 자산(허브 value-invest가 정본, **직접 수정 금지** — 허브에서 `node scripts/sync-ecosystem.mjs --write --only common_preferred_spread`로 다시 복사):
+  - `vc-shell.js` / `vc-tokens.css` — 상단 생태계 바 `<vc-shell>`(도구 전환·허브 분석 칩·테마 동기화)와 디자인 토큰. `?embed`·iframe에서는 자동으로 숨습니다.
+  - `index.html`의 `<!-- vc:theme-boot -->` 블록 — 공용 pre-paint 테마 부트(`?theme` 우선·저장 안 함, 공용 `theme` 키, 레거시 `preferred-theme` 이관, OS 다크 모드 추종).
+  - `vc_publish.py` — 생태계 발행물 envelope 헬퍼(`publish_summary.py`가 사용).
+- `js/ecosystem.js` — 선택 종목을 생태계 바(`VCShell.setStock`)에 알리고, 지주사 페어(보통주가 holding_value 추적 대상)면 차트 헤더에 "지주사 지분가치 ↗" 교차 링크를 띄웁니다.
+- `publish_summary.py` — 허브용 요약본 `summary.json`/`version.json` 발행(아래 데이터 포맷). 네트워크를 쓰지 않습니다.
 - `attractiveness.py` — 투자매력도 점수 계산 (아래 "투자매력도 지표" 참조). `fetch_data.py`가 일별로 호출해 `summary.json`에 싣습니다.
 - `css/app.css` — 대시보드 전체 스타일 (embed 모드 CSS 포함).
 - `js/` — 대시보드 로직 ES 모듈. 빌드 도구 없이 GitHub Pages가 그대로 서빙합니다.
@@ -42,6 +48,7 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 | `data/dividends.json` | 보통주/우선주 배당 이력 |
 | `data.js` | 레거시 호환·analysis/용 전체 데이터 (콤팩트 직렬화) |
 | `current.json` | 장중 현재가·시장지표 스냅샷 |
+| `summary.json` / `version.json` (루트) | Value Compass 허브용 요약본(데이터 계약 v1 envelope, ~14KB): 페어별 코드·괴리율·가격 + 평균/지수 괴리율. `data/summary.json`과 다른 파일입니다. 시세가 그대로면 다시 쓰지 않습니다(no-op) |
 
 `data/history/<pairId>.json` 스키마 예시:
 
@@ -66,7 +73,7 @@ holding_value와 동일하게 최근 365일/1,095일, 최소 유효 표본 30개
 | 워크플로우 | 주기 | 하는 일 | 커밋 대상 |
 |---|---|---|---|
 | `update-data.yml` | 매일 KST 05:00 | `fetch_data.py` 실행 — 일별 시세 증분 갱신 + 자동 프록시 백필 1종 | `data.js`, `data/`, `proxy_backfill_progress.json` |
-| `update-current.yml` | 평일 장중 30분 간격 (+16시/21시) | `fetch_current.py` 실행 — 현재가/시장지표 수집 | `current.json` |
+| `update-current.yml` | 평일 장중 30분 간격 (+16시/21시) | `fetch_current.py` 실행 — 현재가/시장지표 수집 → `publish_summary.py` | `current.json`, `summary.json`, `version.json` |
 
 - **의존성 고정 정책**: 2026-05~06 한 달간, 미고정 `pip install yfinance pandas`가 lxml을 더 이상 전이 설치하지 않게 되면서 네이버 백필 경로의 `pd.read_html`이 `ModuleNotFoundError`로 크래시해 일별 워크플로우가 매일 실패했습니다. 이후 모든 의존성은 `requirements*.txt`에 버전 고정하며 lxml을 명시합니다.
 - **데이터 품질 가드**: 기존 데이터 대비 히스토리 시작일이 후퇴하거나 데이터 포인트가 급감하면 `fetch_data.py`가 exit 1로 실행을 실패시켜 커밋을 차단합니다. 의도적인 재구축일 때만 `--allow-history-truncation` 플래그를 사용하세요.
@@ -75,6 +82,39 @@ holding_value와 동일하게 최근 365일/1,095일, 최소 유효 표본 30개
 - **증분 창은 가장 뒤처진 종목 기준**: `incremental_start`는 최후미 종목의 마지막 날짜 -5일부터 수집하되, 영구 정지 종목이 창을 무한정 끌어내리지 않도록 최신 종목 -90일 하한을 둡니다. 예전처럼 가장 앞선 종목 기준으로 잡으면 한 종목이 하루라도 뒤처지는 순간 수집 창이 그 종목의 마지막 날짜보다 뒤로 밀려 영원히 따라잡지 못하는 자기강화 결함이 있었습니다(hodling-value 리뷰 이슈 M5와 동일 수정).
 - **정체 종목 경고**: 전체 최신일보다 14일 넘게 뒤처진 종목은 실행을 막지 않고 `WARNING`으로 알립니다(`find_stale_pair_warnings`) — 거래정지/상장폐지 확인용.
 - 두 워크플로우는 각자 별도 concurrency 그룹(`data-commit`/`current-commit`)을 사용해 같은 워크플로우끼리만 직렬화합니다(일별 작업이 장중 작업 대기열에 밀려 취소되는 것 방지). 워크플로우 간 push 경합은 커밋 스텝의 rebase 재시도로 처리합니다.
+
+## Value Compass 생태계 연동
+
+허브 레지스트리(value-invest `config/ecosystem.json`)의 도구 id는 **`common_preferred_spread`**
+(integrationKey `preferredSpread`, handoff·보유 배지 대상)입니다.
+
+- **벤더링 (직접 수정 금지)**: 루트 `vc-shell.js`·`vc-tokens.css`, `index.html`의 `<!-- vc:theme-boot -->`
+  블록, 허브 보유 배지 `?v=` 태그, `vc_publish.py`는 허브가 정본입니다. 허브에서 고친 뒤 이 저장소 루트에서
+  `node ../value-invest/scripts/sync-ecosystem.mjs --write --only common_preferred_spread`로 다시 복사합니다
+  (`--write` 없이 실행하면 검증만).
+- **에코시스템 바·테마**: `<vc-shell tool="common_preferred_spread">`. `js/ecosystem.js`가 선택 종목을
+  `VCShell.setStock`에 알려 "허브에서 분석 ↗" 칩을 띄우고, 보통주가 holding_value 추적 대상이면 차트 헤더에
+  "지주사 지분가치 ↗" 교차 링크를 답니다. 차트는 `vc:themechange`에 다시 그리고, `--up`/`--down`은 `--vc-up`/`--vc-down`.
+- **인바운드 딥링크**
+  - `?code=<우선주 코드 | 보통주 코드>` — 우선주 코드가 정확히 맞는 쌍을 먼저, 없으면 그 보통주의 첫 쌍을 선택.
+    선택을 바꾸면 URL의 `code`(우선주 코드)도 갱신합니다.
+  - `?theme=dark|light` — 첫 페인트 전 적용, 저장하지 않음(없으면 공용 `theme` 키 → OS 설정).
+  - `?embed`(`0`/`false` 제외)·`?headless=1` — `html[data-embed]`로 헤더·푸터·에코시스템 바 숨김.
+    `?vc-shell=0`·iframe에서도 바가 숨습니다.
+  - `#vc-held=코드:수량,…` — 허브 `/go/common_preferred_spread` handoff의 보유 스냅샷(배지 스크립트가 읽고 지움).
+- **발행 요약**: `update-current.yml`이 `fetch_current.py` 다음에 `python publish_summary.py`(네트워크 없음)로
+  루트(= Pages 루트) `summary.json`·`version.json`을 씁니다. 값이 같으면 다시 쓰지 않고, 실패해도 `current.json`
+  커밋은 막지 않습니다. `asOf` = 시세 스냅샷 시각(KST). 허브는
+  `https://ducklove.github.io/common_preferred_spread/summary.json`을 먼저 읽고 실패하면 `current.json`으로 폴백합니다.
+  계약: [data-contract.md](https://github.com/ducklove/value-invest/blob/master/docs/ecosystem/data-contract.md) §6.2.
+- **사용하는 허브 서비스**
+  - 보유 배지: 허브 `/js/portfolio-held-badges.js`가 `data-portfolio-code`/`data-portfolio-price` 라벨에 **보유** 배지.
+  - kis-proxy: 브라우저 실시간 갱신(`js/live.js`)이 HTTPS `:3298`의 `/v1/stocks/…`·`/v1/naverfinance/…`·
+    `/v1/indexes/…`·`/v1/yfinance/…`를 호출합니다. 프록시 백필은 `PROXY_HISTORY_BASE_URL`(저장소 Variables)의
+    같은 형식 `/v1/stocks/{code}/history`를 씁니다. `fetch_current.py`는 KIS Open API를 직접 호출합니다.
+  - finance-pi: 로컬 실행 전용 `INTERNAL_*_API_URL` 보조 가격 소스(summary `sources`에 `finance-pi`로 표기, CI 미사용).
+    반대로 finance-pi가 `data/research/v1/` 연구 API를 읽어 갑니다([docs/research-api.md](docs/research-api.md)).
+  - `/api/internal/notify`·`/api/asset-quotes`는 쓰지 않습니다(실패 알림은 GitHub 이슈 + fin-commons Telegram/Discord).
 
 ## 투자매력도 지표
 
@@ -120,7 +160,8 @@ python -m http.server 8000                             # http://localhost:8000/ 
 
 ruff check .                                           # Python 린트 (ruff.toml, CI와 동일)
 npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"   # JS 린트 (eslint.config.mjs, CI와 동일)
-node --test tests/js/                                  # JS 단위 테스트 (node 내장 test runner, CI와 동일)
+npm test                                               # JS 단위 테스트 = node --test tests/js/*.test.mjs (CI와 동일, 모든 파일 실행)
+python publish_summary.py                              # 생태계 summary.json/version.json 재생성 (오프라인, 변경 없으면 no-op)
 ```
 
 ## 데이터 복구/백필 절차

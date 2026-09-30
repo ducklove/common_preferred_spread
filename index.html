@@ -10,29 +10,39 @@
 <meta property="og:type" content="website">
 <title>우선주 괴리율 대시보드</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg?v=1">
-<script>
-// iframe embed + theme: ?theme=dark|light overrides stored theme; ?embed hides chrome.
-(function() {
+<!-- 공용 pre-paint 테마 부트(value-invest sync-ecosystem.mjs가 채움 — 직접 수정 금지). ?theme=dark|light는 저장 없이 적용, localStorage 'theme'(레거시 preferred-theme 이관), prefers-color-scheme, ?embed → data-embed -->
+<!-- vc:theme-boot --><script>
+/* vc-theme-boot v1 (value-invest static/ecosystem/vc-theme-boot.js) — pre-paint theme; inlined by sync-ecosystem, do not edit copies. */
+(function () {
+  var d = document.documentElement, p = null, s = null, t, v, i;
+  var legacy = ['bondmate.theme', 'eiayn:theme:v1', 'spac-hunter-theme', 'preferred-theme', 'nps-theme'];
+  try { p = new URLSearchParams(location.search); } catch (e) { p = null; }
   try {
-    var params = new URLSearchParams(location.search);
-    var urlTheme = params.get('theme');
-    var stored = localStorage.getItem('theme') || localStorage.getItem('preferred-theme');
-    var theme = (urlTheme === 'dark' || urlTheme === 'light') ? urlTheme : (stored || 'light');
-    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
-    var embed = params.get('embed');
-    if (embed !== null && embed !== '0' && embed !== 'false') {
-      document.documentElement.dataset.embed = '1';
+    s = localStorage.getItem('theme');
+    if (s === null) {
+      for (i = 0; i < legacy.length && s === null; i++) {
+        v = localStorage.getItem(legacy[i]);
+        if (v && v.charAt(0) === '"') { try { v = JSON.parse(v); } catch (e) { v = null; } }
+        if (v === 'light' || v === 'dark') { s = v; localStorage.setItem('theme', v); }
+      }
     }
-  } catch (e) {
-    document.documentElement.dataset.theme = 'light';
-  }
+  } catch (e) { s = null; }
+  t = p && p.get('theme');
+  if (t !== 'light' && t !== 'dark') t = s === 'light' || s === 'dark' ? s : null;
+  if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  d.setAttribute('data-theme', t);
+  v = p && p.get('embed');
+  if ((v !== null && v !== undefined && v !== '0' && v !== 'false') || (p && p.get('headless') === '1')) d.setAttribute('data-embed', v || '');
 })();
-</script>
+</script><!-- /vc:theme-boot -->
+<link rel="stylesheet" href="./vc-tokens.css?v=1.1.0">
 <link rel="stylesheet" href="css/app.css">
+<script defer src="./vc-shell.js?v=1.1.0"></script>
 <script defer src="./analytics.js" data-project="common_preferred_spread"></script>
-<script defer src="https://ducklove.duckdns.org:3691/js/portfolio-held-badges.js?v=20260928-tooltip"></script>
+<script defer src="https://ducklove.duckdns.org:3691/js/portfolio-held-badges.js?v=20260930-vc"></script>
 </head>
 <body>
+<vc-shell tool="common_preferred_spread"><a class="hub-link" href="https://ducklove.duckdns.org:3691" rel="noopener">Value Compass ↗</a></vc-shell>
 
 <div class="header">
   <div class="header-row">
@@ -41,7 +51,6 @@
       <div class="updated" id="lastUpdated"></div>
     </div>
     <div class="header-actions">
-      <a class="hub-link" href="https://ducklove.duckdns.org:3691" rel="noopener">Value Compass ↗</a>
       <button type="button" class="refresh-btn" id="refreshBtn">새로고침</button>
       <button type="button" class="theme-toggle" id="themeToggle" title="테마 전환" aria-label="테마 전환">🌓</button>
     </div>
@@ -89,6 +98,7 @@
         <button data-days="0" class="active" aria-pressed="true">전체</button>
       </div>
       <button type="button" class="zoom-reset-btn" id="csvExportBtn">CSV</button>
+      <a class="zoom-reset-btn ecosystem-link" id="holdingValueLink" rel="noopener" hidden>지주사 지분가치 ↗</a>
     </div>
     <div class="chart-container">
       <canvas id="chart" role="img" aria-label="선택 종목의 괴리율 추이 차트"></canvas>

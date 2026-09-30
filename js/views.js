@@ -89,6 +89,7 @@ import {
   resetZoomWindow,
 } from './charts.js';
 import { renderAttractivenessSection } from './radar.js';
+import { syncEcosystemSelection } from './ecosystem.js';
 
 export function queueDividendRender() {
   // 배당 데이터 최초 로드가 끝나는 시점에만 1회 재렌더한다 (이미 로드됐으면 일반 렌더 경로에 포함).
@@ -184,7 +185,8 @@ export function applyTheme(theme, { persist = true, rerender = true } = {}) {
     }
   }
 
-  if (rerender) {
+  // 데이터 로드 전(다른 탭 동기화·OS 테마 변경 이벤트 등)에는 그릴 차트가 없다.
+  if (rerender && app.pairs[app.selectedIdx]) {
     renderZoomPanel();
     renderChart();
     renderPriceChart();
@@ -193,14 +195,35 @@ export function applyTheme(theme, { persist = true, rerender = true } = {}) {
 }
 
 export function bindThemeButton() {
+  // 생태계 바(vc-shell.js)의 테마 변경(다른 탭 storage 동기화·허브 postMessage·setTheme)을 따라 캔버스를 다시 그린다.
+  document.addEventListener('vc:themechange', handleEcosystemThemeChange);
   const themeBtn = document.getElementById('themeToggle');
   if (!themeBtn) return;
-  themeBtn.addEventListener('click', toggleTheme);
+  themeBtn.addEventListener('click', () => toggleTheme());
   updateThemeButtonLabel();
 }
 
-export function toggleTheme() {
-  applyTheme(app.currentTheme === 'dark' ? 'light' : 'dark');
+export function handleEcosystemThemeChange(event) {
+  const requested = event?.detail?.theme;
+  const theme = requested === 'light' || requested === 'dark'
+    ? requested
+    : (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+  // 저장은 VCShell.setTheme 이 이미 했다 (공용 localStorage 'theme' 키).
+  applyTheme(theme, { persist: false });
+  // 교차 링크 href 의 ?theme= 도 새 테마로 맞춘다.
+  syncEcosystemSelection();
+}
+
+export function toggleTheme(win = globalThis.window) {
+  const next = app.currentTheme === 'dark' ? 'light' : 'dark';
+  const shell = win && win.VCShell;
+  if (shell && typeof shell.setTheme === 'function') {
+    // 공용 키 저장 + data-theme 적용 + 'vc:themechange' 발행 → handleEcosystemThemeChange 가 재렌더
+    shell.setTheme(next);
+    if (app.currentTheme !== next) applyTheme(next, { persist: false }); // 이벤트 미수신 대비
+    return;
+  }
+  applyTheme(next);
 }
 
 export function getPreferredShareCodeByPairId(pairId) {
@@ -266,6 +289,7 @@ export function selectPair(idx, { updateUrl = true, scrollToChart = false } = {}
   if (updateUrl) {
     updateSelectedPairQueryParam();
   }
+  syncEcosystemSelection();
   renderTodayOverview();
   renderCards();
   renderTable();
