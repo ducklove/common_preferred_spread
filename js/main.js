@@ -34,6 +34,7 @@ import { renderAttractivenessSection } from './radar.js';
 import { bindHeatmapControls, renderHeatmap } from './heatmap.js';
 import { bindStrategyControls, renderStrategySection } from './strategy.js';
 import { bindAutoRefresh, bindRefreshButton, fetchCurrentPrices } from './live.js';
+import { syncEcosystemSelection } from './ecosystem.js';
 
 // --- Init ---
 export async function initializeDashboard() {
@@ -79,6 +80,7 @@ export async function initializeDashboard() {
     updateSelectedPairQueryParam();
     scrollToSelectedSpreadSection();
   }
+  syncEcosystemSelection();
   bindRefreshButton();
   bindAutoRefresh();
   bindStrategyControls();
@@ -89,6 +91,11 @@ export async function initializeDashboard() {
 initializeDashboard().catch(e => {
   console.error(e);
   document.getElementById('lastUpdated').textContent = '데이터 로드 실패: 새로고침 해주세요';
+});
+
+// 생태계 테마 변경(views.handleEcosystemThemeChange가 주요 차트 재렌더) — 전략 차트도 CSS 변수 색을 다시 읽는다.
+document.addEventListener('vc:themechange', () => {
+  renderStrategySection();
 });
 
 // Resize

@@ -26,6 +26,12 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 ```
 
 - `index.html` — 대시보드 본체(마크업 + 인라인 테마 부트스트랩). `data/summary.json`을 우선 로드하고 종목별 히스토리는 지연 로드합니다.
+- Value Compass 생태계 공용 자산(허브 value-invest가 정본, **직접 수정 금지** — 허브에서 `node scripts/sync-ecosystem.mjs --write --only common_preferred_spread`로 다시 복사):
+  - `vc-shell.js` / `vc-tokens.css` — 상단 생태계 바 `<vc-shell>`(도구 전환·허브 분석 칩·테마 동기화)와 디자인 토큰. `?embed`·iframe에서는 자동으로 숨습니다.
+  - `index.html`의 `<!-- vc:theme-boot -->` 블록 — 공용 pre-paint 테마 부트(`?theme` 우선·저장 안 함, 공용 `theme` 키, 레거시 `preferred-theme` 이관, OS 다크 모드 추종).
+  - `vc_publish.py` — 생태계 발행물 envelope 헬퍼(`publish_summary.py`가 사용).
+- `js/ecosystem.js` — 선택 종목을 생태계 바(`VCShell.setStock`)에 알리고, 지주사 페어(보통주가 holding_value 추적 대상)면 차트 헤더에 "지주사 지분가치 ↗" 교차 링크를 띄웁니다.
+- `publish_summary.py` — 허브용 요약본 `summary.json`/`version.json` 발행(아래 데이터 포맷). 네트워크를 쓰지 않습니다.
 - `attractiveness.py` — 투자매력도 점수 계산 (아래 "투자매력도 지표" 참조). `fetch_data.py`가 일별로 호출해 `summary.json`에 싣습니다.
 - `css/app.css` — 대시보드 전체 스타일 (embed 모드 CSS 포함).
 - `js/` — 대시보드 로직 ES 모듈. 빌드 도구 없이 GitHub Pages가 그대로 서빙합니다.
@@ -42,6 +48,7 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 | `data/dividends.json` | 보통주/우선주 배당 이력 |
 | `data.js` | 레거시 호환·analysis/용 전체 데이터 (콤팩트 직렬화) |
 | `current.json` | 장중 현재가·시장지표 스냅샷 |
+| `summary.json` / `version.json` (루트) | Value Compass 허브용 요약본(데이터 계약 v1 envelope, ~14KB): 페어별 코드·괴리율·가격 + 평균/지수 괴리율. `data/summary.json`과 다른 파일입니다. 시세가 그대로면 다시 쓰지 않습니다(no-op) |
 
 `data/history/<pairId>.json` 스키마 예시:
 
@@ -66,7 +73,7 @@ holding_value와 동일하게 최근 365일/1,095일, 최소 유효 표본 30개
 | 워크플로우 | 주기 | 하는 일 | 커밋 대상 |
 |---|---|---|---|
 | `update-data.yml` | 매일 KST 05:00 | `fetch_data.py` 실행 — 일별 시세 증분 갱신 + 자동 프록시 백필 1종 | `data.js`, `data/`, `proxy_backfill_progress.json` |
-| `update-current.yml` | 평일 장중 30분 간격 (+16시/21시) | `fetch_current.py` 실행 — 현재가/시장지표 수집 | `current.json` |
+| `update-current.yml` | 평일 장중 30분 간격 (+16시/21시) | `fetch_current.py` 실행 — 현재가/시장지표 수집 → `publish_summary.py` | `current.json`, `summary.json`, `version.json` |
 
 - **의존성 고정 정책**: 2026-05~06 한 달간, 미고정 `pip install yfinance pandas`가 lxml을 더 이상 전이 설치하지 않게 되면서 네이버 백필 경로의 `pd.read_html`이 `ModuleNotFoundError`로 크래시해 일별 워크플로우가 매일 실패했습니다. 이후 모든 의존성은 `requirements*.txt`에 버전 고정하며 lxml을 명시합니다.
 - **데이터 품질 가드**: 기존 데이터 대비 히스토리 시작일이 후퇴하거나 데이터 포인트가 급감하면 `fetch_data.py`가 exit 1로 실행을 실패시켜 커밋을 차단합니다. 의도적인 재구축일 때만 `--allow-history-truncation` 플래그를 사용하세요.
@@ -120,7 +127,8 @@ python -m http.server 8000                             # http://localhost:8000/ 
 
 ruff check .                                           # Python 린트 (ruff.toml, CI와 동일)
 npx --yes eslint@9 --config eslint.config.mjs "js/**/*.js" "tests/js/**/*.mjs" "tests/js/**/*.js"   # JS 린트 (eslint.config.mjs, CI와 동일)
-node --test tests/js/                                  # JS 단위 테스트 (node 내장 test runner, CI와 동일)
+npm test                                               # JS 단위 테스트 = node --test tests/js/*.test.mjs (CI와 동일, 모든 파일 실행)
+python publish_summary.py                              # 생태계 summary.json/version.json 재생성 (오프라인, 변경 없으면 no-op)
 ```
 
 ## 데이터 복구/백필 절차
