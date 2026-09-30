@@ -193,7 +193,7 @@ function selectPairById(id) {
 test('getPairEcosystemCodes: 우선주 코드를 stock 으로, 평균/설정 없음은 null', () => {
   selectPairById('lg');
   assert.deepEqual(getPairEcosystemCodes(app.pairs[2], CONFIG[1]), {
-    stockCode: '003555', commonCode: '003550', preferredCode: '003555', name: 'LG우',
+    stockCode: '003555', commonCode: '003550', preferredCode: '003555', name: 'LG우', commonName: 'LG',
   });
   assert.equal(getPairEcosystemCodes(app.pairs[0], null), null);
   assert.equal(getPairEcosystemCodes(app.pairs[1], undefined), null);
@@ -235,6 +235,7 @@ test('syncEcosystemSelection: 지주사 페어는 setStock + holding_value 교�
   assert.deepEqual(shell.calls.setStock.at(-1), ['003555', 'LG우']);
   assert.equal(link.hidden, false);
   assert.match(link.getAttribute('href'), /holding_value\/\?code=003550/);
+  assert.equal(link.title, '지주사 지분가치 대시보드에서 LG 보통주(003550) 보기');
 
   selectPairById('samsung_elec');
   assert.equal(await syncEcosystemSelection({ win: { VCShell: shell }, doc: document, fetchImpl: impl }), false);

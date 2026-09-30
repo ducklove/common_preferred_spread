@@ -33,7 +33,8 @@ export function getPairEcosystemCodes(pair, config) {
   const name = preferredCode
     ? (config.preferredName || pair.preferredName || pair.name || '')
     : (config.commonName || pair.commonName || pair.name || '');
-  return { stockCode, commonCode, preferredCode, name: String(name).trim() };
+  const commonName = String(config.commonName || pair.commonName || '').trim();
+  return { stockCode, commonCode, preferredCode, name: String(name).trim(), commonName };
 }
 
 // holding_value 발행물에서 지주사 종목코드 집합을 만든다.
@@ -98,7 +99,8 @@ export function updateHoldingValueLink(link, { codes, selection, shell }) {
   }
   link.href = href;
   link.hidden = false;
-  const name = selection.name ? `${selection.name} ` : '';
+  // 교차 링크 대상은 보통주(지주사)이므로 우선주 이름이 아니라 보통주 이름을 쓴다.
+  const name = selection.commonName ? `${selection.commonName} ` : '';
   link.title = `지주사 지분가치 대시보드에서 ${name}보통주(${commonCode}) 보기`;
   return true;
 }

@@ -48,6 +48,8 @@ jobs:
       # 이전 summary.json 을 유지한다(current.json 커밋은 막지 않음). 네트워크 호출 없음.
       - name: Publish ecosystem summary.json
         id: summary
+        # 예상 밖 예외(스크립트 버그 등)로도 current.json 커밋이 막히지 않게 한다
+        continue-on-error: true
         run: python publish_summary.py
 
       - name: Commit and push if changed
