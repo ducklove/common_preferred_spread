@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-10-03 09:11:01",
+  "lastUpdated": "2026-10-05 14:22:26",
   "prices": {
     "samsung_elec": {
       "date": "2026-10-02",
@@ -726,7 +726,7 @@
   },
   "averageSpread": 47.04,
   "averageSpreadChange": 0.12,
-  "indexSpread": 40.55,
+  "indexSpread": 40.54,
   "indexSpreadChange": -0.19,
   "summary": {
     "market": {
