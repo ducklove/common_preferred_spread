@@ -5,6 +5,7 @@ import {
   getPreferredTerm,
 } from './state.js';
 import { escapeHtml, toFiniteNumber } from './format.js';
+import { hasCommonStockFutures, STOCK_FUTURES_AS_OF } from './stock-futures.js';
 
 export function getPreferredShortLabel(pair) {
   if (!pair?.name) return '우';
@@ -39,8 +40,14 @@ export function portfolioCode(pair, kind) {
   return pair?.[`${kind}Ticker`] || app.pairConfigMap.get(pair?.id)?.[`${kind}Ticker`] || '';
 }
 
-export function renderCommonInlineLabel(pair, label = '보통주') {
-  return `<span data-portfolio-code="${escapeHtml(portfolioCode(pair, 'common'))}" data-portfolio-price="${escapeHtml(pair?.current?.commonPrice ?? '')}">${escapeHtml(label)}</span>`;
+export function renderCommonStockFuturesBadge(pair) {
+  if (pair?.isAverage || !hasCommonStockFutures(portfolioCode(pair, 'common'))) return '';
+  const description = `본주 개별주식선물 상장 · 한국투자증권 종목 마스터 ${STOCK_FUTURES_AS_OF} 확인`;
+  return `<span class="stock-futures-badge" title="${description}" aria-label="${description}">본주 선물</span>`;
+}
+
+export function renderCommonInlineLabel(pair, label = '보통주', { showFuturesBadge = true } = {}) {
+  return `<span class="common-name-with-badges" data-portfolio-code="${escapeHtml(portfolioCode(pair, 'common'))}" data-portfolio-price="${escapeHtml(pair?.current?.commonPrice ?? '')}"><span>${escapeHtml(label)}</span>${showFuturesBadge ? renderCommonStockFuturesBadge(pair) : ''}</span>`;
 }
 
 export function renderPreferredInlineLabel(pair, fallbackLabel = null) {

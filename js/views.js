@@ -76,6 +76,7 @@ import {
   getPreferredShortLabel,
   renderPreferredInlineLabel,
   renderCommonInlineLabel,
+  renderCommonStockFuturesBadge,
   portfolioCode,
   renderPreferredTermLabel,
   renderPreferredTermSummary,
@@ -785,7 +786,7 @@ export function renderGroupSnapshot(items, { emphasizeChange = false, showAttrac
   const dir = getDirectionClass(c.spreadChange);
   const displayName = items.length > 1 ? p.commonName : p.name;
   const displayNameHtml = items.length > 1
-    ? renderCommonInlineLabel(p, displayName)
+    ? renderCommonInlineLabel(p, displayName, { showFuturesBadge: false })
     : renderPreferredInlineLabel(p, displayName);
   const emphasisClass = emphasizeChange ? ' emphasis' : '';
   const chipHtml = showAttractiveness ? renderAttractivenessChip(p) : '';
@@ -1123,7 +1124,7 @@ export function renderTable() {
     const divYieldGap = metrics?.divYieldGap ?? null;
     const isSelected = row.idx === app.selectedIdx;
     return `<tr${isSelected ? ' class="selected-row"' : ''}>
-      <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)}</strong></button></td>
+      <td><button type="button" class="table-name-button" data-table-select-idx="${row.idx}"><strong>${renderPreferredInlineLabel(p, displayName)} ${renderCommonStockFuturesBadge(p)}</strong></button></td>
       <td class="numeric"><span data-portfolio-code="${escapeHtml(portfolioCode(p, 'common'))}" data-portfolio-price="${escapeHtml(c.commonPrice ?? '')}" title="${escapeHtml(p.commonName || '보통주')}">${formatPrice(c.commonPrice)}</span></td>
       <td class="numeric">${formatPrice(c.preferredPrice)}</td>
       <td>${formatDateShort(metrics?.preferredListingDateText)}</td>

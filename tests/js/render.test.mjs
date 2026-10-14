@@ -135,6 +135,36 @@ function tableFirstCells() {
     .map(el => el.textContent.replace(/\s+/g, ' ').trim());
 }
 
+test('본주 선물 배지: 종목코드 기준으로 카드·테이블·상세에 표시하며 복수 우선주에 동일 적용', () => {
+  installDom();
+  resetState();
+  app.pairs[1].commonTicker = '005930.KS';
+  app.pairs[2].commonTicker = '005930.KS';
+  app.pairs[3].commonTicker = '001460.KS'; // BYC: 선물 미상장
+  app.pairs[3].preferredTicker = '005930.KS'; // 우선주 코드로 오판하지 않는다.
+  app.pairs[4].commonTicker = '000810'; // 6자리 코드도 지원
+
+  renderCards();
+  const badges = document.querySelectorAll('#cards .stock-futures-badge');
+  assert.equal(badges.length, 2); // 복수 우선주 그룹에서도 카드당 1개
+  assert.equal(document.querySelector('#cards .average-card .stock-futures-badge'), null);
+  assert.equal(badges[0].closest('[data-portfolio-code]').dataset.portfolioCode, '005930.KS');
+  assert.equal(badges[0].textContent, '본주 선물');
+  assert.match(badges[0].getAttribute('aria-label'), /본주 개별주식선물 상장/);
+  assert.match(badges[0].title, /한국투자증권.*\d{4}-\d{2}-\d{2} 확인/);
+
+  renderTable();
+  const rows = [...document.querySelectorAll('#tableBody tr')];
+  assert.equal(rows.filter(row => row.querySelector('.stock-futures-badge')).length, 3);
+  const unlistedRow = rows.find(row => row.textContent.includes('베타우'));
+  assert.equal(unlistedRow.querySelector('.stock-futures-badge'), null);
+
+  renderStats();
+  const detailBadge = document.querySelector('#statsRow .stock-futures-badge');
+  assert.ok(detailBadge);
+  assert.equal(detailBadge.closest('[data-portfolio-code]').dataset.portfolioCode, '005930.KS');
+});
+
 test('renderCards: 그룹 수만큼 카드 렌더 — 평균 카드 선두 + 그룹은 보통주명으로 병합', () => {
   installDom();
   resetState();

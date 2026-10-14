@@ -1164,6 +1164,7 @@ canvas { display: block; }
   justify-content: flex-end;
   white-space: nowrap;
 }
+.common-name-with-badges,
 .preferred-name-with-badges {
   display: inline-flex;
   align-items: center;
@@ -1178,6 +1179,7 @@ canvas { display: block; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.stock-futures-badge,
 .preferred-badge {
   display: inline-flex;
   align-items: center;
@@ -1191,6 +1193,11 @@ canvas { display: block; }
   line-height: 1.35;
   text-transform: none;
   letter-spacing: 0;
+}
+.stock-futures-badge {
+  border-color: var(--accent);
+  background: var(--button-hover-bg);
+  white-space: nowrap;
 }
 .preferred-badge.dividend {
   border-color: rgba(56,201,106,0.45);
@@ -1790,7 +1797,9 @@ td.numeric .bar-cell {
   overflow: visible;
 }
 /* 공간이 충분하면 한 줄, 좁을 때만 가격이 다음 줄로 내려간다. */
+.price-line:has(.stock-futures-badge),
 .price-line:has(.portfolio-held-badge) { flex-wrap: wrap; column-gap: 12px; row-gap: 4px; }
+.price-line:has(.stock-futures-badge) .price-label,
 .price-line:has(.portfolio-held-badge) .price-label {
   flex: 0 1 auto;
   overflow: visible;
