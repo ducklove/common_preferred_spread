@@ -149,7 +149,7 @@ test('본주 선물 배지: 종목코드 기준으로 카드·테이블·상세�
   assert.equal(badges.length, 2); // 복수 우선주 그룹에서도 카드당 1개
   assert.equal(document.querySelector('#cards .average-card .stock-futures-badge'), null);
   assert.equal(badges[0].closest('[data-portfolio-code]').dataset.portfolioCode, '005930.KS');
-  assert.equal(badges[0].textContent, '선물');
+  assert.equal(badges[0].textContent, 'F');
   assert.match(badges[0].getAttribute('aria-label'), /본주 개별주식선물 상장/);
   assert.match(badges[0].title, /한국투자증권.*\d{4}-\d{2}-\d{2} 확인/);
 
