@@ -27,6 +27,9 @@ def test_spread_percentiles_windows_ties_and_insufficient_samples():
     assert data_writer.compute_spread_percentiles(history) == {
         "date": "2026-09-21", "pctile1y": 100, "pctile3y": 50,
     }
+    distribution = data_writer.compute_spread_percentiles(history, include_distribution=True)
+    assert distribution["pctile1yValues"] == [20] * 30
+    assert distribution["pctile3yValues"] == [20] * 30 + [90] * 30
     history.pop()
     assert data_writer.compute_spread_percentiles(history) == {
         "date": "2026-09-20", "pctile3y": 49,

@@ -843,9 +843,17 @@ export function renderSpreadPercentiles(items) {
     const stats = pair.spreadPercentiles;
     if (!stats || (!Number.isFinite(stats.pctile1y) && !Number.isFinite(stats.pctile3y))) return '';
     const pct = value => Number.isFinite(value) ? `${value}%` : '-';
+    const rank = key => {
+      const values = stats[key + 'Values'];
+      return Array.isArray(values) && values.length >= 30
+        ? calculatePercentileRank(values, pair.current?.spread)
+        : stats[key];
+    };
+    const pct1y = rank('pctile1y');
+    const pct3y = rank('pctile3y');
     const label = items.length > 1 ? `${escapeHtml(getPreferredShortLabel(pair))} · 백분위 1y/3y` : '백분위 1y/3y';
-    return `<div title="${escapeHtml(stats.date)} 종가 기준 · 최근 365일/1,095일 괴리율 중 해당 값 이하의 비율 · 최소 표본 30개">
-      ${renderPriceLine(label, `${pct(stats.pctile1y)} / ${pct(stats.pctile3y)}`)}
+    return `<div title="현재 괴리율 기준 · ${escapeHtml(stats.date)}까지 최근 365일/1,095일 분포 · 해당 값 이하의 비율 · 최소 표본 30개">
+      ${renderPriceLine(label, `${pct(pct1y == null ? null : Math.round(pct1y))} / ${pct(pct3y == null ? null : Math.round(pct3y))}`)}
     </div>`;
   }).join('');
   return rows ? `<div class="spread-percentiles">${rows}</div>` : '';

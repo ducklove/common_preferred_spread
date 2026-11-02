@@ -2,6 +2,7 @@
 // --- Live price updates from current.json ---
 import {
   app,
+  DATA_SUMMARY_URL,
   AUTO_REFRESH_INTERVAL_MS,
   LIVE_ESIGNAL_NIGHT_SOCKET_URL,
   LIVE_FETCH_TIMEOUT_MS,
@@ -909,6 +910,33 @@ export async function refreshLivePricesWithRetry(
   return false;
 }
 
+let percentileSummaryFetchedAt = 0;
+const PERCENTILE_SUMMARY_REFRESH_MS = 30 * 60 * 1000;
+
+export async function refreshPercentileDistributions({ force = false } = {}) {
+  if (!force && Date.now() - percentileSummaryFetchedAt < PERCENTILE_SUMMARY_REFRESH_MS) return false;
+  try {
+    const resp = await fetch(`${DATA_SUMMARY_URL}?t=${Date.now()}`, {
+      cache: 'no-store', signal: AbortSignal.timeout(LIVE_FETCH_TIMEOUT_MS),
+    });
+    if (!resp.ok) return false;
+    const summary = await resp.json();
+    if (!Array.isArray(summary?.pairs) || !summary.pairs.length) return false;
+    const pairs = new Map(summary.pairs.map(pair => [pair.id, pair]));
+    app.pairs.forEach(pair => {
+      const updated = pairs.get(pair.id);
+      if (!updated) return;
+      if (updated.spreadPercentiles) pair.spreadPercentiles = updated.spreadPercentiles;
+      else delete pair.spreadPercentiles;
+    });
+    percentileSummaryFetchedAt = Date.now();
+    renderCards();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchCurrentPrices({ forceLiveRefresh = false } = {}) {
   if (app.currentPricesFetchPromise) {
     return app.currentPricesFetchPromise;
@@ -916,6 +944,7 @@ export async function fetchCurrentPrices({ forceLiveRefresh = false } = {}) {
 
   app.lastCurrentPricesFetchStartedAt = Date.now();
   app.currentPricesFetchPromise = (async () => {
+    await refreshPercentileDistributions({ force: forceLiveRefresh });
     let baseSnapshot = {
       source: 'data.js',
       lastUpdated: app.STOCK_DATA.lastUpdated,

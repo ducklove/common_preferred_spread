@@ -127,7 +127,48 @@ test('renderCards: 우선주별 일별 백분위와 부분 누락 표시', () =>
   assert.equal(rows.length, 2);
   assert.match(rows[0].textContent, /백분위 1y\/3y\s+0% \/ 80%/);
   assert.match(rows[1].textContent, /백분위 1y\/3y\s+- \/ 55%/);
-  assert.match(rows[0].parentElement.title, /2026-09-21 종가 기준/);
+  assert.match(rows[0].parentElement.title, /현재 괴리율 기준.*2026-09-21까지/);
+});
+
+test('renderCards: 시세가 바뀌면 고정된 과거 분포로 백분위를 재계산', () => {
+  installDom();
+  resetState();
+  app.pairs[3].spreadPercentiles = {
+    date: '2026-10-30', pctile1y: 100, pctile3y: 100,
+    pctile1yValues: Array.from({ length: 30 }, (_, i) => i + 1),
+    pctile3yValues: Array.from({ length: 30 }, (_, i) => (i + 1) * 2),
+  };
+  renderCards();
+  assert.match(document.querySelector('.spread-percentiles').textContent, /67% \/ 33%/);
+  app.pairs[3].current.spread = 30;
+  renderCards();
+  assert.match(document.querySelector('.spread-percentiles').textContent, /100% \/ 50%/);
+});
+
+test('백분위 비교 분포: 주기적 재조회와 수동 갱신, 실패 시 기존 값 유지', async () => {
+  installDom();
+  resetState();
+  const { refreshPercentileDistributions } = await import('../../js/live.js');
+  const previousFetch = globalThis.fetch;
+  const stats = { date: '2026-10-30', pctile1y: 40, pctile3y: 60 };
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ pairs: [{ id: 'beta', spreadPercentiles: stats }] }) };
+  };
+  try {
+    assert.equal(await refreshPercentileDistributions({ force: true }), true);
+    assert.equal(app.pairs[3].spreadPercentiles, stats);
+    assert.equal(await refreshPercentileDistributions(), false);
+    assert.equal(calls, 1);
+    assert.equal(await refreshPercentileDistributions({ force: true }), true);
+    assert.equal(calls, 2);
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    assert.equal(await refreshPercentileDistributions({ force: true }), false);
+    assert.equal(app.pairs[3].spreadPercentiles, stats);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 function tableFirstCells() {
