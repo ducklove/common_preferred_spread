@@ -73,6 +73,70 @@ def test_build_summary_data_keeps_config_order_and_nulls_unknowns():
     assert "_average" not in {p["id"] for p in data["pairs"]}
 
 
+def make_dashboard():
+    return {
+        "pairs": [
+            {
+                "id": "samsung_elec",
+                "current": {"spread": 99.0, "commonAvgTradedValue20": 5e11, "preferredAvgTradedValue20": 3e10},
+                "attractiveness": {"total": 61.5},
+                "spreadPercentiles": {
+                    "date": "2026-09-29", "pctile1y": 1, "pctile3y": 2,  # 저장값은 현재 괴리율로 다시 계산해 쓰지 않는다
+                    "pctile1yValues": [float(v) for v in range(1, 41)],
+                    "pctile3yValues": [float(v) for v in range(1, 101)],
+                },
+            },
+            {
+                "id": "lg",
+                "current": {"preferredAvgTradedValue20": float("nan")},
+                "spreadPercentiles": {"date": "2026-09-29", "pctile3y": 77},  # 분포 없음 → 저장값
+            },
+        ],
+    }
+
+
+def test_build_summary_data_adds_dashboard_fields_and_recomputes_percentiles():
+    data = ps.build_summary_data(make_current(), CONFIG, make_dashboard())
+    samsung, lg, new = data["pairs"]
+    assert samsung["spreadPct1y"] == 55   # 22.51 이하: 40개 중 22개
+    assert samsung["spreadPct3y"] == 22   # 100개 중 22개
+    assert samsung["spreadPctEnd"] == "2026-09-29"
+    assert samsung["attractiveness"] == 61.5
+    assert samsung["commonAvgTradedValue20"] == 5e11 and samsung["preferredAvgTradedValue20"] == 3e10
+    assert lg["spreadPct3y"] == 77 and lg["spreadPct1y"] is None
+    assert lg["attractiveness"] is None and lg["preferredAvgTradedValue20"] is None  # NaN → null
+    # data/summary.json 에 없는 페어도 키는 있고 값은 null.
+    assert new["spreadPct3y"] is None and new["spreadPctEnd"] is None and new["attractiveness"] is None
+
+
+def test_build_summary_data_without_dashboard_has_no_new_keys():
+    samsung = ps.build_summary_data(make_current(), CONFIG, None)["pairs"][0]
+    assert "spreadPct3y" not in samsung and "attractiveness" not in samsung
+
+
+def test_percentile_below_minimum_samples_is_null():
+    assert ps._percentile_rank([1.0] * 29, 5.0, None) is None
+    assert ps._percentile_rank([1.0] * 30, 5.0, None) == 100
+    assert ps._percentile_rank([None] * 30, 5.0, 40) is None  # 분포가 있지만 쓸 수 없으면 옛 값을 쓰지 않는다
+    assert ps._percentile_rank(None, 5.0, 40) == 40
+    assert ps._percentile_rank(None, None, None) is None
+
+
+def test_publish_reads_dashboard_next_to_current_and_survives_a_broken_file(tmp_path):
+    cur, cfg = write_inputs(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "summary.json").write_text("{broken", encoding="utf-8")
+    env = run(tmp_path, cur, cfg)["envelope"]
+    assert "spreadPct3y" not in env["data"]["pairs"][0]
+
+    (tmp_path / "data" / "summary.json").write_text(json.dumps(make_dashboard()), encoding="utf-8")
+    result = run(tmp_path, cur, cfg)
+    assert result["summaryChanged"] is True  # 새 필드도 contentHash 에 들어간다
+    vc_publish.validate_envelope(result["envelope"])
+    assert result["envelope"]["data"]["pairs"][0]["spreadPct3y"] == 22
+    assert run(tmp_path, cur, cfg)["summaryChanged"] is False  # 같은 입력이면 no-op
+
+
 def test_build_summary_data_drops_invalid_codes_and_rejects_empty():
     bad = [{"id": "x", "name": "X", "commonTicker": "BRK.B", "preferredTicker": "005935.KS"}]
     with pytest.raises(ps.SummaryError):

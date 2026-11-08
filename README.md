@@ -48,7 +48,7 @@ GitHub Actions가 주기적으로 시세를 수집해 저장소에 커밋하고,
 | `data/dividends.json` | 보통주/우선주 배당 이력 |
 | `data.js` | 레거시 호환·analysis/용 전체 데이터 (콤팩트 직렬화) |
 | `current.json` | 장중 현재가·시장지표 스냅샷 |
-| `summary.json` / `version.json` (루트) | Value Compass 허브용 요약본(데이터 계약 v1 envelope, ~14KB): 페어별 코드·괴리율·가격 + 평균/지수 괴리율. `data/summary.json`과 다른 파일입니다. 시세가 그대로면 다시 쓰지 않습니다(no-op) |
+| `summary.json` / `version.json` (루트) | Value Compass 허브용 요약본(데이터 계약 v1 envelope, ~24KB): 페어별 코드·괴리율·가격 + 평균/지수 괴리율 + `data/summary.json`에서 가져온 백분위(현재 괴리율로 재계산)·매력도·20일 평균 거래대금. `data/summary.json`과 다른 파일입니다. 시세가 그대로면 다시 쓰지 않습니다(no-op) |
 
 `data/history/<pairId>.json` 스키마 예시:
 

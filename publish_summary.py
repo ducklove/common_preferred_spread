@@ -13,6 +13,9 @@ value-invest 허브가 우선주 괴리율 카드(TOP)와 종목 딥링크·포�
 - no-op 규칙: current.json 의 ``lastUpdated`` 는 실행 시각이라 매번 바뀐다. 시세·괴리율이 이전
   summary 와 같으면 이전 ``lastUpdated``(= 이 값들이 처음 관측된 시각)를 이어 써서 contentHash 와
   asOf 가 그대로 유지되고, ``write_if_changed`` 가 파일을 다시 쓰지 않는다(git diff 없음).
+- 백분위·매력도·유동성: current.json 옆의 ``data/summary.json`` 에서 가져온다. 백분위는 저장된 값이 아니라
+  비교 분포와 현재 괴리율로 다시 계산한다(카드 ``renderSpreadPercentiles`` 와 같은 식). 그 파일이 없거나
+  깨졌으면 이 필드들만 빠지고 나머지 발행은 계속된다.
 
 실행: ``python publish_summary.py`` (네트워크 없음 — 로컬 파일만 읽는다)
 """
@@ -32,6 +35,7 @@ import vc_publish
 
 TOOL_ID = "common_preferred_spread"
 ROOT = Path(__file__).resolve().parent
+DASHBOARD_SUMMARY_RELATIVE = Path("data") / "summary.json"
 CURRENT_PATH = ROOT / "current.json"
 CONFIG_PATH = ROOT / "config.json"
 SUMMARY_PATH = ROOT / "summary.json"
@@ -40,6 +44,7 @@ VERSION_PATH = ROOT / "version.json"
 _CODE_RE = re.compile(r"^[0-9A-Z]{6}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _LAST_UPDATED_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$")
+_PERCENTILE_MIN_POINTS = 30  # data_writer.compute_spread_percentiles·카드와 같은 최소 표본
 
 # current.json "source" 의 공급자 라벨 → envelope sources 항목 (시세에 쓰인 공급자만; LAN 주소는 넣지 않는다)
 _SOURCE_CATALOG = (
@@ -80,13 +85,49 @@ def _text(value: Any) -> Optional[str]:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def build_summary_data(current: Mapping[str, Any], config: list) -> dict:
-    """current.json + config.json → summary ``data`` (계약 §6.2)."""
+def _percentile_rank(values: Any, current: Optional[float], stored: Any) -> Optional[int]:
+    """카드(js/views.js renderSpreadPercentiles)와 같은 정수 백분위.
+
+    비교 분포가 표본 30개 이상이면 현재 괴리율로 다시 계산하고, 분포가 없으면 저장된 값을 쓴다.
+    """
+    if isinstance(values, list) and len(values) >= _PERCENTILE_MIN_POINTS and current is not None:
+        valid = [v for v in (_num(x) for x in values) if v is not None]
+        if len(valid) >= _PERCENTILE_MIN_POINTS:
+            return math.floor(sum(1 for v in valid if v <= current) / len(valid) * 100 + 0.5)  # JS Math.round
+        return None
+    number = _num(stored)
+    return math.floor(number + 0.5) if number is not None else None
+
+
+def dashboard_fields(detail: Any, spread: Optional[float]) -> dict:
+    """data/summary.json 의 페어 항목 → summary 선택 필드 (계약 §6.2). 모르는 값은 null."""
+    detail = detail if isinstance(detail, Mapping) else {}
+    stats = detail.get("spreadPercentiles") if isinstance(detail.get("spreadPercentiles"), Mapping) else {}
+    live = detail.get("current") if isinstance(detail.get("current"), Mapping) else {}
+    score = detail.get("attractiveness") if isinstance(detail.get("attractiveness"), Mapping) else {}
+    return {
+        "spreadPct1y": _percentile_rank(stats.get("pctile1yValues"), spread, stats.get("pctile1y")),
+        "spreadPct3y": _percentile_rank(stats.get("pctile3yValues"), spread, stats.get("pctile3y")),
+        "spreadPctEnd": _date(stats.get("date")),
+        "attractiveness": _num(score.get("total")),
+        "commonAvgTradedValue20": _num(live.get("commonAvgTradedValue20")),
+        "preferredAvgTradedValue20": _num(live.get("preferredAvgTradedValue20")),
+    }
+
+
+def build_summary_data(current: Mapping[str, Any], config: list, dashboard: Any = None) -> dict:
+    """current.json + config.json → summary ``data`` (계약 §6.2).
+
+    ``dashboard``(data/summary.json)가 있으면 페어마다 백분위·매력도·유동성 필드를 더한다.
+    """
     if not isinstance(current, Mapping):
         raise SummaryError("current.json must be an object")
     if not isinstance(config, list):
         raise SummaryError("config.json must be a list of pairs")
     prices = current.get("prices") if isinstance(current.get("prices"), Mapping) else {}
+    details = None
+    if isinstance(dashboard, Mapping) and isinstance(dashboard.get("pairs"), list):
+        details = {d.get("id"): d for d in dashboard["pairs"] if isinstance(d, Mapping)}
     pairs = []
     for item in config:
         if not isinstance(item, Mapping) or not _text(item.get("id")):
@@ -98,7 +139,7 @@ def build_summary_data(current: Mapping[str, Any], config: list) -> dict:
             print(f"[publish_summary] {pair_id}: 종목코드 형식 불일치로 제외 ({common_code}/{preferred_code})", file=sys.stderr)
             continue
         quote = prices.get(pair_id) if isinstance(prices.get(pair_id), Mapping) else {}
-        pairs.append({
+        row = {
             "id": pair_id,
             "name": _text(item.get("name")) or _text(item.get("commonName")) or pair_id,
             "preferredName": _text(item.get("preferredName")),
@@ -109,7 +150,10 @@ def build_summary_data(current: Mapping[str, Any], config: list) -> dict:
             "commonPrice": _num(quote.get("commonPrice")),
             "preferredPrice": _num(quote.get("preferredPrice")),
             "date": _date(quote.get("date")),
-        })
+        }
+        if details is not None:
+            row.update(dashboard_fields(details.get(pair_id), row["spread"]))
+        pairs.append(row)
     if not pairs:
         raise SummaryError("no publishable pairs")
     return {
@@ -185,7 +229,10 @@ def publish(
     """summary.json/version.json 을 필요할 때만 쓴다. {'summaryChanged','versionChanged','envelope'} 반환."""
     current = _read_json(Path(current_path))
     config = _read_json(Path(config_path))
-    data = carry_forward_last_updated(build_summary_data(current, config), _read_previous(Path(summary_path)))
+    dashboard = _read_previous(Path(current_path).parent / DASHBOARD_SUMMARY_RELATIVE)
+    data = carry_forward_last_updated(
+        build_summary_data(current, config, dashboard), _read_previous(Path(summary_path)),
+    )
     envelope = vc_publish.build_envelope(
         TOOL_ID, data,
         as_of=derive_as_of(data),
