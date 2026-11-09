@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from price_revisions import has_price_revision, require_complete_refresh
+from price_revisions import has_price_revision, require_complete_refresh, without_dates
 
 
 def test_split_revision_uses_same_date_even_across_trading_halt():
@@ -26,3 +26,27 @@ def test_partial_refresh_cannot_preserve_unadjusted_older_prices():
     with pytest.raises(ValueError, match="재수집 누락"):
         require_complete_refresh(old[1:], old, "daekyo")
     require_complete_refresh(old, old, "daekyo")
+
+
+def _daily_rows(count):
+    return [{"date": f"2026-08-{day:02d}"} for day in range(1, count + 1)]
+
+
+def test_dates_absent_from_the_source_are_returned_and_removed_from_old_history():
+    old = _daily_rows(10)
+    fresh = [row for row in old if row["date"] not in {"2026-08-04", "2026-08-07"}]
+    dropped = require_complete_refresh(fresh, old, "pair")
+    assert dropped == ["2026-08-04", "2026-08-07"]
+    # 병합 전에 지우면 조정 전 가격 행이 재수집 결과에 섞여 남지 않는다.
+    assert without_dates(old, dropped) == fresh
+    assert require_complete_refresh(old, old, "pair") == []
+
+
+def test_truncated_or_heavily_missing_refresh_is_still_blocked():
+    old = _daily_rows(10)
+    with pytest.raises(ValueError, match="재수집 누락"):
+        require_complete_refresh(old[1:], old, "head_cut")
+    with pytest.raises(ValueError, match="재수집 누락"):
+        require_complete_refresh(old[:-1], old, "tail_cut")
+    with pytest.raises(ValueError, match="재수집 누락"):
+        require_complete_refresh([old[0], *old[5:]], old, "many_gaps")

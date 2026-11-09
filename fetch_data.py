@@ -29,7 +29,7 @@ import attractiveness
 import data_writer
 import dividend_sources
 import history_rules
-from price_revisions import has_price_revision, require_complete_refresh
+from price_revisions import has_price_revision, require_complete_refresh, without_dates
 
 KST = timezone(timedelta(hours=9))
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -1888,7 +1888,18 @@ def main():
             )
 
         if refresh_prices:
-            require_complete_refresh(new_history, old_history, pair["id"])
+            dropped_dates = require_complete_refresh(new_history, old_history, pair["id"])
+            if dropped_dates:
+                print(
+                    f"  WARNING: {pair['name']}: 원천에 없는 과거 {len(dropped_dates)}일 제외 "
+                    f"({', '.join(dropped_dates)})"
+                )
+                # 아래 병합은 새 데이터에 없는 기존 행을 보존하므로 조정 전 가격이
+                # 남지 않게 지운다. 품질 가드의 비교 기준도 함께 맞춘다.
+                previous_hist_map[pair["id"]] = without_dates(old_history, dropped_dates)
+                if pair["id"] in existing_pairs_map:
+                    existing_pair = existing_pairs_map[pair["id"]]
+                    existing_pair["history"] = without_dates(existing_pair["history"], dropped_dates)
 
         # 증분 모드: 기존 히스토리와 날짜 기준 비파괴 병합. 같은 날짜는 새 값이 이기고,
         # 새 데이터에 없는 날짜의 기존 레코드는 보존한다 — 소스가 축소된 히스토리를
