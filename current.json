@@ -1,6 +1,6 @@
 {
   "source": "네이버 증권",
-  "lastUpdated": "2026-11-14 09:27:41",
+  "lastUpdated": "2026-11-14 10:18:27",
   "prices": {
     "samsung_elec": {
       "date": "2026-11-13",
@@ -727,7 +727,7 @@
   "averageSpread": 42.93,
   "averageSpreadChange": -0.11,
   "indexSpread": 33.97,
-  "indexSpreadChange": -0.55,
+  "indexSpreadChange": 0.49,
   "summary": {
     "market": {
       "id": "KOSPI",
